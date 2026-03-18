@@ -47,5 +47,27 @@ Flag tracts where `MOE / estimate > 0.30` on any primary feature variable. Store
 ## Python Access
 `cenpy` package wraps the API. Alternatively, use `requests` directly — the API is simple enough that direct calls are fine for batch pulls.
 
+## Actual Tract Counts (2022 5-year ACS)
+From first live pull (2026-03-18):
+- Alabama: **1,437** tracts
+- Florida: **5,160** tracts
+- Georgia: **2,796** tracts
+- **Total: 9,393 tracts** across FL+GA+AL
+
+The "~4,200 tracts" figure cited in early planning was wrong — that's closer to the county count for the full US. The actual tract count is 9,393.
+
 ## Gotchas
-*Populated as failures are encountered in practice. First entry goes here the first time the API surprises us.*
+
+**1. The "any high-MOE" flag rate is misleading at 99%.**
+When you flag tracts where any variable has MOE/estimate > 30%, nearly every tract fires — because small-count variables (WFH commuters, master's degree holders, specific racial groups in homogeneous tracts) routinely have huge MOE/estimate ratios. This is expected, not alarming.
+
+Flag rates from first pull:
+- Reliable anchor variables: `pop_total` 3.2%, `housing_units` 2.4%, `median_age` 4.8%
+- Small-count race variables: `pop_asian` 69.6%, `pop_black` 72.5%, `pop_hispanic` 80.6%
+- Small-count education: `educ_masters` 92.3%, `educ_doctorate` 71.5%
+- Commute: `commute_wfh` 93.8%, `commute_transit` 38.7%
+
+**Implication for Stage 2**: Evaluate MOE flags per-feature, not as a tract-level "any" flag. The features most relevant to community detection (pop_total, housing_units, median_age, median_hh_income) are mostly reliable. Small-count variables at the raw count level will look unreliable but will be more stable when expressed as percentages of a large denominator.
+
+**2. API null sentinel is -666666666.**
+The Census API returns -666666666 (not NaN, not None) for suppressed or unavailable estimates. Must be replaced with NaN before any arithmetic. Handled in `cast_numeric()` in `fetch_acs.py`.

@@ -12,7 +12,7 @@ The natural first choice. Election data is readily available at county level, AC
 **Census Blocks** (~1M in FL+GA+AL)
 The finest grain the Census reports. VEST election data is available at block level via precinct-to-block spatial allocation. But the **American Community Survey (ACS)** — which provides the rich non-political features this model needs (occupation, education, housing, income, commute patterns, household composition) — is **not available at block level in any usable form**. The ACS is a probability sample of ~3.5M households nationally. Most census blocks have zero or one ACS respondents, making estimates meaningless. Only the decennial Census reports at block level, and it captures only basic counts: population, race, housing units, Hispanic origin. That is insufficient for community detection. Blocks are the right unit for spatial joins; they cannot be the analytical unit.
 
-**Census Tracts** (~4,200 in FL+GA+AL)
+**Census Tracts** (~9,400 in FL+GA+AL)
 Deliberately designed by the Census Bureau to approximate socially homogeneous neighborhoods — typically 1,200–8,000 people, drawn to capture coherent residential areas. ACS 5-year estimates are available at tract level with manageable margins of error for most variables. VEST election data, reported at block level, can be aggregated to tracts via FIPS joins. Religious congregation data (ARDA) is available at congregation level with coordinates, enabling spatial joins to tracts. Tract granularity is sufficient to distinguish Black Belt rural communities from college-town communities within the same county — distinctions that county-level analysis would average away.
 
 One additional property of census tracts is directly valuable as a validation mechanism: a geographically "transitional" tract — one that sits physically between two distinct community areas — should naturally receive high mixed-membership across both neighboring community types under soft assignment. If statistical intermediacy correlates with geographic intermediacy, that is evidence the detected communities reflect real social structure rather than model artifacts.
@@ -20,7 +20,7 @@ One additional property of census tracts is directly valuable as a validation me
 ## Decision
 **Census tract is the primary unit of analysis.**
 
-- **~4,200 tracts** in FL+GA+AL (67 FL counties → ~2,000 FL tracts, 159 GA counties → ~1,600 GA tracts, 67 AL counties → ~600 AL tracts)
+- **9,393 tracts** in FL+GA+AL per 2022 ACS 5-year (FL: 5,160 · GA: 2,796 · AL: 1,437)
 - **Features**: ACS 5-year estimates at tract level
 - **Election data**: VEST precinct-to-block joins, aggregated to tract via census block FIPS codes
 - **Congregation data**: ARDA coordinates spatially joined to tracts via geopandas
@@ -82,6 +82,6 @@ One additional property of census tracts is directly valuable as a validation me
 **What becomes more difficult:**
 - Stage 1 data engineering is more complex. ACS tract-level calls require pagination. MOE management requires fetching and storing parallel MOE fields for every estimate. VEST aggregation to tract requires a spatial join or FIPS string manipulation step.
 - ACS margins of error are higher at tract level than county level, especially for low-population rural tracts. Flagging logic must be built into Stage 1 ingestion.
-- The model has ~18x more units (4,200 vs. 226). Stage 2 and Stage 3 compute increases accordingly, though it remains feasible on a single machine.
+- The model has ~42x more units (9,393 vs. 226). Stage 2 and Stage 3 compute increases accordingly, though it remains feasible on a single machine.
 - Existing political science literature benchmarks are typically at county or state level. Validating against those benchmarks requires aggregating tract-level outputs upward, adding a post-processing step.
 - ADR-003 references "226 counties" as the proof-of-concept scope. That language refers to the geographic footprint (FL+GA+AL), not the unit of analysis. ADR-003 remains valid; this ADR supersedes the implied county-level unit.

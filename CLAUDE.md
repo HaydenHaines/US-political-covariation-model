@@ -134,7 +134,7 @@ US-political-covariation-model/
 
 ### Data
 - **Free data only for MVP**: Census, ACS, election returns, FEC, religious congregation data -- all publicly available at no cost.
-- **Census tract resolution**: The unit of analysis is the census tract (~4,200 in FL+GA+AL). See ADR-004. County-level data may be used where tract-level is unavailable, but all community assignments and predictions are at tract level.
+- **Census tract resolution**: The unit of analysis is the census tract (9,393 in FL+GA+AL per 2022 ACS). See ADR-004. County-level data may be used where tract-level is unavailable, but all community assignments and predictions are at tract level.
 - **Soft assignment**: Counties have mixed membership across community types (probability vectors), not hard cluster labels.
 
 ### Code

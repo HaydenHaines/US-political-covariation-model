@@ -21,7 +21,8 @@ dependencies = [
 
     # Machine learning / matrix factorization
     "scikit-learn>=1.4",
-    "lightfm>=1.17",
+    # lightfm removed: fails to build on Python 3.13 (old C extension setup.py)
+    # Re-evaluate at Stage 2; NMF via scikit-learn is the primary approach
 
     # Bayesian modeling
     "cmdstanpy>=1.2",
@@ -39,6 +40,7 @@ dependencies = [
     # Utilities
     "requests>=2.31",
     "tqdm>=4.66",
+    "python-dotenv>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -67,4 +69,4 @@ testpaths = ["tests"]
 
 [build-system]
 requires = ["setuptools>=68.0"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"

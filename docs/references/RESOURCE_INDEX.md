@@ -33,6 +33,7 @@ Add an entry here **at the same time** as creating a reference file. See `GOVERN
 | [methods/nmf-community-detection.md](methods/nmf-community-detection.md) | K selection empirical results, generic baseline interpretation, visualization strategy, NNLS pathology, gotchas | `S2`, `S3` |
 | [methods/hdbscan-future-option.md](methods/hdbscan-future-option.md) | HDBSCAN as NMF alternative — explicit noise labeling for heterogeneous tracts, implementation pattern, tradeoffs | `S2` |
 | [methods/geographic-visualization.md](methods/geographic-visualization.md) | Deck.gl/Kepler.gl for interactive viz; Google Earth Engine for spatial analysis (watersheds/terrain/geology); KML for quick checks; TIGER geometry join; gotchas | `S5`, `S6` |
+| [methods/kepler-gl-loading-guide.md](methods/kepler-gl-loading-guide.md) | Step-by-step: load tract_memberships_k7.geojson into Kepler.gl, set up community intensity layers, tooltips, layer duplication | `S5` |
 
 **Known gaps:**
 - Feature normalization conventions for county-level data (tract-level now resolved)

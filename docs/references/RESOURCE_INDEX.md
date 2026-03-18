@@ -30,12 +30,11 @@ Add an entry here **at the same time** as creating a reference file. See `GOVERN
 
 | File | What it covers | Tags |
 |------|---------------|------|
-| *(none yet)* | | |
+| [methods/nmf-community-detection.md](methods/nmf-community-detection.md) | K selection empirical results, generic baseline interpretation, visualization strategy, NNLS pathology, gotchas | `S2`, `S3` |
+| [methods/hdbscan-future-option.md](methods/hdbscan-future-option.md) | HDBSCAN as NMF alternative — explicit noise labeling for heterogeneous tracts, implementation pattern, tradeoffs | `S2` |
 
 **Known gaps:**
-- NMF vs. LDA tradeoffs for mixed-membership community detection
-- Soft assignment implementation patterns (scikit-learn NMF)
-- Feature normalization conventions for county-level data
+- Feature normalization conventions for county-level data (tract-level now resolved)
 
 ---
 

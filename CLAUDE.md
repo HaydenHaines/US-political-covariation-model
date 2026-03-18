@@ -194,3 +194,4 @@ US-political-covariation-model/
 | 2026-03-10 | Dual output: vote share + turnout | Turnout variation is a major source of prediction error in political models. Modeling it jointly with vote share through shared community structure captures an effect most models miss |
 | 2026-03-10 | Two-stage separation (non-political detection, political validation) | Core falsifiability mechanism. If community types discovered from religion/class/neighborhood do not predict political covariance, the hypothesis fails cleanly |
 | 2026-03-10 | Free public data only for MVP | Census, ACS, election returns, congregation data, public polls. No budget for proprietary data. Sufficient for proof of concept |
+| 2026-03-18 | K=7 NMF community types (canonical) | Separates Asian from Knowledge Worker/WFH — critical for geographic analysis. R²=0.661 (Strong). ~60% generic baseline is a valid finding, not a flaw. |

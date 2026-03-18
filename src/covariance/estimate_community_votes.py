@@ -25,7 +25,7 @@ estimate hierarchically across multiple election cycles. This script
 gives us the 2020 single-election estimate as a validation baseline.
 
 Inputs:
-  data/communities/tract_memberships_k8.parquet
+  data/communities/tract_memberships_k7.parquet
   data/assembled/vest_tracts_2020.parquet
 
 Outputs:
@@ -49,26 +49,25 @@ log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "data" / "covariance"
 
-COMP_COLS = [f"c{k}" for k in range(1, 9)]
+COMP_COLS = [f"c{k}" for k in range(1, 8)]
 
-# Provisional labels from Stage 2 NMF component profiles
+# Provisional labels from Stage 2 NMF K=7 component profiles
 # Updated after empirical vote share results confirm or refute interpretation
 LABELS = {
-    "c1": "White high-income\ncar-dependent",
-    "c2": "Urban Black\n(transit/renter)",
-    "c3": "Knowledge worker\n(WFH/college)",
-    "c4": "Retiree homeowner\n(management-class)",
-    "c5": "Generic suburban\nbaseline",
+    "c1": "White rural homeowner\n(older+WFH)",
+    "c2": "Black urban\n(transit+income)",
+    "c3": "Knowledge worker\n(mgmt+WFH+college)",
+    "c4": "Asian",
+    "c5": "Working-class homeowner\n(owner-occ)",
     "c6": "Hispanic\nlow-income",
-    "c7": "Asian\n(minimal presence)",
-    "c8": "Walkable urban\nprofessional",
+    "c7": "Generic suburban\nbaseline",
 }
 
 
 def load_data() -> pd.DataFrame:
     """Join memberships + election returns on tract_geoid."""
     mem = pd.read_parquet(
-        PROJECT_ROOT / "data" / "communities" / "tract_memberships_k8.parquet"
+        PROJECT_ROOT / "data" / "communities" / "tract_memberships_k7.parquet"
     )
     vest = pd.read_parquet(
         PROJECT_ROOT / "data" / "assembled" / "vest_tracts_2020.parquet"
@@ -144,7 +143,7 @@ def plot_community_vote_shares(theta: np.ndarray, df: pd.DataFrame, path: Path) 
     ax.set_yticks(range(len(labels)))
     ax.set_yticklabels(labels, fontsize=9)
     ax.set_xlabel("Estimated 2020 Democratic presidential vote share", fontsize=11)
-    ax.set_title("Community-type vote shares — K=8 NMF, FL+GA+AL 2020\n"
+    ax.set_title("Community-type vote shares — K=7 NMF, FL+GA+AL 2020\n"
                  "(discovered from non-political demographic data only)", fontsize=12)
     ax.set_xlim(0, 0.75)
     ax.legend(fontsize=9)

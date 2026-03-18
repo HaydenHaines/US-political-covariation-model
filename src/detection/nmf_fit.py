@@ -48,7 +48,7 @@ FEATURE_COLS = [
     "median_age",
 ]
 
-K = 8
+K = 7
 
 
 def load_and_normalize(path: Path) -> tuple[np.ndarray, pd.DataFrame, pd.Index, MinMaxScaler]:

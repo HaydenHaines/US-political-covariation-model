@@ -40,7 +40,7 @@ def _load_gazetteer(text: str) -> pd.DataFrame:
 def _load_fallback(text: str) -> pd.DataFrame:
     """Parse the Census 2020 national_county pipe-separated format.
 
-    Columns: STATE|STATEFP|COUNTYFP|COUNTYNS|COUNTY_NAME
+    Columns: STATE|STATEFP|COUNTYFP|COUNTYNS|COUNTYNAME
     """
     df = pd.read_csv(
         io.StringIO(text),

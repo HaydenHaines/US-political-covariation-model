@@ -114,6 +114,15 @@ def mini_parquets(tmp_path, sample_shifts, sample_assignments):
     comm_dir.mkdir(parents=True)
     sample_assignments.to_parquet(comm_dir / "county_community_assignments.parquet", index=False)
 
+    # FIPS crosswalk
+    raw_dir = tmp_path / "data" / "raw"
+    raw_dir.mkdir(parents=True)
+    crosswalk = pd.DataFrame({
+        "county_fips": ["12001", "12003", "13001"],
+        "county_name": ["Alachua County, FL", "Baker County, FL", "Appling County, GA"],
+    })
+    crosswalk.to_csv(raw_dir / "fips_county_crosswalk.csv", index=False)
+
     # Predictions
     pred_dir = tmp_path / "data" / "predictions"
     pred_dir.mkdir(parents=True)
@@ -163,6 +172,7 @@ def test_build_creates_queryable_db(mini_parquets, monkeypatch):
     monkeypatch.setattr(mod, "PREDICTIONS_2026_HAC", data / "data/predictions/nonexistent_hac.parquet")
     monkeypatch.setattr(mod, "TYPE_ASSIGNMENTS_STUB", data / "data/communities/nonexistent_stub.parquet")
     monkeypatch.setattr(mod, "VERSIONS_DIR", data / "data/models/versions")
+    monkeypatch.setattr(mod, "CROSSWALK_PATH", data / "data/raw/fips_county_crosswalk.csv")
 
     db_path = data / "test_bedrock.duckdb"
     build(db_path=db_path, reset=True)
@@ -184,6 +194,12 @@ def test_build_creates_queryable_db(mini_parquets, monkeypatch):
         "SELECT state_abbr FROM counties WHERE county_fips = '12001'"
     ).fetchone()[0]
     assert state == "FL"
+
+    # Spot-check county_name round-trips through build()
+    name = con.execute(
+        "SELECT county_name FROM counties WHERE county_fips = '12001'"
+    ).fetchone()[0]
+    assert name == "Alachua County, FL"
 
     # version_id stored correctly
     vid = con.execute(

@@ -22,6 +22,8 @@ import yaml
 from scipy.sparse import csr_matrix, load_npz
 from scipy.stats import pearsonr
 from sklearn.cluster import AgglomerativeClustering
+# Private sklearn API: stable in sklearn >=1.2. Public alternative would require
+# re-fitting at each K (10-50x slower). Verified with sklearn 1.8.0.
 from sklearn.cluster._agglomerative import _hc_cut
 from sklearn.preprocessing import StandardScaler
 
@@ -66,6 +68,12 @@ def run_k_sweep(
         log.warning("Filling %d counties with NaN shifts (column means)", n_missing)
         aligned[train_cols + holdout_cols] = aligned[train_cols + holdout_cols].fillna(
             aligned[train_cols + holdout_cols].mean()
+        )
+
+    if training_comparison_idx >= len(train_cols):
+        raise ValueError(
+            f"training_comparison_idx={training_comparison_idx} is out of range "
+            f"for train_cols (len={len(train_cols)})"
         )
 
     train_arr = aligned[train_cols].values        # (N, n_train)
@@ -141,6 +149,8 @@ def update_config_k(k: int, config_path: Path = CONFIG_PATH) -> None:
     """Write the chosen K back to config/model.yaml."""
     with open(config_path) as f:
         cfg = yaml.safe_load(f)
+    if not isinstance(cfg, dict) or "clustering" not in cfg:
+        raise ValueError(f"config/model.yaml is missing 'clustering' section: {config_path}")
     cfg["clustering"]["k"] = k
     with open(config_path, "w") as f:
         yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
@@ -163,6 +173,10 @@ def main() -> None:
         help="Print result but do not update config/model.yaml"
     )
     args = parser.parse_args()
+
+    for path in (SHIFTS_PATH, ADJ_NPZ, ADJ_FIPS):
+        if not path.exists():
+            raise FileNotFoundError(f"Required input not found: {path}")
 
     log.info("Loading shifts from %s", SHIFTS_PATH)
     shifts = pd.read_parquet(SHIFTS_PATH)

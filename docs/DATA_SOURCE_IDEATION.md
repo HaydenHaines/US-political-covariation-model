@@ -1533,3 +1533,476 @@ These are GitHub repos that either contain pre-compiled county-level data we can
 ---
 
 *End of Expansion Round 4. Total ideated sources: 163 (113 prior + 50 new).*
+
+---
+
+## Round 5 — Aggressive Expansion (2026-03-19)
+
+*Per Hayden: "be aggressive and note quite a few. Be creative and ideate about what sources could improve the model. Turnout, demo, marketing, politics, whatever." Specifically mentioned: NYTimes open-source maps, GitHub data repositories.*
+
+---
+
+### Category A: NYTimes & Major Media Open-Source Data
+
+### 164. NYT Needle / Live Election Night Data Feeds
+- **What**: Precinct-level results as reported on election night, with NYT's real-time estimates. Historical feeds from 2016, 2018, 2020, 2022, 2024.
+- **Resolution**: Precinct | **Temporal**: Election nights
+- **URL**: https://github.com/TheUpshot (NYT Upshot GitHub), https://github.com/nytimes/covid-19-data
+- **Why it matters**: Precinct-level data at sub-county resolution. The reporting sequence itself (which precincts report first, how the needle moves) captures precinct-level partisan lean. NYT's final adjusted precinct maps are the gold standard for sub-county election geography.
+- **Signal**: Sub-county political geography at maximum resolution. Essential for tract-level community assignment.
+- **Cost/Effort**: Free. NYT publishes raw data on GitHub after elections.
+
+### 165. NYT COVID-19 County-Level Case/Death Time Series
+- **What**: Daily county-level COVID cases and deaths from Jan 2020 through March 2023, with per-capita rates.
+- **Resolution**: County | **Temporal**: Daily, 2020-2023
+- **URL**: https://github.com/nytimes/covid-19-data
+- **Why it matters**: The pandemic was the defining political event of 2020-2024. County-level case trajectories, death waves, and the divergence between blue-county and red-county death rates post-vaccine are among the strongest political signals in recent history. The temporal dynamics matter: early COVID hit blue metros; late COVID hit red rural areas.
+- **Signal**: Pandemic trajectory as political realignment accelerant. Wave timing + severity captures the lived experience that drove political attitudes.
+- **Cost/Effort**: Free. Already on GitHub. Clean CSV format.
+
+### 166. NYT Census Hard-to-Count Communities (2020)
+- **What**: Census tract-level estimates of self-response rates and "hard to count" scores combining internet access, language barriers, housing instability, and distrust of government.
+- **Resolution**: Tract | **Temporal**: 2020
+- **URL**: https://www.census.gov/library/visualizations/interactive/2020-census-self-response-rates.html (NYT mapped this; underlying data from Census Bureau)
+- **Why it matters**: Census non-response is itself a political signal. Hard-to-count communities tend to be immigrant-heavy, transient, or deeply distrustful of government — all politically relevant characteristics. Self-response rate correlates with civic engagement.
+- **Signal**: Government distrust + civic engagement proxy at tract level.
+- **Cost/Effort**: Free. Census Bureau publishes self-response rates.
+
+### 167. NYT Rent vs. Buy Map / Housing Affordability Calculator Data
+- **What**: Metro/county estimates of rent-vs-buy breakeven, price-to-income ratios, and affordability thresholds.
+- **Resolution**: Metro/county | **Temporal**: Ongoing
+- **URL**: Derived from Census ACS + Zillow/Redfin data; NYT Upshot published the methodology
+- **Why it matters**: Housing affordability is a top-3 political issue for voters under 40. Counties where the median home price exceeds 5x median income have different political dynamics than affordable markets. Renters and owners in the same county have divergent interests.
+- **Signal**: Generational wealth divide as political driver. Captures the "locked out" cohort.
+- **Cost/Effort**: Low — can be derived from ACS B25064 (median rent) + B25077 (median home value) + B19013 (median income).
+
+---
+
+### Category B: GitHub Open Data Repositories
+
+### 168. tonmcg/US_County_Level_Election_Results_08-24
+- **What**: Cleaned, standardized county-level presidential election results 2008-2024 in tidy CSV format.
+- **Resolution**: County | **Temporal**: 2008-2024
+- **URL**: https://github.com/tonmcg/US_County_Level_Election_Results_08-24
+- **Why it matters**: Pre-cleaned and ready to use. Saves cleaning effort vs. raw MEDSL/VEST data for quick prototyping. Includes vote totals and percentages.
+- **Signal**: Convenience source for rapid shift computation. Cross-validate against MEDSL.
+- **Cost/Effort**: Free. Ready to download.
+
+### 169. MEDSL / MIT Election Data + Science Lab
+- **What**: Precinct-level and county-level election returns for all federal and many state races, cleaned and standardized.
+- **Resolution**: Precinct/county | **Temporal**: 2000-2024
+- **URL**: https://github.com/MEDSL (multiple repos: 2020-elections-official, 2022-elections-official, etc.)
+- **Why it matters**: The academic gold standard for US election data. Already using for some races but could expand to cover all downballot races (AG, Secretary of State, state legislature) — which capture different political dimensions than presidential votes.
+- **Signal**: Downballot results capture "drop-off" voters, ticket-splitters, and issue-specific mobilization that presidential results miss.
+- **Cost/Effort**: Free. Multiple repos on GitHub.
+
+### 170. BallotReady / Ballotpedia Candidate Data (GitHub Scrapers)
+- **What**: Candidate profiles, endorsements, policy positions, and biographical data for down-ballot races.
+- **Resolution**: Race-level (district/county) | **Temporal**: 2018-present
+- **URL**: Various GitHub scrapers; Ballotpedia has an API for bulk access
+- **Why it matters**: Candidate quality matters. A county shifting 5 points may be responding to a uniquely strong/weak candidate, not a community-level realignment. Candidate endorsement networks (who endorses whom) reveal political faction structure.
+- **Signal**: Candidate effect estimation. Essential for separating candidate-driven shifts from community-driven shifts.
+- **Cost/Effort**: Low-medium. Ballotpedia has structured data.
+
+### 171. CivilServiceUSA / us-county-data
+- **What**: Comprehensive county-level dataset combining demographic, economic, geographic, and political data from Census, BLS, and other federal sources.
+- **Resolution**: County | **Temporal**: Various
+- **URL**: https://github.com/CivilServiceUSA
+- **Why it matters**: Pre-aggregated county-level data from multiple federal sources. Good for rapid feature engineering without building individual fetch pipelines.
+- **Signal**: Convenience aggregation. Verify accuracy against primary sources before relying on it.
+- **Cost/Effort**: Free.
+
+### 172. fivethirtyeight/data — 538's Open Datasets
+- **What**: Historical polling averages, partisan lean scores, forecast model inputs, elasticity scores, urbanization indexes.
+- **Resolution**: Congressional district / state | **Temporal**: 2008-2024
+- **URL**: https://github.com/fivethirtyeight/data
+- **Why it matters**: 538's elasticity scores measure how responsive a district/state is to the national environment. High-elasticity areas (suburban, educated) swing more; low-elasticity (deep red/blue) don't. Their urbanization index is a well-validated rural-urban gradient.
+- **Signal**: Electoral responsiveness metrics. Elasticity directly measures what this model tries to discover.
+- **Cost/Effort**: Free. Clean CSVs on GitHub.
+
+### 173. DaveLeCompte/county-adjacency
+- **What**: US county adjacency graph (which counties share borders) in machine-readable format.
+- **Resolution**: County-pair | **Temporal**: Static (2020 Census boundaries)
+- **URL**: https://github.com/DaveLeCompte/county-adjacency (based on Census Bureau TIGER)
+- **Why it matters**: Pre-built adjacency graph for spatial clustering. Alternative to computing Queen contiguity from shapefiles. Useful for rapid prototyping of county-level spatial models.
+- **Signal**: Infrastructure/utility.
+- **Cost/Effort**: Free. Ready to use.
+
+### 174. kjhealy/us_county_data (Kieran Healy)
+- **What**: Sociologist Kieran Healy's curated county-level dataset combining ACS, health, mortality, religion, and economic data.
+- **Resolution**: County | **Temporal**: Multiple years
+- **URL**: https://github.com/kjhealy (socviz package data)
+- **Why it matters**: Healy is a leading sociologist of inequality. His data curation emphasizes "deaths of despair" and social capital variables specifically chosen for explaining political outcomes. Peer-reviewed variable selection.
+- **Signal**: Expert-curated feature set. Good for validating our feature selection against sociological literature.
+- **Cost/Effort**: Free.
+
+### 175. TheEconomist/us-potus-model (Economist Election Model)
+- **What**: The Economist's 2020 and 2024 presidential election forecast model code and data, including state fundamentals, polling, and economic indicators.
+- **Resolution**: State | **Temporal**: 2020, 2024
+- **URL**: https://github.com/TheEconomist/us-potus-model
+- **Why it matters**: Open-sourced professional election model. Their "fundamentals" features (economic indicators, incumbency, approval rating) provide a baseline for what explains election outcomes at the national level. Useful for decomposing county shifts into national-environment vs. local-community components.
+- **Signal**: National environment baseline. County shifts net of national trend = the local community signal we're after.
+- **Cost/Effort**: Free.
+
+### 176. washingtonpost/data-police-shootings
+- **What**: County-coded fatal police shooting database with victim demographics, circumstances, and department info.
+- **Resolution**: Point/county | **Temporal**: 2015-present
+- **URL**: https://github.com/washingtonpost/data-police-shootings
+- **Why it matters**: Policing is a top-tier political issue post-2020. Counties with high-profile police shootings may experience mobilization effects. The racial demographics of victims vs. county demographics captures tension.
+- **Signal**: Criminal justice salience + mobilization catalyst.
+- **Cost/Effort**: Free.
+
+---
+
+### Category C: Turnout & Voter Behavior (Per Hayden's Interest)
+
+### 177. TargetSmart / L2 Voter File Summaries (Aggregate Only)
+- **What**: Aggregated voter file statistics by county — registration by party, age, race, gender; modeled partisanship scores; vote history (general/primary/special election participation).
+- **Resolution**: County aggregate | **Temporal**: Updated continuously
+- **URL**: L2 publishes free state-level summaries; TargetSmart has aggregate dashboards
+- **Why it matters**: Voter files are the ground truth of the electorate. Who is registered, who actually votes, and how that changes between elections. Primary participation vs. general-only voters distinguishes engaged partisans from swing voters. Age cohort registration trends predict future shifts.
+- **Signal**: Electorate composition changes over time. Registration shifts between elections are leading indicators of vote shifts.
+- **Cost/Effort**: Free for aggregates; full voter files are paid.
+
+### 178. Early / Absentee / Mail-In Voting Rates by County (State SOS Data)
+- **What**: County-level early voting, absentee, and Election Day turnout splits. FL, GA, AL all publish this.
+- **Resolution**: County | **Temporal**: 2016-present
+- **URL**: FL Division of Elections, GA Secretary of State, AL SOS
+- **Why it matters**: Voting method is now politically sorted. Mail-in voting became heavily Democratic post-2020. Early voting patterns changed during COVID and never reverted. The temporal pattern of early votes arriving tells campaigns (and models) who is voting.
+- **Signal**: Partisan voting method sorting. Method share predicts final outcome within a county before Election Day.
+- **Cost/Effort**: Free.
+
+### 179. Voter Turnout by Demographic Group (CPS Voting Supplement)
+- **What**: Census Current Population Survey November supplement — self-reported voter registration and turnout by age, race, education, income, and state.
+- **Resolution**: State (but MRP-estimable to county) | **Temporal**: Biennial since 1964
+- **URL**: https://www.census.gov/topics/public-sector/voting.html
+- **Why it matters**: The CPS is the official source for demographic turnout gaps. The age gap (young vs. old turnout), race gap, and education gap in turnout are core drivers of election outcomes. These gaps changed dramatically in 2020 (youth turnout spike) and 2024 (reversion).
+- **Signal**: Demographic turnout differentials. Which groups are mobilized vs. demobilized drives outcomes.
+- **Cost/Effort**: Free.
+
+### 180. Provisional Ballot Rejection Rates by County
+- **What**: County-level counts of provisional ballots cast, accepted, and rejected, with rejection reasons.
+- **Resolution**: County | **Temporal**: 2016-present (EAC EAVS Survey)
+- **URL**: https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys
+- **Why it matters**: Ballot rejection rates are a proxy for election administration quality and voter suppression. Counties with high rejection rates (often in minority-heavy areas) have suppressed turnout that doesn't show up in registration data.
+- **Signal**: Administrative barriers to voting. Captures structural turnout suppression.
+- **Cost/Effort**: Free.
+
+---
+
+### Category D: Marketing, Consumer, & Lifestyle Data
+
+### 181. Census County Business Patterns (CBP) — Retail & Service Mix
+- **What**: County-level establishment counts and employment by 6-digit NAICS code. Every business type from gun shops to yoga studios.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: https://www.census.gov/programs-surveys/cbp.html
+- **Why it matters**: The business mix of a county defines its character. Gun shops per capita, yoga studios per capita, Walmart vs. Costco, fast food vs. farm-to-table. This is the quantitative backbone for cultural proxy indicators (Cracker Barrel vs. Whole Foods, etc.) but at full NAICS resolution.
+- **Signal**: Consumer culture fingerprint. 6-digit NAICS gives ~1,000 business categories per county.
+- **Cost/Effort**: Free. Census API.
+
+### 182. USDA ARMS Farm Financial Data — Farm Operator Political Economy
+- **What**: Farm operator household income, off-farm employment, crop insurance participation, government payment dependency, farm size distribution.
+- **Resolution**: Region/state (some county via ERS) | **Temporal**: Annual
+- **URL**: https://www.ers.usda.gov/data-products/arms-farm-financial-and-crop-production-practices/
+- **Why it matters**: Farm operators' relationship with the federal government (subsidies, crop insurance, trade policy) directly shapes rural political attitudes. Counties where 40% of farm income comes from government payments vote differently than self-sufficient farming counties.
+- **Signal**: Agricultural dependency on government. Captures the tension between rural "independence" rhetoric and actual federal dependency.
+- **Cost/Effort**: Free.
+
+### 183. Pickup Truck Registration Share (R.L. Polk / State DMV Aggregates)
+- **What**: Vehicle type distribution by county — pickup trucks, SUVs, EVs, luxury brands, fleet vehicles.
+- **Resolution**: County/ZIP | **Temporal**: Annual
+- **URL**: State DMV aggregates (some states publish); IHS Markit/S&P Global Mobility publishes analysis
+- **Why it matters**: Vehicle choice is one of the strongest cultural identity markers in America. Pickup truck share correlates with rural, working-class, conservative identity. EV adoption correlates with education, income, and environmental attitudes. This has been validated in political science (Hersh & Goldenberg 2016).
+- **Signal**: Cultural identity expressed through consumer choice. Stronger signal than income alone.
+- **Cost/Effort**: Medium — state DMVs vary in accessibility. FL publishes aggregate data.
+
+### 184. Church Attendance Frequency (Gallup / PRRI County Estimates)
+- **What**: Self-reported church attendance frequency (weekly, monthly, rarely, never) by county, estimated from large-N surveys via MRP.
+- **Resolution**: County (MRP-estimated) | **Temporal**: Annual
+- **URL**: PRRI American Values Atlas: https://ava.prri.org/
+- **Why it matters**: Church attendance is a stronger political predictor than denomination. Weekly churchgoers vote 20+ points more Republican than "never attend" across all demographics. RCMS counts congregations but not attendance — this fills the gap.
+- **Signal**: Religiosity intensity (not just affiliation). The most validated single-variable predictor of vote choice after party ID.
+- **Cost/Effort**: Free (PRRI publishes county-level estimates).
+
+### 185. PRRI Census of American Religion — County-Level Religious Identity
+- **What**: County-level estimates of religious identity: white evangelical, white mainline, Black Protestant, Catholic, Hispanic Catholic, Mormon, Muslim, Jewish, Hindu, unaffiliated/none, spiritual but not religious.
+- **Resolution**: County | **Temporal**: Annual since 2013
+- **URL**: https://ava.prri.org/ (American Values Atlas)
+- **Why it matters**: RCMS counts physical congregations, but PRRI uses surveys + MRP to estimate what people actually identify as. The "nones" (religiously unaffiliated) are the fastest-growing group and strongly Democratic — RCMS completely misses them. PRRI also captures Hispanic Catholic vs. white Catholic (which vote very differently).
+- **Signal**: Religious identity at higher resolution than RCMS, including "nones." Captures the secularization trend.
+- **Cost/Effort**: Free.
+
+### 186. Brand Consumption Geography (MRI-Simmons / YouGov Profiles)
+- **What**: County/DMA-level consumption patterns for major brands, media, and product categories.
+- **Resolution**: DMA / county | **Temporal**: Annual
+- **URL**: YouGov Profiles publishes some data freely; academic access through ICPSR
+- **Why it matters**: Consumer segmentation (Claritas PRIZM, Mosaic) has been used in political targeting since the 2004 Bush campaign. What people buy, watch, and eat predicts voting better than demographics alone. "Crunchy vs. smooth peanut butter" is a meme, but the underlying data works.
+- **Signal**: Consumer culture as political identity proxy.
+- **Cost/Effort**: Medium — some free, some academic access.
+
+---
+
+### Category E: Infrastructure, Geography, & Place-Based Signals
+
+### 187. USGS National Land Cover Database (NLCD) — Land Use Type
+- **What**: 30-meter resolution land cover classification: developed (high/medium/low intensity), forest, cropland, wetland, barren.
+- **Resolution**: 30m pixel (aggregatable to tract/county) | **Temporal**: Every 2-3 years since 2001
+- **URL**: https://www.mrlc.gov/data
+- **Why it matters**: The physical landscape defines community type. A county that's 90% cropland is a fundamentally different place than one that's 50% developed. Urban-rural is a gradient, not a binary. The rate of land use change (farmland → development) captures suburbanization pressure.
+- **Signal**: Physical landscape as community definer. Land use change rate = growth/sprawl pressure.
+- **Cost/Effort**: Free. Huge dataset but can sample at county centroids.
+
+### 188. WalkScore / BikeScore / TransitScore by ZIP
+- **What**: Walkability, bikeability, and transit access scores for every ZIP code and address in the US.
+- **Resolution**: ZIP/address | **Temporal**: Current (updated regularly)
+- **URL**: https://www.walkscore.com/professional/research.php (bulk data available for research)
+- **Why it matters**: Walkability strongly correlates with density, which correlates with voting pattern. But walkability captures something density doesn't: the actual lived experience of whether you need a car. Car-dependent vs. walkable lifestyles create different daily experiences, social interactions, and political identities.
+- **Signal**: Lifestyle/mobility as community definer. Walk Score >70 vs. <30 distinguishes urban core from car-dependent suburb/exurb.
+- **Cost/Effort**: Free for research. API available.
+
+### 189. USDA Food Environment Atlas — Full Feature Set
+- **What**: County-level food environment indicators: grocery store access, fast food density, food stamp participation, food insecurity rate, farmers market access, food prices, nutrition assistance.
+- **Resolution**: County | **Temporal**: Various (2010-2020)
+- **URL**: https://www.ers.usda.gov/data-products/food-environment-atlas/
+- **Why it matters**: Goes beyond simple "food desert" classification to capture the full food landscape. Fast food density, grocery store access, and food assistance participation create a composite picture of economic health and consumer options.
+- **Signal**: Economic infrastructure quality. Counties with low grocery access + high food stamp rates + high fast food density = distressed communities.
+- **Cost/Effort**: Free. Single download, pre-assembled.
+
+### 190. National Bridge Inventory — Infrastructure Age & Condition
+- **What**: Every bridge in the US rated for structural condition, functional obsolescence, and sufficiency. 600K+ structures.
+- **Resolution**: Point/county | **Temporal**: Annual
+- **URL**: https://www.fhwa.dot.gov/bridge/nbi.cfm
+- **Why it matters**: Infrastructure condition is a tangible measure of government investment. Counties with crumbling bridges have a visceral sense of government neglect. The percentage of "structurally deficient" bridges per county captures physical decay that residents see daily.
+- **Signal**: Visible government investment/neglect. Infrastructure despair as political driver.
+- **Cost/Effort**: Free. FHWA publishes annually.
+
+### 191. EPA Toxic Release Inventory (TRI) — Industrial Pollution Burden
+- **What**: Facility-level toxic chemical releases to air, water, and land by chemical and amount.
+- **Resolution**: Facility (aggregatable to county) | **Temporal**: Annual since 1987
+- **URL**: https://www.epa.gov/toxics-release-inventory-tri-program
+- **Why it matters**: Pollution burden creates "sacrifice zones" where communities bear industrial costs for distant economic benefits. These communities have distinct political dynamics — sometimes pro-industry (jobs), sometimes anti-industry (health).
+- **Signal**: Environmental justice + economic dependency on polluting industries.
+- **Cost/Effort**: Free.
+
+### 192. FAA Airport Operations — Regional Connectivity
+- **What**: Annual passenger enplanements, cargo volume, and commercial service frequency by airport.
+- **Resolution**: Airport/county | **Temporal**: Annual
+- **URL**: https://www.faa.gov/airports/planning_capacity/passenger_allcargo_stats
+- **Why it matters**: Airport connectivity measures how "plugged in" a community is to the national/global economy. Counties near busy airports are cosmopolitan corridors. Counties with no commercial air service are economically isolated. The loss of air service to small cities is an infrastructure decline marker.
+- **Signal**: Economic connectivity + isolation.
+- **Cost/Effort**: Free.
+
+---
+
+### Category F: Historical & Deep-Time Data
+
+### 193. County-Level Cotton Production (1860-1920) — Historical Agricultural Legacy
+- **What**: Historical crop production data, specifically cotton acreage and production by county, from Census of Agriculture historical tables.
+- **Resolution**: County | **Temporal**: 1860-1920
+- **URL**: NHGIS (IPUMS): https://www.nhgis.org/
+- **Why it matters**: Acharya, Blackwell & Sen (2016) showed that counties with high slave-era cotton production have persistent racial attitudes and voting patterns 150+ years later. The "Cotton Belt" is not just a historical artifact — it defines political geography today. This is one of the strongest deep-time predictors in political science.
+- **Signal**: Historical racial economic structure. Cotton production = slave labor intensity → persistent racial hierarchy → contemporary political attitudes.
+- **Cost/Effort**: Free via NHGIS.
+
+### 194. Second Great Migration Return Migration (1970-2020)
+- **What**: County-level Black population change rates, focusing on reverse migration from Northern/Western cities back to the South since the 1970s.
+- **Resolution**: County | **Temporal**: Decennial census 1970-2020
+- **URL**: NHGIS / Census historical tables
+- **Why it matters**: The return migration of Black Americans to the South is reshaping metro-area politics in Atlanta, Charlotte, Nashville, and other Sun Belt cities. Counties receiving return migrants are diversifying rapidly, which drives political shift.
+- **Signal**: Demographic transformation in real-time. Counties gaining Black population shift differently from those losing it.
+- **Cost/Effort**: Free via NHGIS.
+
+### 195. Freedmen's Bureau Records — Historical Black Community Establishment
+- **What**: Locations of Freedmen's Bureau offices, freedmen's schools, and labor contracts during Reconstruction (1865-1872).
+- **Resolution**: County/town | **Temporal**: 1865-1872
+- **URL**: https://freedmensbureau.com/, National Archives digitized records
+- **Why it matters**: Where Black communities were established during Reconstruction predicted where Black political power persisted (or was destroyed). Counties with strong Reconstruction-era Black institutions often maintained Black voting through Jim Crow via different mechanisms than counties where Reconstruction was violently overthrown.
+- **Signal**: Historical political institution formation. Deep-time predictor of contemporary Black political participation.
+- **Cost/Effort**: Medium — requires geocoding historical records.
+
+### 196. Rust Belt Deindustrialization Index (BLS + Census Manufacturing Employment Decline)
+- **What**: County-level manufacturing employment as share of total employment, tracked from peak (usually 1970-1980) to present.
+- **Resolution**: County | **Temporal**: 1970-present (BLS QCEW + Census CBP)
+- **URL**: Already available via QCEW (#4) and CBP (#181) — this is a derived feature
+- **Why it matters**: The "China Shock" (Autor et al. 2013, 2020) showed that counties most exposed to Chinese import competition shifted toward Trump in 2016. Manufacturing employment decline is the single strongest predictor of the 2012→2016 shift in Midwest counties.
+- **Signal**: Economic shock exposure. Derived feature combining QCEW data over time.
+- **Cost/Effort**: Free — derive from existing sources.
+
+---
+
+### Category G: Digital / Technology / Platform Data
+
+### 197. Google Trends — Issue Salience by DMA
+- **What**: Relative search interest for politically salient terms (inflation, immigration, abortion, guns, climate) by Designated Market Area.
+- **Resolution**: DMA (~210 US markets) | **Temporal**: 2004-present
+- **URL**: https://trends.google.com/trends/ (API or pytrends package)
+- **Why it matters**: Google search reveals what people actually care about, stripped of social desirability bias. If a DMA suddenly spikes "immigration" searches, that issue is salient there — regardless of actual immigration levels. Issue salience predicts which dimension of political conflict drives vote choice locally.
+- **Signal**: Revealed issue salience. What voters care about ≠ what candidates talk about.
+- **Cost/Effort**: Free. pytrends Python package.
+
+### 198. GitHub Repos: geodacenter/spatial_access — Healthcare & Service Access Scores
+- **What**: Spatial accessibility scores for healthcare, groceries, and other services using the Two-Step Floating Catchment Area (2SFCA) method.
+- **Resolution**: Tract | **Temporal**: Various
+- **URL**: https://github.com/GeoDaCenter/spatial_access
+- **Why it matters**: Service access deserts (healthcare, grocery, banking) are more nuanced than simple presence/absence. The 2SFCA method accounts for travel time, provider capacity, and population demand. Better than binary "desert or not."
+- **Signal**: Service access quality at tract resolution.
+- **Cost/Effort**: Free tool — need to run it on our geography.
+
+### 199. Mapbox / OpenStreetMap POI Density — Amenity Fingerprinting
+- **What**: Point-of-interest counts by category (restaurants, parks, schools, worship, healthcare, retail) per county from OpenStreetMap.
+- **Resolution**: Point (aggregatable to any geometry) | **Temporal**: Current
+- **URL**: https://planet.openstreetmap.org/, Overpass API, or https://download.geofabrik.de/
+- **Why it matters**: OSM has millions of POIs with category tags. The amenity mix is a community fingerprint: churches per capita, bars per capita, parks per capita, ethnic restaurants per capita. This is a free, high-resolution alternative to commercial POI data.
+- **Signal**: Community character via amenity mix. A place with many churches and few bars is different from one with many bars and few churches.
+- **Cost/Effort**: Free. Need to process PBF files for FL/GA/AL — moderate data engineering effort.
+
+### 200. Strava Metro / Active Transportation Data
+- **What**: Aggregated cycling and running activity patterns by geography — commute vs. recreation, route usage, activity levels.
+- **Resolution**: Road segment / ZIP | **Temporal**: Ongoing
+- **URL**: https://metro.strava.com/ (free for planning agencies)
+- **Why it matters**: Active transportation adoption is a strong lifestyle indicator. Communities with high cycling commute rates have different political profiles from car-only communities. This is a behavioral signal, not a survey — people vote with their feet (literally).
+- **Signal**: Active lifestyle / environmental values expressed through behavior.
+- **Cost/Effort**: Free for academic/planning use.
+
+---
+
+### Category H: Government Spending & Federal Dependency
+
+### 201. USAspending.gov — Federal Contract & Grant Awards by County
+- **What**: Every federal contract, grant, loan, and direct payment by recipient county. Department of Defense contracts, USDA farm payments, HHS grants, EPA cleanup funds, etc.
+- **Resolution**: County/ZIP | **Temporal**: 2001-present
+- **URL**: https://www.usaspending.gov/download_center/custom_award_data
+- **Why it matters**: Federal spending dependency varies enormously by county. Military base counties depend on DoD; agricultural counties depend on USDA; healthcare counties depend on HHS/CMS. The type of federal dependency shapes political attitudes toward government. Counties that receive net transfers from the federal government but vote "anti-government" is a well-documented paradox.
+- **Signal**: Federal dependency type and magnitude. Captures the "government-dependent anti-government voter" paradox.
+- **Cost/Effort**: Free.
+
+### 202. CMS Medicare/Medicaid Spending per Beneficiary by County
+- **What**: County-level healthcare spending per Medicare beneficiary, dual-eligible (Medicare+Medicaid) rates, managed care penetration.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: https://data.cms.gov/summary-statistics-on-beneficiary-use-of-services
+- **Why it matters**: Healthcare costs and access are top political issues. Counties with high Medicare spending per capita often have older populations, more healthcare providers, and different attitudes toward government healthcare programs. Dual-eligible rates capture the intersection of poverty and age.
+- **Signal**: Government healthcare dependency + age structure.
+- **Cost/Effort**: Free.
+
+### 203. USDA Farm Subsidy Payments by County (EWG Database)
+- **What**: County-level farm subsidy payments by program (commodity, conservation, crop insurance, disaster, loan deficiency).
+- **Resolution**: County | **Temporal**: 1995-present
+- **URL**: https://farm.ewg.org/ (Environmental Working Group compiles from USDA FSA)
+- **Why it matters**: Farm subsidies are a multi-billion dollar federal program concentrated in rural counties. The disconnect between "anti-government" voting and heavy federal subsidy receipt is politically significant. Top subsidy counties often vote 70%+ Republican while receiving the most government dollars per capita.
+- **Signal**: Agricultural federal dependency. Top-decile subsidy counties are a distinct political community.
+- **Cost/Effort**: Free.
+
+### 204. FEMA Individual Assistance Declarations & Payouts by County
+- **What**: County-level FEMA disaster declarations, individual assistance payments, household assistance applications approved/denied.
+- **Resolution**: County | **Temporal**: 2004-present
+- **URL**: https://www.fema.gov/api/open/v2/FemaWebDisasterDeclarations + Individual Assistance datasets
+- **Why it matters**: Natural disaster recovery shapes attitudes toward federal government competence. Counties that received slow/inadequate FEMA response may shift anti-incumbent. Repeated disaster exposure (FL hurricanes, AL tornadoes) creates a recurring relationship with federal government.
+- **Signal**: Government performance experience. Disaster response quality → political trust.
+- **Cost/Effort**: Free. FEMA OpenFEMA API.
+
+---
+
+### Category I: Unconventional / High-Creativity Sources
+
+### 205. 311/911 Call Volume by Category (City/County Open Data Portals)
+- **What**: Non-emergency (311) and emergency (911) call volumes categorized by type — noise complaints, potholes, abandoned vehicles, domestic disturbance, etc.
+- **Resolution**: Address/neighborhood | **Temporal**: Ongoing
+- **URL**: Municipal open data portals (FL cities: Jacksonville, Tampa, Orlando, Miami publish 311 data)
+- **Why it matters**: 311 complaints reveal what bothers people at the hyperlocal level. Neighborhoods complaining about noise vs. potholes vs. homelessness have different political priorities. Call volume itself is a measure of civic engagement (or frustration).
+- **Signal**: Hyperlocal quality-of-life concerns + civic engagement.
+- **Cost/Effort**: Low-medium. City-specific data portals, no single national source.
+
+### 206. Sentencing Commission — Federal Criminal Sentencing by District
+- **What**: Individual-level federal sentencing data with demographics, charge, sentence length, departure from guidelines, judge ID.
+- **Resolution**: Federal district (3-15 per state) | **Temporal**: 2002-present
+- **URL**: https://www.ussc.gov/research/datafiles/commission-datafiles
+- **Why it matters**: Sentencing disparities (racial, geographic) capture criminal justice system variation. Some federal districts sentence identically profiled defendants 2-3x longer than others. This reflects local legal culture and judicial ideology.
+- **Signal**: Criminal justice culture. Harsh-sentencing districts have different political profiles.
+- **Cost/Effort**: Free.
+
+### 207. College Scorecard — Higher Education Landscape
+- **What**: Institution-level data on admissions, enrollment, completion, student debt, earnings after graduation, for every college and university.
+- **Resolution**: Institution/county | **Temporal**: Annual
+- **URL**: https://collegescorecard.ed.gov/data/
+- **Why it matters**: The education divide is the strongest demographic predictor of 2016-2024 shifts. College town counties shift blue; counties where the nearest college is 50 miles away shift red. The type of college matters: flagship state university vs. community college vs. for-profit vs. religious institution.
+- **Signal**: Higher education ecosystem as community definer.
+- **Cost/Effort**: Free.
+
+### 208. Indeed/Glassdoor Job Posting Volume by Metro — Labor Market Tightness
+- **What**: Job posting volume, quits rate proxy, and wage growth indicators by metro area.
+- **Resolution**: Metro | **Temporal**: 2015-present
+- **URL**: Indeed Hiring Lab publishes aggregate data freely: https://www.hiringlab.org/data/
+- **Why it matters**: Labor market tightness affects economic optimism, which drives incumbent party performance. Metros where job postings are plentiful feel different from metros where they're declining.
+- **Signal**: Real-time economic optimism proxy.
+- **Cost/Effort**: Free (Indeed Hiring Lab publishes aggregate data).
+
+### 209. Pew Religious Landscape Study — Belief & Practice Detail
+- **What**: County-estimable religious belief intensity: prayer frequency, Bible literalism, belief in heaven/hell, views on homosexuality/abortion by religious tradition.
+- **Resolution**: State (MRP-estimable to county with CES data) | **Temporal**: 2007, 2014
+- **URL**: https://www.pewresearch.org/religion/dataset/pew-research-center-2014-u-s-religious-landscape-study/
+- **Why it matters**: RCMS counts congregations. PRRI counts identifiers. But Pew captures what people actually believe — and the intensity of that belief. A nominal Catholic who attends Easter-only votes very differently from a daily-Mass Catholic. Biblical literalism is a stronger political predictor than denomination.
+- **Signal**: Religious belief intensity as distinct from affiliation or attendance.
+- **Cost/Effort**: Free for academic research.
+
+### 210. National Fire Incident Reporting System (NFIRS) — Fire Department Activity
+- **What**: Fire department call volume, type (structure fire, wildfire, EMS, hazmat), response time, and staffing by department.
+- **Resolution**: Fire department / county | **Temporal**: Annual
+- **URL**: https://www.usfa.fema.gov/nfirs/
+- **Why it matters**: Fire department type (volunteer vs. career) is one of the strongest rural-urban indicators. Volunteer fire departments are civic institutions in rural America — the social hub. Their decline signals community institutional erosion.
+- **Signal**: Rural institutional health. Volunteer fire department count → community social capital.
+- **Cost/Effort**: Free.
+
+### 211. Tract-Level Social Vulnerability Index (CDC/ATSDR SVI)
+- **What**: 16 census variables combined into a social vulnerability score covering socioeconomic status, household composition/disability, minority status/language, and housing type/transportation.
+- **Resolution**: Tract | **Temporal**: Biennial (2014-2022)
+- **URL**: https://www.atsdr.cdc.gov/place-health/php/svi/index.html
+- **Why it matters**: Pre-computed composite index at tract level. Captures vulnerability along four dimensions. The CDC designed it for disaster planning, but it directly measures the "left behind" communities that drive populist political shifts.
+- **Signal**: Composite vulnerability index at tract resolution. Off-the-shelf feature.
+- **Cost/Effort**: Free. Download-ready shapefiles and CSVs.
+
+### 212. Opportunity Zone Census Tract Designations (Treasury/IRS)
+- **What**: Which census tracts were designated as Opportunity Zones under the 2017 Tax Cuts and Jobs Act.
+- **Resolution**: Tract | **Temporal**: 2018 designation (static)
+- **URL**: https://www.cdfifund.gov/opportunity-zones
+- **Why it matters**: OZ designation captures a combination of poverty and political influence (governors chose which tracts to nominate). The investment flows into OZs (or lack thereof) created winners and losers. Designated tracts that received no investment may feel doubly abandoned.
+- **Signal**: Federal investment targeting + community economic distress.
+- **Cost/Effort**: Free. Simple tract list.
+
+### 213. Consumer Financial Protection Bureau (CFPB) Complaint Database
+- **What**: Consumer complaints against financial institutions by product type (mortgage, student loan, credit card, debt collection), issue, company, and zip code.
+- **Resolution**: ZIP | **Temporal**: 2011-present
+- **URL**: https://www.consumerfinance.gov/data-research/consumer-complaints/
+- **Why it matters**: Financial distress patterns vary geographically. Counties with high mortgage complaint rates may be experiencing foreclosure pressure. Student loan complaint clusters signal education debt burden. Debt collection complaints signal economic stress.
+- **Signal**: Financial distress by type. The type of financial complaint tells you what's going wrong.
+- **Cost/Effort**: Free.
+
+---
+
+### Updated Priority Matrix — Round 5 Additions
+
+| Source | # | Category | Expected Signal | Effort |
+|--------|---|----------|----------------|--------|
+| NYT COVID county time series | 165 | Media/Health | Very High | Very Low |
+| Census self-response rate | 166 | Civic | High | Very Low |
+| County Business Patterns (NAICS) | 181 | Consumer | Very High | Low |
+| PRRI Religious Identity | 185 | Religion | Very High | Low |
+| CDC SVI (Tract-Level) | 211 | Composite | Very High | Very Low |
+| USAspending federal awards | 201 | Government | Very High | Low |
+| Google Trends issue salience | 197 | Digital | High | Low |
+| USDA Food Environment Atlas | 189 | Infrastructure | High | Very Low |
+| CPS Voting Supplement | 179 | Turnout | High | Low |
+| College Scorecard | 207 | Education | High | Very Low |
+| Cotton Belt historical | 193 | Deep Time | Very High | Low |
+| FEMA payouts/declarations | 204 | Government | High | Very Low |
+| CFPB complaints | 213 | Financial | Medium-High | Very Low |
+| OSM amenity density | 199 | Infrastructure | High | Medium |
+| Farm subsidy payments (EWG) | 203 | Government | Very High | Low |
+| 538 data (elasticity/urbanization) | 172 | Political | High | Very Low |
+| Early voting method split | 178 | Turnout | High | Low |
+| Federal sentencing data | 206 | Criminal Justice | Medium | Low |
+| Indeed job postings | 208 | Economic | Medium-High | Very Low |
+| Land cover / NLCD | 187 | Geography | High | Medium |
+
+---
+
+*End of Expansion Round 5. Total ideated sources: 213 (163 prior + 50 new). Per Hayden: aggressive, creative, covering turnout, demographics, marketing, politics, and beyond.*

@@ -2,11 +2,10 @@
 """Download Census TIGER/Line county shapefiles and generate FL+GA+AL GeoJSON.
 
 Output: web/public/counties-fl-ga-al.geojson
-Properties per feature: county_fips, state_abbr, county_name (if crosswalk present)
+Properties per feature: county_fips, county_name (if crosswalk present)
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import geopandas as gpd
@@ -40,6 +39,8 @@ def main() -> None:
         xwalk = pd.read_csv(CROSSWALK_PATH, dtype=str)
         xwalk["county_fips"] = xwalk["county_fips"].str.zfill(5)
         gdf = gdf.merge(xwalk, on="county_fips", how="left")
+        missing = gdf["county_name"].isna().sum()
+        assert missing == 0, f"{missing} counties missing county_name after crosswalk merge"
         keep_cols = ["county_fips", "county_name", "geometry"]
 
     gdf = gdf[keep_cols].set_geometry("geometry")

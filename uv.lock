@@ -3483,6 +3483,11 @@ dev = [
     { name = "streamlit" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "arviz", specifier = ">=0.17" },
@@ -3510,6 +3515,9 @@ requires-dist = [
     { name = "tqdm", specifier = ">=4.66" },
 ]
 provides-extras = ["dev", "graph-tool"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=9.0.2" }]
 
 [[package]]
 name = "watchdog"

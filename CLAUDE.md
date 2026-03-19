@@ -178,7 +178,7 @@ python src/viz/build_blended_map.py                 # Community blend map → da
 # Quality
 ruff check src/                                     # Lint Python
 ruff format src/                                    # Format Python
-pytest                                              # Run Python tests (placeholder)
+pytest                                              # Run Python tests (117 tests)
 ```
 
 ## Known Tech Debt
@@ -209,3 +209,4 @@ pytest                                              # Run Python tests (placehol
 | 2026-03-18 | Tikhonov ridge regression for 2022/2024 community back-calculation | Bayesian approach (bayesian_poll_update with Stan Sigma) fails for county-level back-calc: data precision (~670K per county × 67 counties) dominates prior precision (~500) by 1340:1 — posterior exits [0,1]. Vote-normalized Tikhonov solves `min_{0≤θ≤1} ||W_w·θ - y_w||² + λ||θ - θ₀||²`. Adaptive λ search finds minimum regularization keeping estimates physical. Prior chain: Stan(2016-2020) → 2022 governor → 2024 president. AL excluded from 2022 (MEDSL data quality); falls back to 2020 prior. |
 | 2026-03-18 | Stage 4 poll propagation implemented in Python (not R+Stan MRP) | Lightweight Gaussian Bayesian update in `src/propagation/propagate_polls.py`: mu_post = Sigma_post(Sigma_prior⁻¹ mu_prior + Σ_polls Hᵀσ⁻²y). Uses Stan covariance matrix but does not require running Stan for each forecast. Full MRP (R+Stan) deferred to post-MVP; Python approach sufficient for state-level polls. |
 | 2026-03-18 | 2026 forward prediction pipeline complete (placeholder polls) | `src/assembly/ingest_polls.py` + `data/polls/polls_2026.csv` + `src/prediction/predict_2026.py`. FL Senate: polls 43.9% → model 39.5% (R+21); GA Senate: polls 50.5% → model 43.4% (R+13). Model applies structural downward correction to FL consistent with 2022/2024 validation showing ~5pp poll overestimate of Democrats. County predictions saved to `data/predictions/county_predictions_2026.parquet`. |
+| 2026-03-18 | RCMS 2020 religious data integrated (county level) | `src/assembly/fetch_rcms.py` scrapes ARDA county map tool (parameterized GET, no login required). Produces `data/raw/rcms_county.parquet` (293 counties, 7 data cols). `build_features.py` computes 6 derived features → `data/assembled/county_rcms_features.parquet`. RCMS is county-level only; ACS tract features remain in separate file. 38 new tests in `tests/test_rcms.py`. |

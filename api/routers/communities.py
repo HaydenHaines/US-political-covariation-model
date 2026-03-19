@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import pandas as pd
 import duckdb
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.db import get_db
-from api.models import CommunitySummary, CommunityDetail, CountyInCommunity
+from api.models import CommunityDetail, CommunitySummary, CountyInCommunity
 
 router = APIRouter(tags=["communities"])
 
@@ -44,18 +45,17 @@ def list_communities(request: Request, db: duckdb.DuckDBPyConnection = Depends(g
     results = []
     for _, row in rows.iterrows():
         raw_states = row["states"]
-        if raw_states is None:
-            states = []
-        else:
-            states = sorted(set(raw_states))
+        states = sorted(set(raw_states)) if raw_states is not None else []
+        type_id = None if pd.isna(row["dominant_type_id"]) else int(row["dominant_type_id"])
+        mean_share = None if pd.isna(row["mean_pred_dem_share"]) else float(row["mean_pred_dem_share"])
         results.append(
             CommunitySummary(
                 community_id=int(row["community_id"]),
                 display_name=_make_display_name(int(row["community_id"]), states),
                 n_counties=int(row["n_counties"]),
                 states=states,
-                dominant_type_id=int(row["dominant_type_id"]) if row["dominant_type_id"] is not None else None,
-                mean_pred_dem_share=float(row["mean_pred_dem_share"]) if row["mean_pred_dem_share"] is not None else None,
+                dominant_type_id=type_id,
+                mean_pred_dem_share=mean_share,
             )
         )
     return results
@@ -102,7 +102,7 @@ def get_community(
             county_fips=row["county_fips"],
             county_name=row["county_name"] if row["county_name"] else None,
             state_abbr=row["state_abbr"],
-            pred_dem_share=float(row["pred_dem_share"]) if row["pred_dem_share"] is not None else None,
+            pred_dem_share=None if pd.isna(row["pred_dem_share"]) else float(row["pred_dem_share"]),
         )
         for _, row in county_rows.iterrows()
     ]
@@ -127,7 +127,7 @@ def get_community(
         for col in shift_col_names:
             if col in shift_rows.columns:
                 val = shift_rows[col].mean()
-                shift_profile[col] = float(val) if val is not None else 0.0
+                shift_profile[col] = float(val) if not pd.isna(val) else 0.0
 
     # Dominant type
     type_row = db.execute(

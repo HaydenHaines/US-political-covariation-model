@@ -1038,3 +1038,498 @@ These are GitHub repos that either contain pre-compiled county-level data we can
 ---
 
 *End of Expansion Round 3. Total ideated sources: 113 (101 prior + 12 new from GitHub survey).*
+
+---
+
+## Expansion Round 4 — Creative & Unconventional Sources
+
+*Added 2026-03-19. Per Hayden's directive: be aggressive, creative, think turnout, demo, marketing, politics, whatever. Exploring underrepresented signal categories: partisan media, extremism, consumer culture, financial predation, family structure, civic institutions, tourism economy, student debt, and more.*
+
+---
+
+### Partisan Media & Information Environment
+
+### 114. Fox News / MSNBC Cable Ratings by DMA (Nielsen)
+- **What**: Cable news viewership ratings (Fox News, MSNBC, CNN) by Designated Market Area (~210 DMAs). Primetime viewership shares and total day viewing.
+- **Resolution**: DMA (mappable to county clusters) | **Temporal**: Monthly/quarterly, 2000-present
+- **URL**: Nielsen ratings published via trade press (Adweek, TVNewser); academic access via Nielsen Media Research; some DMA-level data via cable operator FCC filings
+- **Why it matters**: Cable news viewership is the strongest revealed-preference measure of partisan information diet. The ratio of Fox:MSNBC viewership in a DMA directly predicts partisan lean. More importantly, CHANGE in this ratio over time captures information environment shifts that precede vote shifts. The "Fox News effect" (DellaVigna & Kaplan 2007) showed measurable Republican vote share increase in markets where Fox launched.
+- **Signal**: Information diet as community political identity. Fox-dominant DMAs may show uniform national-wave shifts; mixed DMAs may show more heterogeneous responses.
+- **Cost/Effort**: Mixed — trade press publishes partial DMA ratings free; full data requires Nielsen subscription or academic access.
+
+### 115. Talk Radio Station Density & Format (iHeartMedia / Cumulus)
+- **What**: AM/FM talk radio station formats by county — conservative talk, progressive talk, sports talk, religious, Spanish-language — with signal coverage maps. Extends source #37 (radio formats) with specific partisan talk radio focus.
+- **Resolution**: Station signal coverage area | **Temporal**: FCC license database (current), historical via archived databases
+- **URL**: FCC CDBS license database: https://www.fcc.gov/media/radio/cdbs-data-files | Radio-Locator.com (format tracking)
+- **Why it matters**: Conservative talk radio (Limbaugh legacy, Hannity, Shapiro, local hosts) has far greater geographic reach than cable news in rural areas. Many rural FL/GA/AL counties have 3+ conservative AM talk stations and zero progressive stations. This creates an asymmetric information environment that cable ratings alone don't capture. The decline of local AM radio leaves national syndicated talk as the primary political voice.
+- **Signal**: Asymmetric partisan information exposure in rural areas. Counties with only conservative talk radio have a fundamentally different political media diet than metro areas with diverse options.
+- **Cost/Effort**: Free (FCC database). Requires format classification and signal coverage mapping.
+
+### 116. Podcast Download Geography (Chartable / Spotify for Podcasters)
+- **What**: Geographic distribution of political podcast listenership — top political podcasts by DMA or zip code, from Spotify for Podcasters (formerly Anchor) analytics and Chartable rankings.
+- **Resolution**: DMA/ZIP | **Temporal**: 2018-present
+- **URL**: Chartable (https://chartable.com/) publishes geographic popularity rankings; Edison Research "Infinite Dial" survey includes podcast geography; Spotify for Podcasters (limited public data)
+- **Why it matters**: Podcast consumption has partly replaced talk radio for younger audiences. Political podcast geography differs from cable news — Joe Rogan, Ben Shapiro, Pod Save America have distinct geographic listener profiles that don't perfectly align with cable news DMA patterns. This captures under-45 political media consumption.
+- **Signal**: Next-generation partisan information environment. Podcast geography may predict political shifts in younger cohorts before they appear in election results.
+- **Cost/Effort**: Limited free data; Edison Research publishes annual surveys; Chartable rankings are public.
+
+### 117. Local Facebook Group Political Activity (CrowdTangle Archive)
+- **What**: Archived CrowdTangle data (Meta's now-shuttered research tool) on local political Facebook group membership, posting frequency, and engagement patterns by geographic area.
+- **Resolution**: County (estimated from group location) | **Temporal**: 2017-2023 (CrowdTangle sunset)
+- **URL**: Social Science One archived datasets; Meta Content Library (successor to CrowdTangle, academic access)
+- **Why it matters**: Local political Facebook groups ("Patriots of [County]", "[City] Moms for Liberty", etc.) are a direct measure of grassroots political organizing. Groups that gained explosive membership 2020-2022 may predict which counties are experiencing political mobilization surges.
+- **Signal**: Grassroots political organizing intensity. Counties with high-engagement local political groups may show more extreme shifts than counties where political activity stays passive.
+- **Cost/Effort**: Moderate — archived CrowdTangle data available via academic partnerships. Meta Content Library requires institutional application.
+
+---
+
+### Extremism & Hate Groups
+
+### 118. SPLC Hate Group Map — Hate Group Density by County
+- **What**: Southern Poverty Law Center's annual tracking of active hate groups (KKK, neo-Nazi, white nationalist, anti-LGBTQ, anti-Muslim, Black separatist) by location and type.
+- **Resolution**: City (mappable to county) | **Temporal**: 1999-present, annual
+- **URL**: https://www.splcenter.org/hate-map (interactive, downloadable)
+- **Why it matters**: Hate group density per capita is a direct measure of organized extremist presence. FL, GA, and AL consistently rank in the top 10 states for hate group count. The relationship between hate group presence and political behavior is complex — it signals both community grievance and political mobilization capacity for extremist candidates.
+- **Signal**: Organized extremism as community political marker. Counties with active hate groups may show distinct intra-Republican primary dynamics and amplified cultural backlash responses to demographic change.
+- **Cost/Effort**: Free, SPLC downloadable dataset. City-level, needs county aggregation.
+
+### 119. Confederate Monument Density (SPLC / Whose Heritage?)
+- **What**: Geocoded locations of Confederate monuments, statues, school names, road names, and other public symbols across the South. Includes installation date, removal status, and type.
+- **Resolution**: Point (aggregatable to county) | **Temporal**: Installation dates 1860s-present; SPLC tracks removals since 2015
+- **URL**: https://www.splcenter.org/whose-heritage (downloadable dataset with latitude/longitude)
+- **Why it matters**: Confederate monument density is a proxy for historical Lost Cause commemoration culture — most monuments were erected 1900-1920 during Jim Crow, not after the Civil War. Counties that installed monuments later (1950s-1960s, during Civil Rights era) signal different community attitudes than those with Reconstruction-era memorials. Monument removal battles (2017-present) are a direct measure of culture war intensity.
+- **Signal**: Confederate memory as living political identity. Counties fighting to preserve monuments in 2020s are experiencing active cultural political conflict. AL passed a state law prohibiting monument removal (2017 Memorial Preservation Act) — the legal fight itself is a political signal.
+- **Cost/Effort**: Free, SPLC dataset. Point data with coordinates. Very low effort.
+
+### 120. Anti-Defamation League (ADL) Hate Incident Reports
+- **What**: County-level hate incidents, hate crimes, and extremist events tracked by ADL from news reports, law enforcement data, and community reports.
+- **Resolution**: City/county | **Temporal**: 2002-present
+- **URL**: https://www.adl.org/heat-map (interactive, data downloads available for researchers)
+- **Why it matters**: Hate incidents (distinct from SPLC hate groups — incidents are events, not organizations) capture the behavioral expression of extremism. Spikes in hate incidents correlate with political events (post-2016 election, post-Charlottesville, post-January 6). Geographic clustering of incidents reveals where political tension is highest.
+- **Signal**: Political tension and racial conflict intensity. Counties with spiking hate incidents may be communities in rapid demographic or political transition.
+- **Cost/Effort**: Free with researcher registration.
+
+---
+
+### Consumer & Retail Culture Geography
+
+### 121. Cracker Barrel vs. Whole Foods Index
+- **What**: Relative density of "red" retail brands (Cracker Barrel, Bass Pro Shops, Tractor Supply, Hobby Lobby) vs. "blue" retail brands (Whole Foods, Trader Joe's, REI, Lululemon) by county.
+- **Resolution**: County (from point locations) | **Temporal**: Current snapshot
+- **URL**: Company store locators + OpenStreetMap POI data + SafeGraph/Dewey (historical patterns)
+- **Why it matters**: Dave Wasserman's famous "Cracker Barrel vs. Whole Foods" index (2012) showed that the presence of these stores predicted county-level presidential vote better than income or education. The principle extends to a broader consumer landscape — Tractor Supply (rural farming), Bass Pro (outdoor hunting), Hobby Lobby (craft/evangelical), Chick-fil-A (Southern evangelical), vs. Trader Joe's (urban educated), REI (outdoor progressive). These are corporate site selection decisions that already incorporate deep demographic/psychographic analysis.
+- **Signal**: Consumer culture fingerprint as political identity. Corporate retail geography reflects decades of market research about who lives where — essentially pre-computed community type detection.
+- **Cost/Effort**: Free via store locators + OSM. Requires scraping/API calls per brand. Medium effort for comprehensive coverage.
+
+### 122. Chick-fil-A vs. Popeyes Density Ratio
+- **What**: County-level ratio of Chick-fil-A to Popeyes locations — both are Southern chicken chains but with dramatically different customer demographics and cultural associations.
+- **Resolution**: County | **Temporal**: Current
+- **URL**: Store locators + OSM + Yelp Fusion API
+- **Why it matters**: Chick-fil-A is one of the strongest cultural markers of white evangelical conservatism (closed Sundays, overt Christian corporate identity, 2012 Culture War appreciation day). Popeyes skews Black and urban. The ratio captures a cultural geography signal that traditional demographics describe as race+religion but that consumer choice reveals more naturally.
+- **Signal**: Fast food chain geography as cultural community marker. The Chick-fil-A belt (suburban South) vs. Popeyes concentration (urban, Black communities) maps directly onto the political geography.
+- **Cost/Effort**: Free (OSM + store locators). Low effort.
+
+### 123. Waffle House Index / Density
+- **What**: County-level Waffle House restaurant count and density — the "Waffle House Index" is FEMA's informal disaster response readiness proxy.
+- **Resolution**: County | **Temporal**: Current + historical expansion
+- **URL**: Waffle House store locator + FEMA references; Walter Hickey's analysis at FiveThirtyEight
+- **Why it matters**: Waffle House is concentrated in the Southeast — 1,900+ locations, nearly all in the South. Its expansion geography traces the I-85/I-75/I-95 corridors through FL/GA/AL precisely. Waffle House density is a proxy for working-class, Southern, highway-corridor community culture. Its absence marks either extreme rural poverty (too sparse for any restaurant) or non-Southern metro areas.
+- **Signal**: Working-class Southern cultural geography. Waffle House presence/absence marks the boundary of "the South" more precisely than any demographic variable.
+- **Cost/Effort**: Free, store locator. ~1,900 locations, trivial to scrape.
+
+### 124. Payday Lending & Title Loan Density (CFPB)
+- **What**: County-level density of payday lenders, auto title loan shops, and check cashing stores. Includes CFPB complaint data on predatory lending by geography.
+- **Resolution**: County | **Temporal**: CFPB data 2012-present; FDIC unbanked survey biennial
+- **URL**: CFPB Complaint Database: https://www.consumerfinance.gov/data-research/consumer-complaints/ | FDIC National Survey of Unbanked/Underbanked Households | State licensing databases (FL OFR, GA DBF)
+- **Why it matters**: Payday lending density maps directly onto financial vulnerability geography. FL has one of the highest payday loan volumes nationally. These businesses are legal but predatory, concentrated in low-income communities, and their density is a more sensitive poverty signal than SNAP because they capture the working-poor who earn too much for government assistance but too little for mainstream banking.
+- **Signal**: Financial predation as community economic distress signal. Payday lender density distinguishes "working poor" communities from "welfare-dependent poor" communities — politically different populations with different grievances.
+- **Cost/Effort**: Free (CFPB complaints, state licensing databases). Requires compilation.
+
+### 125. AirBnB / VRBO Listing Density (AirDNA / Inside Airbnb)
+- **What**: County-level short-term rental (STR) listing counts, average nightly rates, occupancy rates, and revenue estimates. Inside Airbnb publishes free quarterly snapshots for major US markets.
+- **Resolution**: Point/ZIP (aggregatable to county) | **Temporal**: 2015-present
+- **URL**: Inside Airbnb: http://insideairbnb.com/get-the-data/ (free, major cities) | AirDNA (paid for comprehensive county data, free public market reports)
+- **Why it matters**: STR density is a tourism economy signal — counties with high AirBnB density have different economic structures (tourism-dependent, seasonal employment, housing cost pressure from investor purchases). FL's Gulf Coast, Panhandle beach towns, and Orlando metro have extremely high STR density. AirBnB-heavy counties also experience housing affordability crises that drive political attitudes.
+- **Signal**: Tourism economy dependency and housing affordability stress. Coastal FL's STR economy creates communities where local workers can't afford to live in the area where they work — a political frustration signal.
+- **Cost/Effort**: Free for Inside Airbnb (major markets only). Full county coverage requires AirDNA ($).
+
+### 126. Chain Restaurant Diversity Index
+- **What**: Count of unique chain restaurant brands per county, as a measure of commercial diversity/homogeneity. A county with only McDonald's, Subway, and Dollar General is structurally different from one with 40 unique chains.
+- **Resolution**: County | **Temporal**: Current
+- **URL**: OpenStreetMap POI data + Yelp Fusion API + Safegraph historical
+- **Why it matters**: Commercial diversity is a proxy for economic complexity and population density. "Chain desert" counties (only 2-3 chains) are the most economically isolated. "Chain saturated" counties (suburban strip malls) represent a different community type. The presence of "emerging" chains (Raising Cane's, Wingstop, Boba tea shops) signals younger, growing communities.
+- **Signal**: Economic complexity and commercial vitality through retail landscape. The chain composition tells you what corporate America thinks about the community.
+- **Cost/Effort**: Moderate. OSM data is free but requires substantial POI processing.
+
+---
+
+### Financial & Economic Signals
+
+### 127. Student Loan Debt Geography (NY Fed / CFPB)
+- **What**: County-level aggregate student loan balances, delinquency rates, average per-borrower debt, and Public Service Loan Forgiveness (PSLF) application rates.
+- **Resolution**: County (NY Fed Consumer Credit Panel) / ZIP (some CFPB data) | **Temporal**: 2003-present, quarterly
+- **URL**: NY Fed Consumer Credit Panel (county aggregates): https://www.newyorkfed.org/microeconomics/hhdc | CFPB student lending data
+- **Why it matters**: Student debt geography captures both education access and economic burden. Counties with high aggregate student debt are college-educated communities; counties with high delinquency rates are communities where education investment didn't pay off. The Biden student loan forgiveness debate had specific geographic patterns of political impact.
+- **Signal**: Education investment burden. High-debt, high-delinquency counties (for-profit college victims, underemployed graduates) have specific political frustrations distinct from both the debt-free and the debt-positive.
+- **Cost/Effort**: Free (NY Fed aggregates, CFPB). County-level, quarterly.
+
+### 128. Cryptocurrency Adoption Proxy (ATM Locations / Exchange Signups)
+- **What**: County-level Bitcoin ATM density + estimated cryptocurrency adoption from CoinATMRadar, CoinDesk surveys, and blockchain analytics firms.
+- **Resolution**: Point/county | **Temporal**: 2017-present
+- **URL**: CoinATMRadar: https://coinatmradar.com/api/ (free API, all US ATM locations); Bitcoin ATM locations also on OSM
+- **Why it matters**: Bitcoin ATM density is concentrated in two distinct community types: tech-savvy libertarian areas AND underbanked immigrant communities (crypto as remittance tool). South FL has the highest Bitcoin ATM density in the US — in both Miami's tech corridor and Little Havana/Hialeah's Venezuelan community. This dual signal captures anti-institutional economic sentiment.
+- **Signal**: Anti-institutional finance sentiment. Crypto geography captures libertarian economics AND immigrant remittance patterns — a rare variable that bridges two very different community types.
+- **Cost/Effort**: Free, CoinATMRadar API. Point data, easy county aggregation.
+
+### 129. GoFundMe / Crowdfunding Geography
+- **What**: County-level density and category distribution of GoFundMe campaigns — medical fundraising (healthcare access proxy), emergency/disaster relief, memorial/funeral, education, community projects.
+- **Resolution**: Estimated from GoFundMe search by location | **Temporal**: 2010-present
+- **URL**: GoFundMe public campaign search (no bulk download; requires scraping by location)
+- **Why it matters**: Medical GoFundMe campaigns are the clearest signal of healthcare system failure — communities where people crowdfund surgery/insulin/cancer treatment are communities where health insurance gaps are most severe. The ratio of medical:community:memorial campaigns reveals different community needs. Funeral GoFundMe density is a poverty signal.
+- **Signal**: Community safety net adequacy as revealed by crowdfunding desperation. High medical GoFundMe density = healthcare access desert with a different political character than those captured by insurance rates alone.
+- **Cost/Effort**: Moderate — no bulk data download. Requires geographic search scraping.
+
+### 130. Lottery Ticket Sales by County (State Lottery Commissions)
+- **What**: Per-capita lottery ticket sales by county — instant tickets (scratch-offs) vs. draw games (Powerball/Mega Millions), retailer density, and prize claim geography.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: FL Lottery: https://www.flalottery.com/retailerSearchResults | GA Lottery: https://www.galottery.com/ | AL has no state lottery (itself a political signal)
+- **Why it matters**: Per-capita lottery spending is one of the strongest correlates of poverty and economic hopelessness — a "desperation tax." Counties with high scratch-off sales have populations that have given up on economic mobility through traditional means. AL's absence of a state lottery is itself a major political signal — repeated ballot failures due to evangelical opposition. The lottery referendum is one of AL's most politically revealing ballot measures.
+- **Signal**: Economic hopelessness and risk-seeking behavior. Also: AL's anti-lottery politics as a direct measure of evangelical cultural governance power.
+- **Cost/Effort**: Free (FL and GA lottery commissions publish retailer/county data). AL: N/A (no lottery).
+
+---
+
+### Family Structure & Demographics
+
+### 131. Divorce Rate by County (CDC NVSS / State Vital Statistics)
+- **What**: County-level marriage and divorce rates per 1,000 population. Includes median age at first marriage.
+- **Resolution**: County | **Temporal**: Annual (CDC stopped county divorce data in 2000; state vital statistics continue)
+- **URL**: CDC NVSS marriage/divorce data: https://www.cdc.gov/nchs/nvss/marriage-divorce.htm | FL Dept of Health vital statistics | GA DPH vital records
+- **Why it matters**: Divorce rates capture family stability as a community characteristic. Paradoxically, the most conservative (evangelical, pro-family) states have among the highest divorce rates — the "red state divorce paradox." County-level variation reveals whether family stability rhetoric matches family stability reality. Early marriage + early divorce = a specific community pattern.
+- **Signal**: Family structure instability as community characteristic. The gap between family values rhetoric and family stability reality is a political tension signal.
+- **Cost/Effort**: Free (state vital statistics). Varies by state availability.
+
+### 132. Single-Parent Household Rate by Race (ACS)
+- **What**: County-level percentage of households with children that are single-parent, broken down by race and sex of householder.
+- **Resolution**: Census tract | **Temporal**: Annual (ACS 1-year, 5-year)
+- **URL**: ACS Table B11003 (family type), B09005 (household type for children under 18)
+- **Why it matters**: Single-parent household rate (especially for children) is one of the strongest predictors of intergenerational poverty and has become a highly politicized variable. The racial disparity in single parenthood rates is a core conservative policy talking point. County-level variation within race groups captures structural factors beyond culture — employment, incarceration, military deployment.
+- **Signal**: Family structure as both cause and consequence of economic opportunity. Single-parent rates interact with childcare desert data to predict women's economic autonomy.
+- **Cost/Effort**: Free (ACS). Already available via our ACS pipeline; just need to add these tables.
+
+### 133. Multigenerational Household Rate (ACS)
+- **What**: Percentage of households containing 3+ generations (grandparent, parent, grandchild) by county, from ACS Table B11017.
+- **Resolution**: County/tract | **Temporal**: Annual (ACS)
+- **URL**: ACS Table B11017
+- **Why it matters**: Multigenerational living captures cultural differences in family structure — higher in Hispanic, Asian, and immigrant communities, lower in white Anglo-Saxon communities. Also signals economic necessity (can't afford separate housing). This variable distinguishes immigrant-integrated communities from native-born communities in ways that ethnicity alone misses.
+- **Signal**: Cultural family structure and economic compression. High multigenerational rate in non-immigrant areas signals housing affordability crisis.
+- **Cost/Effort**: Free. Single ACS table. Trivial.
+
+---
+
+### Civic Infrastructure & Institutions
+
+### 134. Civic Organization Membership (Rotary, Lions, Kiwanis, VFW, Elks)
+- **What**: County-level membership counts for major civic organizations — Rotary International, Lions Club, Kiwanis, VFW, American Legion, Elks, Moose Lodge, Masonic lodges.
+- **Resolution**: Club location (county mappable) | **Temporal**: Various
+- **URL**: Rotary: https://www.rotary.org/en/search/clubs | Lions: https://www.lionsclubs.org/ | VFW: https://www.vfw.org/find-a-post | American Legion: https://www.legion.org/posts | Masonic lodges: state Grand Lodge directories
+- **Why it matters**: Civic organization density is Putnam's "Bowling Alone" thesis operationalized. These organizations represent the declining civic infrastructure of small-town America. VFW/American Legion membership captures veteran community density AND civic engagement. Masonic lodge density historically correlated with community leadership infrastructure. The DECLINE in membership over time captures social capital erosion.
+- **Signal**: Social capital and civic engagement infrastructure. Counties where these organizations still thrive have different political cultures from those where they've died. VFW/Legion membership is the strongest proxy for veteran community identity.
+- **Cost/Effort**: Free (organization websites have club finders). Requires scraping multiple sources.
+
+### 135. Volunteer Fire Department vs. Professional Fire Service
+- **What**: Whether a county is served primarily by volunteer fire departments (VFDs), professional departments, or combination departments. VFD count and volunteer firefighter count per county.
+- **Resolution**: County | **Temporal**: NFPA survey (periodic), USFA registry (annual)
+- **URL**: USFA National Fire Department Registry: https://apps.usfa.fema.gov/registry/ | NFPA Fire Department Survey
+- **Why it matters**: Volunteer fire departments are the backbone of rural community infrastructure — in many small towns, the VFD is the largest civic organization. VFD membership is a proxy for community volunteerism, social cohesion, and self-reliance culture. Professional fire service signals urban/suburban density and tax base. The transition from VFD to professional service often accompanies the loss of small-town identity.
+- **Signal**: Rural civic infrastructure and self-reliance culture. VFD-dominant counties have a specific community identity tied to volunteer service and local mutual aid.
+- **Cost/Effort**: Free, USFA registry. County-level, downloadable.
+
+### 136. Religious Non-Profit Revenue (IRS 990 by Denomination Category)
+- **What**: Total revenue of religious organizations (churches, ministries, parachurch organizations) by county, broken down by denomination category (evangelical, mainline, Catholic, non-Christian), from IRS 990 filings.
+- **Resolution**: ZIP/county | **Temporal**: Annual
+- **URL**: IRS 990 data (already listed as #21 for general nonprofits); ProPublica Nonprofit Explorer: https://projects.propublica.org/nonprofits/ | NCCS/Urban Institute national nonprofit data
+- **Why it matters**: Goes beyond RCMS congregation counts to measure economic SCALE of religious institutions. A county with 50 small Baptist churches is different from one with 3 megachurches of equal total attendance. Megachurch revenue concentration signals a specific type of evangelical entrepreneurial culture. Parachurch ministry revenue (Focus on the Family-type orgs) signals culture war infrastructure investment.
+- **Signal**: Religious economic power and institutional capacity. Megachurch-dominated communities have different political mobilization infrastructure from mainline-church communities.
+- **Cost/Effort**: Free (IRS 990 bulk data). Requires NTEE code classification of religious orgs. Moderate effort.
+
+---
+
+### Education Signals
+
+### 137. For-Profit College Enrollment Geography (IPEDS)
+- **What**: County-level enrollment at for-profit institutions (University of Phoenix, DeVry, ITT Tech legacy, etc.) as share of total postsecondary enrollment.
+- **Resolution**: Institution (county mappable) | **Temporal**: Annual (IPEDS)
+- **URL**: NCES IPEDS: https://nces.ed.gov/ipeds/ (free data download)
+- **Why it matters**: For-profit college enrollment is concentrated in low-income communities with limited access to public higher education. These students bear the worst student loan outcomes — high debt, low completion, poor job placement. For-profit college victims are a specific political constituency with grievances about both the education system and student debt policy.
+- **Signal**: Predatory education exposure. Counties with high for-profit enrollment have populations that invested in education but got scammed — a specific political frustration distinct from either the college-educated or the non-college.
+- **Cost/Effort**: Free (IPEDS). Institution-level, aggregatable to county. Annual.
+
+### 138. Homeschool Rate by County (State Education Departments)
+- **What**: Percentage of school-age children registered as homeschooled, by county.
+- **Resolution**: County/district | **Temporal**: Annual
+- **URL**: FL: https://www.fldoe.org/schools/school-choice/home-education/ | GA: Georgia Dept of Ed annual reports | AL: Board of Education (church school umbrella registration)
+- **Why it matters**: Homeschool rates have surged post-pandemic and are concentrated in two distinct populations: religious conservatives (Christian curriculum, protection from secular values) and pandemic-era parents of all backgrounds. The pre-pandemic homeschool rate was ~3% nationally; post-pandemic it's ~6-11% depending on measurement. FL has the most permissive homeschool laws in the Southeast. High homeschool rates signal distrust of public institutions.
+- **Signal**: Institutional distrust and cultural conservatism. Pre-pandemic homeschool rates are a strong religiosity signal; post-pandemic rates capture a broader anti-institutional shift.
+- **Cost/Effort**: Free (state education departments). Availability varies by state.
+
+### 139. School Voucher / Education Savings Account Participation (FL)
+- **What**: County-level participation rates in FL's expanded school voucher / Education Savings Account (ESA) programs — the most expansive in the nation post-2023.
+- **Resolution**: County | **Temporal**: 2023-present (universal expansion)
+- **URL**: FL Dept of Education Step Up for Students program data; FL DOE choice scholarship reports
+- **Why it matters**: FL's universal ESA program allows ANY family to use public funds for private school. Participation rates reveal where families are opting out of public education — a direct measure of public school dissatisfaction AND financial capacity to exercise choice. High voucher uptake in evangelical communities signals the school choice + religious education nexus.
+- **Signal**: Public education exit rate as political identity. Counties with high voucher uptake are politically invested in the school choice agenda — a core Republican policy priority in FL.
+- **Cost/Effort**: Free (FL DOE). County-level, annual.
+
+---
+
+### Health & Substance Signals
+
+### 140. Vaccine Exemption Rates — Pre-COVID (School Entry Immunizations)
+- **What**: County-level rates of non-medical (philosophical/religious) vaccine exemptions for school-entry immunizations (MMR, DTaP, etc.), from state immunization programs.
+- **Resolution**: School district/county | **Temporal**: Annual, 2005-present
+- **URL**: CDC School Vaccination Assessment: https://www.cdc.gov/schoolvaccination/ | FL DOH county immunization reports | GA DPH school surveys
+- **Why it matters**: Pre-COVID vaccine exemption rates (2015-2019) capture anti-vaccine sentiment BEFORE COVID politicized vaccination. These rates predict COVID vaccine refusal with high accuracy. Counties with high pre-COVID exemptions had established anti-institutional health attitudes independent of partisan identity. The correlation between pre-COVID exemptions and 2020 Trump vote is weaker than the COVID vaccine correlation — suggesting COVID vaccination captured a new political signal beyond pre-existing anti-vax sentiment.
+- **Signal**: Pre-existing anti-institutional health attitudes vs. post-COVID politically-driven vaccine refusal. The divergence between the two signals is itself informative about community political dynamics.
+- **Cost/Effort**: Free (CDC + state DOH). County or school-district level.
+
+### 141. Methamphetamine Lab Seizures (DEA EPIC)
+- **What**: County-level meth lab seizure counts — a direct measure of local meth production (distinct from opioid imports).
+- **Resolution**: County | **Temporal**: 2004-2020 (DEA National Clandestine Laboratory Register)
+- **URL**: DEA EPIC (El Paso Intelligence Center) meth lab database; some data published via ONDCP
+- **Why it matters**: Meth is distinct from opioids — meth is locally produced in rural areas while opioids are prescribed or imported. Rural meth lab geography maps onto a specific community type: severely economically depressed white rural communities. AL and North FL have historically high meth lab seizure rates. The meth crisis predates the opioid crisis and affects a different (though overlapping) community type.
+- **Signal**: Deep rural economic despair expressed through local drug production. Meth lab counties are the most extreme end of rural decline — more severe than opioid-affected communities, which can include suburban areas.
+- **Cost/Effort**: Free (DEA publishes county data through ONDCP). Some years require FOIA.
+
+### 142. Cannabis Dispensary Density (State Programs)
+- **What**: Medical marijuana dispensary locations and sales volume by county, in states with legal medical/recreational cannabis.
+- **Resolution**: Point/county | **Temporal**: State-specific (FL medical since 2016)
+- **URL**: FL OMMU: https://knowthefactsmmj.com/registry/ | GA: limited program (no dispensaries as of 2024); AL: medical program launching
+- **Why it matters**: FL's medical marijuana program was approved by 71% of voters in 2016 — massively bipartisan support. But dispensary placement geography reveals where the industry has invested. Dispensary density in FL correlates with population density and income, not the 71% approval rate. Counties that voted for medical marijuana but have zero dispensaries are experiencing an access disparity. The recreational legalization ballot question (failed 2024 at 56%, short of 60% threshold) had geographic patterns that reveal community attitudes toward cannabis.
+- **Signal**: Drug policy attitude as community cultural signal. Cannabis support transcends partisanship in FL — but dispensary access geography reveals economic stratification of the legal market.
+- **Cost/Effort**: Free (FL OMMU registry). Point data, county aggregation. AL/GA limited.
+
+---
+
+### Transportation & Geography
+
+### 143. Interstate Highway Access & Distance to Major Metro
+- **What**: County-level metrics: distance to nearest interstate highway interchange, drive time to nearest metro of 50K+ population, number of highway lane-miles, and truck traffic volume (FHWA HPMS).
+- **Resolution**: County | **Temporal**: Annual (HPMS)
+- **URL**: FHWA Highway Performance Monitoring System: https://www.fhwa.dot.gov/policyinformation/hpms.cfm | FHWA Travel Monitoring Analysis System
+- **Why it matters**: Highway access is the primary determinant of economic connectivity for rural counties. Counties on interstates have different economic trajectories than counties bypassed by the highway system. Drive time to the nearest metro captures isolation — a 15-minute vs. 90-minute drive to a city fundamentally shapes job access, healthcare access, and cultural exposure.
+- **Signal**: Geographic isolation as community defining feature. The most politically extreme rural communities are often the most geographically isolated. Highway bypass towns experience specific economic decline.
+- **Cost/Effort**: Free (FHWA). County-level, some GIS computation needed.
+
+### 144. Airport Passenger Volume & Connectivity
+- **What**: County-level domestic and international passenger enplanements, direct flight destinations, and seasonal variation from FAA T-100 data.
+- **Resolution**: Airport (county mappable) | **Temporal**: Monthly (FAA T-100)
+- **URL**: FAA Air Carrier Activity Information System: https://www.faa.gov/airports/planning_capacity/passenger_allcargo_stats/
+- **Why it matters**: Airport connectivity captures economic class and cosmopolitan exposure. Counties with international airport access have populations exposed to global travel; counties with only regional airports or no airport have fundamentally different global connectivity. FL's tourism economy creates unusually high airport traffic in destination counties (Orlando, Miami, Fort Myers) — where airport workers form a distinct political constituency.
+- **Signal**: Global connectivity and tourism economy. Airport-adjacent communities have specific economic dependence (TSA, airline, rental car workers) with distinct labor politics.
+- **Cost/Effort**: Free (FAA). Airport-level, county aggregation easy.
+
+---
+
+### Social Media & Digital Behavior
+
+### 145. Twitter/X Political Bot Activity by Geography (Bot Sentinel / Academic Datasets)
+- **What**: Geographic distribution of suspected political bot/troll accounts and their engagement patterns, from academic bot detection research and Bot Sentinel archives.
+- **Resolution**: DMA/state | **Temporal**: 2016-2023
+- **URL**: Bot Sentinel: https://botsentinel.com/ | Academic: Varol et al. "Online Human-Bot Interactions" (Indiana University); Twitter Research API academic archives
+- **Why it matters**: Bot-amplified political content has geographic targeting — foreign influence operations and domestic astroturfing concentrate on swing states and counties. FL and GA were top targets for Russian IRA operations in 2016. The degree to which a community's online discourse is bot-influenced affects information quality and polarization.
+- **Signal**: Information environment corruption. Counties most exposed to bot-amplified content may show disproportionate polarization or conspiracy belief adoption.
+- **Cost/Effort**: Academic access required. Some Bot Sentinel data publicly available.
+
+### 146. Nextdoor Activity & Community Engagement (Public Data)
+- **What**: Nextdoor neighborhood group activity levels, local government engagement, and community concern categories (crime, politics, recommendations) by neighborhood/ZIP.
+- **Resolution**: Neighborhood/ZIP | **Temporal**: 2015-present
+- **URL**: Nextdoor API (limited public data); academic research using Nextdoor data
+- **Why it matters**: Nextdoor is the most locally-focused social network — users are verified by address. Political activity on Nextdoor captures hyperlocal political attitudes (yard sign disputes, school board debates, policing concerns) that other social media miss. Nextdoor's "Crime & Safety" category activity correlates with fear-based political attitudes.
+- **Signal**: Hyperlocal political anxiety and community concern priorities. High "Crime & Safety" posting activity may predict tough-on-crime political preferences.
+- **Cost/Effort**: Limited — Nextdoor restricts API access. Academic research papers provide some geographic analysis.
+
+---
+
+### Government Service & Dependency
+
+### 147. Social Security Retirement Dependency Ratio (SSA)
+- **What**: County-level ratio of Social Security retirement beneficiaries to working-age population, plus average monthly benefit amount and total county Social Security income.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: SSA OASDI Beneficiary Statistics: https://www.ssa.gov/policy/docs/statcomps/oasdi_sc/ | SSA County-Level Data (annual)
+- **Why it matters**: Retirement community concentration defines entire county economies in FL. The Villages (Sumter County), Cape Coral (Lee County), and much of FL's Gulf Coast are economically dependent on Social Security income. These communities have specific political interests: protecting Social Security, Medicare, and property tax exemptions. The retiree share of voters is disproportionate due to higher turnout.
+- **Signal**: Retiree political power concentration. High SS dependency ratio = communities where retirees dominate the electorate AND the economy. Their political priorities (healthcare, SS, taxes on fixed income) differ from working-age communities.
+- **Cost/Effort**: Free (SSA annual downloads). County-level, trivial.
+
+### 148. Federal Government Employee Concentration (OPM FedScope)
+- **What**: County-level count of federal civilian employees by agency, pay grade, and occupation — from OPM's FedScope data cube.
+- **Resolution**: County (duty station) | **Temporal**: Quarterly, 2000-present
+- **URL**: OPM FedScope: https://www.fedscope.opm.gov/ (free, interactive + bulk download)
+- **Why it matters**: Federal employee concentration defines specific community types: military base counties (DoD civilians), VA hospital counties, federal courthouse communities, and DC-adjacent commuter counties. These communities have direct economic stake in government spending and distinct political attitudes toward government efficiency vs. downsizing (DOGE, sequestration).
+- **Signal**: Direct government employment dependency. Federal employee-heavy counties shift differently during government shutdown/sequestration periods. FL has major DoD civilian concentrations (MacDill, Eglin, Patrick SFB).
+- **Cost/Effort**: Free (OPM FedScope). County-level, quarterly. Very clean data.
+
+### 149. State & Local Government Pension Obligations (Pew / Census)
+- **What**: County or state-level pension funding ratios (assets vs. liabilities), pension benefit generosity, and retired government employee count.
+- **Resolution**: State/pension system (some county data) | **Temporal**: Annual
+- **URL**: Pew Charitable Trusts pension tracker; Census of Governments (pension employment data); state pension system annual reports (FL FRS, GA ERS, AL RSA)
+- **Why it matters**: Pension obligation crisis drives local fiscal politics — counties with underfunded pensions face tax increases or service cuts. FL's FRS is one of the best-funded state pensions (78%); AL's RSA is significantly underfunded. Local government pension stress directly affects property taxes, school funding, and public services — all politically salient.
+- **Signal**: Fiscal sustainability and intergenerational government obligation. Pension-stressed counties have specific tax-revolt political dynamics.
+- **Cost/Effort**: Free (Pew tracker + Census). State-level primary; some county-level pension data available.
+
+---
+
+### Migration & Population Dynamics
+
+### 150. Snowbird Migration Patterns (USPS + FL DMV)
+- **What**: Seasonal population fluctuation in FL counties from "snowbird" migration — estimated from USPS seasonal address changes, FL DMV seasonal registrations, and utility connection patterns.
+- **Resolution**: County/ZIP | **Temporal**: Annual seasonal cycle (November-April peak)
+- **URL**: HUD/USPS vacancy data (#22 already listed); FL HSMV vehicle registration seasonal spikes; FL Power & Light seasonal connection data (rate case filings)
+- **Why it matters**: FL's political composition literally changes by season. Snowbird population (primarily from Northeastern and Midwestern states) brings different political attitudes to FL's Gulf Coast, South FL, and retirement communities. Some snowbirds become FL residents (shifting voter registration), while seasonal visitors affect community culture without voting. The conversion rate from snowbird to permanent resident is a demographic shift signal.
+- **Signal**: Seasonal political culture mixing and permanent migration pipeline. Counties with high snowbird flux are communities in transition — the snowbird-to-resident conversion rate predicts future political shift direction.
+- **Cost/Effort**: Moderate — requires combining USPS, DMV, and utility data. No single source captures this.
+
+### 151. Puerto Rican Migration Post-Hurricane Maria (2017)
+- **What**: County-level estimates of Puerto Rican arrivals after Hurricane Maria (Sept 2017) from FEMA registration data, school enrollment surges, and ACS migration supplements.
+- **Resolution**: County | **Temporal**: 2017-2020
+- **URL**: Center for Puerto Rican Studies (Hunter College): https://centropr.hunter.cuny.edu/ — detailed post-Maria migration estimates | FEMA Individual Assistance data (county-level registrations)
+- **Why it matters**: ~130,000 Puerto Ricans relocated to FL after Hurricane Maria, concentrated in Orange, Osceola, and Hillsborough counties. This migration reshaped FL's I-4 corridor politics — Puerto Ricans are US citizens who can immediately register to vote. The 2018 FL governor race (DeSantis won by 0.4%) may have been affected by this migration. Post-Maria arrivals have distinct political attitudes from long-established FL Puerto Rican communities.
+- **Signal**: Disaster-driven migration as political demographic shock. The Maria diaspora is a natural experiment in rapid community composition change with direct electoral consequences.
+- **Cost/Effort**: Free (Centro PR estimates, FEMA data). County-level.
+
+### 152. Venezuelan Exile Community Concentration
+- **What**: County-level concentration of Venezuelan-born residents, from ACS country-of-birth tables. Includes naturalization rates and arrival decade.
+- **Resolution**: County (ACS B05006) | **Temporal**: Annual (ACS 1-year for large counties)
+- **URL**: ACS Table B05006 (place of birth, foreign-born) | USCIS naturalization statistics by country of origin
+- **Why it matters**: Venezuelan exiles in South FL (Doral, Weston, Homestead) are among the most strongly Republican Hispanic communities — driven by anti-socialist/anti-Maduro sentiment. Their political behavior defies the "Hispanic = Democratic" assumption. Doral, FL is informally called "Doralzuela." The Venezuelan community's political intensity (anti-communism, libertarian economics) shapes the entire South FL political landscape.
+- **Signal**: Anti-communist exile politics as community type. Venezuelan concentration distinguishes South FL's Hispanic politics from Central FL's Puerto Rican and immigrant Mexican communities. This is a key intra-Hispanic political fault line.
+- **Cost/Effort**: Free (ACS). Already in our ACS pipeline; need country-of-birth tables.
+
+---
+
+### Land Use & Built Environment
+
+### 153. Mobile Home / Manufactured Housing Density (ACS + HUD)
+- **What**: Percentage of housing units that are mobile homes / manufactured housing by county, from ACS housing characteristics tables.
+- **Resolution**: County/tract | **Temporal**: Annual (ACS)
+- **URL**: ACS Table B25024 (units in structure); HUD manufactured housing surveys
+- **Why it matters**: Mobile home concentration is among the strongest single-variable predictors of white rural poverty and Republican lean. FL has the highest mobile home count of any state (~850K units). Mobile home parks in rural FL/AL/GA represent a specific community type: white working-class, low-wealth, vulnerable to extreme weather, and often on leased land (no land ownership). Mobile home residents are a distinct political constituency from homeowners or apartment renters.
+- **Signal**: Housing vulnerability and white rural poverty. Mobile home density predicts Trump vote share at the county level better than median income in FL/AL.
+- **Cost/Effort**: Free (ACS). Already available in our pipeline; single table.
+
+### 154. Gated Community & HOA Density
+- **What**: Estimated number of homes within gated communities and homeowners associations (HOAs) by county, from Census AHS and Community Associations Institute (CAI) data.
+- **Resolution**: County (estimated) | **Temporal**: American Housing Survey (biennial), CAI annual reports
+- **URL**: Census American Housing Survey: https://www.census.gov/programs-surveys/ahs.html | Community Associations Institute: https://www.caionline.org/
+- **Why it matters**: FL has more HOA-governed homes than any other state (~9 million residents in HOAs). Gated community residence signals economic class, desire for social control, and NIMBYism. The Villages is the world's largest gated retirement community and one of the most Republican-voting communities in FL. HOA governance creates a specific political culture: rule-following, property-value-protective, aesthetically conformist.
+- **Signal**: Private governance as community identity. HOA-dominant communities have specific political preferences around property rights, zoning, and local control that differ from non-HOA areas.
+- **Cost/Effort**: Moderate. CAI publishes state-level estimates; county-level requires AHS or property record analysis.
+
+### 155. New Housing Construction Type (Census Building Permits)
+- **What**: County-level building permits by structure type: single-family detached, single-family attached (townhomes), 2-4 unit, 5+ unit multifamily. Monthly data.
+- **Resolution**: County | **Temporal**: Monthly, 2004-present
+- **URL**: Census Building Permits Survey: https://www.census.gov/construction/bps/ (already referenced in #7 — this entry focuses on TYPE of construction)
+- **Why it matters**: What TYPE of housing is being built reveals the community's future trajectory. Single-family detached construction signals suburban/exurban sprawl and family-formation communities. 5+ multifamily signals urban densification and renter communities. FL's construction boom is heavily tilted toward single-family in exurbs (St. Johns, Pasco, Manatee counties) — these are the communities that are politically shifting fastest.
+- **Signal**: Community trajectory through construction decisions. The ratio of multifamily to single-family construction predicts whether a community is urbanizing or suburbanizing — and the political implications of each.
+- **Cost/Effort**: Free (Census). County-level, monthly. Already partially covered by #7 but this focuses on TYPE.
+
+---
+
+### Political Infrastructure & Campaigns
+
+### 156. Super PAC Spending by Media Market (FEC IE Database)
+- **What**: Independent expenditure (IE) spending by Super PACs and 501(c)(4)s, allocated to media markets (DMA) where the ads air, for/against specific candidates.
+- **Resolution**: DMA/state | **Temporal**: 2010-present (Citizens United era)
+- **URL**: FEC Independent Expenditures: https://www.fec.gov/data/independent-expenditures/ | Wesleyan Media Project: https://mediaproject.wesleyan.edu/ (academic ad tracking)
+- **Why it matters**: Where Super PACs spend money reveals where they think elections can be influenced. Heavy IE spending in a county/DMA signals the political establishment views it as a battleground. The TYPES of ads (attack vs. positive, issues emphasized) reveal what political operatives think the community responds to.
+- **Signal**: Campaign resource allocation as elite judgment of community political elasticity. Super PAC spending geography is essentially professional community political analysis — where they spend is where they think voters are persuadable.
+- **Cost/Effort**: Free (FEC). DMA allocation requires matching spending to ad buy markets.
+
+### 157. Campaign Rally & Event Locations (Campaign Trail Tracker)
+- **What**: Geocoded locations of presidential and senatorial campaign rally/event appearances, with crowd size estimates and event type (rally, town hall, fundraiser, church visit).
+- **Resolution**: Point (county mappable) | **Temporal**: 2008-2024
+- **URL**: FairVote campaign trail tracking; academic datasets (e.g., Shaw 2006 "The Race to 270"); media compilations
+- **Why it matters**: Where candidates hold rallies reveals their strategic assessment of community political value. Trump's rally geography (large venues in exurban areas) vs. Harris/Biden rally geography (colleges, Black churches, union halls) maps onto community type targeting. FL's I-4 corridor rally density is the highest in the nation for presidential campaigns.
+- **Signal**: Campaign strategic targeting reveals professional assessment of community political characteristics. Rally-visited communities are perceived as persuadable or mobilizable.
+- **Cost/Effort**: Free (media tracking, academic datasets). Some manual compilation needed.
+
+### 158. Local Party Committee Activity (FEC State/Local Party Reports)
+- **What**: Quarterly financial reports of county-level and state-level Democratic and Republican party committees — fundraising, expenditures, volunteer activity, and staff count.
+- **Resolution**: County/district | **Temporal**: Quarterly, 2000-present
+- **URL**: FEC Committee Reports: https://www.fec.gov/data/committee/ (search by committee type = "Party - State/Local") | State campaign finance databases (FL DSFE, GA Ethics Commission)
+- **Why it matters**: Local party committee financial health is a direct measure of partisan organizational infrastructure. Counties where the Democratic Party has no funded committee vs. where it has a 6-figure budget behave differently — regardless of vote share. Party committee activity captures volunteer networks, voter contact capacity, and candidate recruitment infrastructure.
+- **Signal**: Partisan organizational capacity. Dormant local parties signal communities that are politically uncontested — and may show different shift dynamics than communities with active two-party competition.
+- **Cost/Effort**: Free (FEC + state databases). Requires querying by committee type and geography.
+
+---
+
+### Miscellaneous High-Signal Sources
+
+### 159. Pet Ownership Demographics (AVMA / Simmons National Consumer Survey)
+- **What**: County/metro-level estimates of dog vs. cat ownership rates, pet spending, and veterinary clinic density.
+- **Resolution**: Metro/state | **Temporal**: AVMA survey (every 5 years)
+- **URL**: AVMA Pet Ownership & Demographics Sourcebook; Simmons National Consumer Survey (academic access); OSM veterinary clinic POI data
+- **Why it matters**: This sounds frivolous but is remarkably robust: the dog:cat ownership ratio at the county level correlates with political lean (R² ~0.3 with Republican vote share in some analyses). Dog ownership correlates with homeownership, suburban/rural living, family formation, and conscientiousness. Cat ownership correlates with urban, single, renter demographics. This is a revealed-preference lifestyle signal that captures community character without political questions.
+- **Signal**: Lifestyle proxy for community character. The dog:cat ratio is a legitimate consumer research variable used in market segmentation — essentially pre-computed community typing from an unexpected angle.
+- **Cost/Effort**: Limited free data (AVMA report is $$$; veterinary clinic density from OSM is free proxy). Metro-level estimates from Simmons accessible via academic libraries.
+
+### 160. Blood Donation Rates (Red Cross / Blood Center Regional Data)
+- **What**: County or region-level blood donation rates and blood drive frequency from American Red Cross and independent blood centers.
+- **Resolution**: Blood center service area (~county) | **Temporal**: Annual
+- **URL**: American Red Cross regional reports; independent blood centers (OneBlood in FL, Lifesouth in GA/AL) publish collection data; AABB national blood collection surveys
+- **Why it matters**: Blood donation is one of the cleanest measures of prosocial civic behavior — it requires time, physical effort, and no personal benefit. Donation rates capture community altruism and civic engagement. Disaster-response blood drive surges capture community solidarity. OneBlood (FL) publishes county-level collection statistics.
+- **Signal**: Community prosocial behavior and civic health. Blood donation rates may correlate with social capital measures but capture a different dimension — willingness to contribute bodily resources for strangers.
+- **Cost/Effort**: Moderate — blood center regional data requires compilation. OneBlood FL data most accessible.
+
+### 161. Organ Donor Registration Rates (State DMV Data)
+- **What**: Percentage of licensed drivers who have registered as organ donors by county, from state DMV/driver license records.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: FL HSMV organ donor registration data; Donate Life America annual report; UNOS (organ allocation)
+- **Why it matters**: Organ donor registration rates capture institutional trust, bodily autonomy attitudes, and altruistic orientation. Counties with low registration rates may reflect distrust of medical institutions (especially in communities with historical medical abuse experiences) or religious beliefs about bodily integrity.
+- **Signal**: Institutional trust and medical system confidence. Low organ donation registration may predict vaccine hesitancy and other anti-institutional health behaviors.
+- **Cost/Effort**: Free (Donate Life America aggregates; FL HSMV may publish county data). Low effort.
+
+### 162. Daycare Center vs. Family Daycare Ratio
+- **What**: County-level ratio of licensed commercial daycare centers to family/home-based daycare providers, from state childcare licensing databases.
+- **Resolution**: County | **Temporal**: Annual
+- **URL**: FL DCF child care licensing database; GA DECAL; AL DHR child care search
+- **Why it matters**: The ratio of center-based to family-based childcare reflects both economic opportunity (center-based requires more capital) and cultural preference (family-based daycare is preferred in tight-knit communities where neighbors care for each other's children). Rural communities with only family daycare have different community structures than suburban areas with commercial childcare chains.
+- **Signal**: Community childcare infrastructure and cultural care norms. Family daycare dominance signals close-knit community networks; center dominance signals commercial/suburban development.
+- **Cost/Effort**: Free (state licensing databases). Point data, county aggregation.
+
+### 163. Cemetery Density & Type (VA National Cemetery vs. Private)
+- **What**: County-level count and type of cemeteries: VA national cemeteries, church cemeteries, municipal cemeteries, private commercial cemeteries, and historical (pre-1900) cemeteries.
+- **Resolution**: Point/county | **Temporal**: Current + historical
+- **URL**: VA National Cemetery Administration: https://www.cem.va.gov/cems/ | USGS Geographic Names Information System (GNIS) cemetery feature class | FindAGrave.com
+- **Why it matters**: Cemetery density captures community age and deep-rootedness. Counties with many small church cemeteries are long-established, multi-generational communities. VA cemetery presence signals military community. Commercial cemetery growth signals new population without established community ties. Historical cemetery preservation (or neglect) signals community relationship to its own past.
+- **Signal**: Community historical depth and rootedness. Deep-rooted communities (many old cemeteries) have different political identities than transient/new communities.
+- **Cost/Effort**: Free (GNIS, VA data). GNIS has nationwide cemetery POI data.
+
+---
+
+### Updated Priority Matrix — Round 4 Additions
+
+| Source | # | Category | Expected Signal | Effort |
+|--------|---|----------|----------------|--------|
+| Confederate Monuments | 119 | Extremism/Culture | Very High | Very Low |
+| Cracker Barrel vs Whole Foods | 121 | Consumer | Very High | Medium |
+| Payday Lending Density | 124 | Financial | High | Low |
+| Student Loan Debt | 127 | Financial | High | Low |
+| Lottery Sales | 130 | Economic | High | Low |
+| Homeschool Rate | 138 | Education | High | Medium |
+| Pre-COVID Vaccine Exemptions | 140 | Health | High | Low |
+| Mobile Home Density | 153 | Land Use | Very High | Very Low (ACS) |
+| SS Retirement Dependency | 147 | Government | High | Very Low |
+| Federal Employee Concentration | 148 | Government | High | Very Low |
+| Puerto Rican Post-Maria | 151 | Migration | Very High (FL) | Low |
+| Venezuelan Exile Concentration | 152 | Migration | Very High (FL) | Very Low (ACS) |
+| Fox/MSNBC Ratings by DMA | 114 | Media | Very High | Moderate |
+| SPLC Hate Groups | 118 | Extremism | High | Very Low |
+| AirBnB Density | 125 | Consumer | High | Low-Medium |
+| Cannabis Dispensary | 142 | Cultural | Medium-High | Low |
+| Campaign Rally Locations | 157 | Political | Medium | Low |
+| Local Party Committee Activity | 158 | Political | High | Low |
+
+---
+
+*End of Expansion Round 4. Total ideated sources: 163 (113 prior + 50 new).*

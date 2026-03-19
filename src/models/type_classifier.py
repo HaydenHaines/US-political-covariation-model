@@ -6,7 +6,8 @@ mean shift profiles, then fits NMF to discover J electoral types.
 Types are abstract archetypes that can appear in multiple non-contiguous communities.
 Rural Georgia and rural Washington may be different communities but the same type.
 
-This is a STUB — full implementation is Phase 1.
+run_type_classification delegates to src.models.nmf_types.run_nmf_classification
+for the real sklearn NMF implementation.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from src.models.nmf_types import run_nmf_classification
 
 log = logging.getLogger(__name__)
 
@@ -53,25 +55,25 @@ def classify_types(
 ) -> pd.DataFrame:
     """Fit NMF to community shift profiles -> J electoral types.
 
-    STUB: Returns placeholder uniform assignments.
-    Replace with real NMF implementation in Phase 1.
+    Now backed by real sklearn NMF via src.models.nmf_types.fit_nmf.
+    community_profiles must be a DataFrame with a 'community_id' column
+    and one column per shift dim.
 
     Returns
     -------
     DataFrame with community_id + type_weight_{j} for j in range(J)
     + dominant_type_id (argmax of weights)
     """
-    log.warning(
-        "type_classifier.classify_types is a STUB. "
-        "Returns uniform placeholder weights. Implement NMF in Phase 1."
-    )
-    n_communities = len(community_profiles)
-    weight_cols = {f"type_weight_{j_idx}": 1.0 / j for j_idx in range(j)}
-    result = community_profiles[["community_id"]].copy()
-    for col, val in weight_cols.items():
-        result[col] = val
-    result["dominant_type_id"] = 0  # placeholder
-    return result
+    from src.models.nmf_types import fit_nmf
+
+    profiles_arr = community_profiles[shift_cols].values
+    result = fit_nmf(profiles_arr, j=j, random_state=random_state)
+
+    out = community_profiles[["community_id"]].copy().reset_index(drop=True)
+    for j_idx in range(j):
+        out[f"type_weight_{j_idx}"] = result.W[:, j_idx]
+    out["dominant_type_id"] = result.dominant_type
+    return out
 
 
 def run_type_classification(
@@ -83,15 +85,13 @@ def run_type_classification(
 ) -> pd.DataFrame:
     """End-to-end type classification pipeline.
 
-    STUB -- wires compute_community_profiles -> classify_types -> save.
+    Delegates to src.models.nmf_types.run_nmf_classification for real NMF.
+    Returns the NMFResult object from nmf_types.
     """
-    shifts = pd.read_parquet(shifts_path)
-    assignments = pd.read_parquet(assignments_path)
-
-    profiles = compute_community_profiles(shifts, assignments, shift_cols)
-    type_assignments = classify_types(profiles, shift_cols, j)
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    type_assignments.to_parquet(output_path, index=False)
-    log.info("Type assignments (stub) saved -> %s", output_path)
-    return type_assignments
+    return run_nmf_classification(
+        shifts_path=shifts_path,
+        assignments_path=assignments_path,
+        shift_cols=shift_cols,
+        j=j,
+        output_path=output_path,
+    )

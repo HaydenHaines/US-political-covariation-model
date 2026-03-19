@@ -42,7 +42,7 @@ def _load_sigma(db: duckdb.DuckDBPyConnection, version_id: str) -> tuple[np.ndar
     if rows.empty:
         log.warning("community_sigma table is empty for version %s", version_id)
         return np.eye(1), 1
-    K = int(rows["community_id_row"].max()) + 1
+    K = int(max(rows["community_id_row"].max(), rows["community_id_col"].max())) + 1
     sigma = np.zeros((K, K))
     for _, r in rows.iterrows():
         sigma[int(r["community_id_row"]), int(r["community_id_col"])] = float(r["sigma_value"])

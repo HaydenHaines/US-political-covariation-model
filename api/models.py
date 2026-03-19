@@ -2,7 +2,7 @@
 """Pydantic response models for the Bedrock API."""
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HealthResponse(BaseModel):
@@ -67,5 +67,5 @@ class ForecastRow(BaseModel):
 class PollInput(BaseModel):
     state: str          # e.g. "FL"
     race: str           # e.g. "FL_Senate"
-    dem_share: float    # 0.0–1.0
+    dem_share: float = Field(..., ge=0.0, le=1.0)
     n: int = 600        # poll sample size

@@ -2,9 +2,9 @@
 data/raw/
 data/assembled/
 data/communities/
-data/covariance/
+data/shifts/
 data/polls/
-!data/polls/*.csv
+data/covariance/
 data/predictions/
 data/validation/
 
@@ -46,6 +46,7 @@ renv/local/
 
 # IDE
 .vscode/
+.playwright-mcp/
 .idea/
 *.swp
 *.swo

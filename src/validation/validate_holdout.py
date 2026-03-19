@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SHIFTS_PATH = PROJECT_ROOT / "data" / "assembled" / "shift_vectors.parquet"
+SHIFTS_PATH = PROJECT_ROOT / "data" / "shifts" / "tract_shifts.parquet"
 ADJACENCY_DIR = PROJECT_ROOT / "data" / "communities"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "validation" / "holdout_2024_results.parquet"
 
@@ -109,11 +109,22 @@ def main() -> None:
     from src.discovery.build_adjacency import build_queen_adjacency
     from src.discovery.cluster_communities import cluster_at_threshold
 
-    # ── 1. Load 9-dim shift vectors ────────────────────────────────────────────
+    # ── 1. Load 9-dim shift vectors, aligned to adjacency geoid order ──────────
     log.info("Loading shift vectors from %s", SHIFTS_PATH)
     shifts_df = pd.read_parquet(SHIFTS_PATH)
     shift_cols = [c for c in shifts_df.columns if c != "tract_geoid"]
-    shifts_9d = shifts_df[shift_cols].values.astype(float)
+
+    geoids_path = ADJACENCY_DIR / "adjacency.geoids.txt"
+    geoids = geoids_path.read_text().splitlines()
+
+    # Align to adjacency ordering; fill 36 water/uninhabited tracts with col means
+    shifts_indexed = shifts_df.set_index("tract_geoid")
+    aligned = shifts_indexed.reindex(geoids)
+    n_missing = aligned[shift_cols[0]].isna().sum()
+    if n_missing:
+        log.info("Filling %d tracts with no election data using column means", n_missing)
+        aligned[shift_cols] = aligned[shift_cols].fillna(aligned[shift_cols].mean())
+    shifts_9d = aligned[shift_cols].values.astype(float)
     log.info("Loaded %d tracts × %d shift dims", *shifts_9d.shape)
 
     # ── 2. Split training / holdout ────────────────────────────────────────────

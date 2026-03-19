@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 # Input/output paths
 NMF_WEIGHTS_PATH = Path("data/propagation/community_weights_tract.parquet")
 SHIFT_ASSIGNMENTS_PATH = Path("data/communities/community_assignments.parquet")
-SHIFTS_PATH = Path("data/assembled/tract_shifts.parquet")
+SHIFTS_PATH = Path(__file__).resolve().parents[2] / "data" / "shifts" / "tract_shifts.parquet"
 OUTPUT_PATH = Path("data/validation/nmf_comparison.parquet")
 
 
@@ -160,13 +160,14 @@ def main() -> None:
     shift_cols = [c for c in shifts_df.columns if c != "tract_geoid"]
     shift_matrix = shifts_df[shift_cols].to_numpy()
 
-    # NMF hard assignment
-    component_cols = [c for c in weights_df.columns if c != "tract_geoid"]
+    # NMF hard assignment — only numeric weight columns (e.g., c1..c7)
+    component_cols = [c for c in weights_df.select_dtypes("number").columns if c != "tract_geoid"]
     nmf_assignments = nmf_hard_assignment(weights_df, component_cols)
     nmf_labels = nmf_assignments.sort_values("tract_geoid")["nmf_community"].to_numpy()
 
-    # Shift-based labels
-    shift_labels = shift_assignments["community_id"].to_numpy()
+    # Shift-based labels — column may be "community" or "community_id"
+    comm_col = "community_id" if "community_id" in shift_assignments.columns else "community"
+    shift_labels = shift_assignments[comm_col].to_numpy()
 
     # Compute variances
     n_communities = len(np.unique(shift_labels))

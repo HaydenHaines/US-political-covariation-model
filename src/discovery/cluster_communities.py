@@ -205,64 +205,73 @@ def find_elbow(n_communities: np.ndarray, variances: np.ndarray) -> int | None:
     return int(kl.knee)
 
 
+def _within_cluster_variance(shifts: np.ndarray, labels: np.ndarray) -> float:
+    """Weighted mean within-cluster variance across all clusters."""
+    unique_labels = np.unique(labels)
+    total_var = 0.0
+    total_weight = 0.0
+    for label in unique_labels:
+        mask = labels == label
+        count = int(mask.sum())
+        if count > 1:
+            var = float(np.var(shifts[mask], ddof=0))
+        else:
+            var = 0.0
+        total_var += var * count
+        total_weight += count
+    return total_var / total_weight if total_weight > 0 else 0.0
+
+
 def sweep_thresholds(
     shifts: np.ndarray,
     connectivity,
-    linkage: np.ndarray,
-    n_steps: int = 50,
+    model,
+    k_values: list[int] | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Cut dendrogram at evenly-spaced heights and compute within-cluster variance.
+    """Cut the fitted dendrogram at different k values and compute within-cluster variance.
+
+    Uses sklearn's internal ``_hc_cut`` to re-cut the already-fitted tree
+    without refitting, avoiding the scipy linkage-matrix conversion which
+    breaks for spatially-constrained Ward clustering.
 
     Parameters
     ----------
     shifts:
         Normalised shift array of shape (n_tracts, n_dims).
     connectivity:
-        Sparse adjacency matrix.
-    linkage:
-        Scipy-format linkage matrix from :func:`build_linkage_matrix`.
-    n_steps:
-        Number of threshold values to evaluate.
+        Sparse adjacency matrix (unused; kept for API compatibility).
+    model:
+        Fitted ``AgglomerativeClustering`` instance (built with n_clusters=1).
+    k_values:
+        List of community counts to evaluate. Defaults to a log-spaced grid
+        from 5 to 500.
 
     Returns
     -------
     n_communities : np.ndarray
-        Number of communities at each threshold.
+        Community counts evaluated.
     variances : np.ndarray
-        Weighted mean within-cluster variance at each threshold.
+        Weighted mean within-cluster variance at each k.
     """
-    from scipy.cluster.hierarchy import fcluster
+    from sklearn.cluster._agglomerative import _hc_cut
 
-    min_dist = linkage[:, 2].min()
-    max_dist = linkage[:, 2].max()
-    thresholds = np.linspace(min_dist + 1e-6, max_dist, n_steps)
+    n_leaves = shifts.shape[0]
+    if k_values is None:
+        k_values = sorted(set(
+            list(range(5, 50, 5)) + list(range(50, 200, 10)) + [200, 300, 500]
+        ))
 
-    n_communities_list = []
     variances_list = []
+    valid_k = []
+    for k in k_values:
+        if k >= n_leaves:
+            continue
+        labels = _hc_cut(k, model.children_, n_leaves)
+        var = _within_cluster_variance(shifts, labels)
+        variances_list.append(var)
+        valid_k.append(k)
 
-    for t in thresholds:
-        flat_labels = fcluster(linkage, t, criterion="distance")
-        unique_labels, counts = np.unique(flat_labels, return_counts=True)
-        k = len(unique_labels)
-
-        # Weighted mean within-cluster variance
-        total_var = 0.0
-        total_weight = 0.0
-        for label, count in zip(unique_labels, counts):
-            mask = flat_labels == label
-            cluster_data = shifts[mask]
-            if count > 1:
-                var = np.var(cluster_data, ddof=0)
-            else:
-                var = 0.0
-            total_var += var * count
-            total_weight += count
-
-        weighted_var = total_var / total_weight if total_weight > 0 else 0.0
-        n_communities_list.append(k)
-        variances_list.append(weighted_var)
-
-    return np.array(n_communities_list), np.array(variances_list)
+    return np.array(valid_k), np.array(variances_list)
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -275,7 +284,7 @@ def main() -> None:
 
     adjacency_path = COMMUNITIES_DIR / "adjacency.npz"
     geoids_path = COMMUNITIES_DIR / "adjacency.geoids.txt"
-    shifts_path = COMMUNITIES_DIR / "shift_vectors.parquet"
+    shifts_path = PROJECT_ROOT / "data" / "shifts" / "tract_shifts.parquet"
 
     log.info("Loading adjacency matrix …")
     W = load_npz(str(adjacency_path))
@@ -284,17 +293,27 @@ def main() -> None:
     log.info("Loading shift vectors …")
     shifts_df = pd.read_parquet(shifts_path)
     shift_cols = [c for c in shifts_df.columns if c != "tract_geoid"]
-    shifts = shifts_df[shift_cols].values
+
+    # Align shift vectors to adjacency geoid ordering.
+    # TIGER has 9,393 tracts; election data covers 9,358. The 35 tracts
+    # with no election data (water-only, uninhabited) get column-mean shifts.
+    shifts_indexed = shifts_df.set_index("tract_geoid")
+    aligned = shifts_indexed.reindex(geoids)
+    n_missing = aligned[shift_cols[0]].isna().sum()
+    if n_missing:
+        log.info("Filling %d tracts with no election data using column means", n_missing)
+        col_means = aligned[shift_cols].mean()
+        aligned[shift_cols] = aligned[shift_cols].fillna(col_means)
+    shifts = aligned[shift_cols].values
 
     log.info("Normalising shift vectors …")
     shifts_norm = normalize_shifts(shifts, n_presidential_dims=6)
 
     log.info("Building full dendrogram (n_clusters=1) …")
     _, model = cluster_at_threshold(shifts_norm, W, n_clusters=1)
-    linkage = build_linkage_matrix(model)
 
-    log.info("Sweeping thresholds to find elbow …")
-    n_comms, variances = sweep_thresholds(shifts_norm, W, linkage)
+    log.info("Sweeping k values to find elbow …")
+    n_comms, variances = sweep_thresholds(shifts_norm, W, model)
     elbow_k = find_elbow(n_comms, variances)
     log.info("Elbow community count: %s", elbow_k)
 
@@ -311,11 +330,11 @@ def main() -> None:
     assignments_df.to_parquet(out_path, index=False)
     log.info("Community assignments saved to %s", out_path)
 
-    # Save dendrogram
+    # Save sweep results
     dendro_path = COMMUNITIES_DIR / "dendrogram.pkl"
     with open(dendro_path, "wb") as f:
-        pickle.dump({"linkage": linkage, "n_communities": n_comms, "variances": variances}, f)
-    log.info("Dendrogram saved to %s", dendro_path)
+        pickle.dump({"model": model, "n_communities": n_comms, "variances": variances}, f)
+    log.info("Sweep results saved to %s", dendro_path)
 
 
 if __name__ == "__main__":

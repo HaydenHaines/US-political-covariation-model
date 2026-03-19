@@ -109,7 +109,7 @@ def main() -> None:
 
     adjacency_path = COMMUNITIES_DIR / "adjacency.npz"
     geoids_path = COMMUNITIES_DIR / "adjacency.geoids.txt"
-    shifts_path = COMMUNITIES_DIR / "shift_vectors.parquet"
+    shifts_path = PROJECT_ROOT / "data" / "shifts" / "tract_shifts.parquet"
     assignments_path = COMMUNITIES_DIR / "community_assignments.parquet"
 
     log.info("Loading adjacency matrix …")
@@ -119,7 +119,13 @@ def main() -> None:
     log.info("Loading shift vectors …")
     shifts_df = pd.read_parquet(shifts_path)
     shift_cols = [c for c in shifts_df.columns if c != "tract_geoid"]
-    shifts = shifts_df[shift_cols].values
+    # Align to adjacency geoid order; fill missing tracts with column means
+    shifts_indexed = shifts_df.set_index("tract_geoid")
+    aligned = shifts_indexed.reindex(geoids)
+    n_missing = aligned[shift_cols[0]].isna().sum()
+    if n_missing:
+        aligned[shift_cols] = aligned[shift_cols].fillna(aligned[shift_cols].mean())
+    shifts = aligned[shift_cols].values
 
     log.info("Loading community assignments …")
     assignments_df = pd.read_parquet(assignments_path)

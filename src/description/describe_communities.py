@@ -28,11 +28,12 @@ DEMOGRAPHIC_COLS = [
     "median_age",
 ]
 
+_ROOT = Path(__file__).resolve().parents[2]
 # Input/output paths
-ASSIGNMENTS_PATH = Path("data/communities/community_assignments.parquet")
-FEATURES_PATH = Path("data/assembled/tract_features.parquet")
-SHIFTS_PATH = Path("data/assembled/tract_shifts.parquet")
-OUTPUT_PATH = Path("data/communities/community_profiles.parquet")
+ASSIGNMENTS_PATH = _ROOT / "data" / "communities" / "community_assignments.parquet"
+FEATURES_PATH = _ROOT / "data" / "assembled" / "tract_features.parquet"
+SHIFTS_PATH = _ROOT / "data" / "shifts" / "tract_shifts.parquet"
+OUTPUT_PATH = _ROOT / "data" / "communities" / "community_profiles.parquet"
 
 
 def build_community_profiles(
@@ -61,12 +62,23 @@ def build_community_profiles(
     # Identify shift columns (everything except the key)
     shift_cols = [c for c in shifts.columns if c != "tract_geoid"]
 
+    # Normalise assignments column name (pipeline writes "community", not "community_id")
+    if "community" in assignments.columns and "community_id" not in assignments.columns:
+        assignments = assignments.rename(columns={"community": "community_id"})
+
+    # pop_total may be absent from the assembled features; fall back to unweighted means
+    feat_cols = ["tract_geoid"] + DEMOGRAPHIC_COLS
+    if "pop_total" in features.columns:
+        feat_cols = ["tract_geoid", "pop_total"] + DEMOGRAPHIC_COLS
+
     # Merge all tables on tract_geoid
     merged = (
         assignments
-        .merge(features[["tract_geoid", "pop_total"] + DEMOGRAPHIC_COLS], on="tract_geoid", how="left")
+        .merge(features[feat_cols], on="tract_geoid", how="left")
         .merge(shifts[["tract_geoid"] + shift_cols], on="tract_geoid", how="left")
     )
+    if "pop_total" not in merged.columns:
+        merged["pop_total"] = 1.0  # unweighted: treat each tract equally
 
     records = []
     for community_id, group in merged.groupby("community_id"):

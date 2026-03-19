@@ -178,7 +178,7 @@ python src/viz/build_blended_map.py                 # Community blend map → da
 # Quality
 ruff check src/                                     # Lint Python
 ruff format src/                                    # Format Python
-pytest                                              # Run Python tests (placeholder)
+pytest                                              # Run Python tests (117 tests)
 ```
 
 ## Known Tech Debt

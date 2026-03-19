@@ -68,7 +68,7 @@ The initial implementation covers **Florida, Georgia, and Alabama** (226 countie
 
 ### Primary gaps
 
-- **Test coverage**: test files exist but all bodies are placeholder `pass` stubs; there is no real test coverage yet
+- **Test coverage**: 117 real tests covering assembly, detection, covariance, propagation, and sabermetrics modules
 - **Additional data sources**: current community detection uses only 12 ACS demographic features; RCMS religious data, IRS migration flows, LODES commuting flows, and Facebook SCI are designed-in but not yet integrated
 - **Real poll data**: `data/polls/polls_2026.csv` contains synthetic placeholder polls; real 2026 polls must replace these as the cycle advances
 - **Full MRP**: R+Stan propagation pipeline is scaffolded but not implemented; Python Gaussian update is sufficient for the October 2026 target
@@ -122,7 +122,7 @@ src/            Source code organized by pipeline stage
   sabermetrics/ Politician analytics (scaffolded)
 data/           Data artifacts (gitignored)
 notebooks/      Exploratory analysis
-tests/          Test suite (placeholder stubs only)
+tests/          Test suite (117 tests across all pipeline stages)
 scripts/        Utility scripts
 ```
 
@@ -144,7 +144,7 @@ python src/validation/validate_2024.py
 ruff check src/
 ruff format src/
 
-# Tests (note: all stubs, pass trivially)
+# Tests
 pytest
 ```
 

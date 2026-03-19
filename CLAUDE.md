@@ -178,7 +178,8 @@ python src/viz/build_blended_map.py                 # Community blend map → da
 # Quality
 ruff check src/                                     # Lint Python
 ruff format src/                                    # Format Python
-pytest                                              # Run Python tests (117 tests)
+python src/assembly/fetch_irs_migration.py          # IRS migration flows (latest 3 year pairs) → data/raw/irs_migration.parquet
+pytest                                              # Run Python tests (203 tests)
 ```
 
 ## Known Tech Debt
@@ -210,3 +211,4 @@ pytest                                              # Run Python tests (117 test
 | 2026-03-18 | Stage 4 poll propagation implemented in Python (not R+Stan MRP) | Lightweight Gaussian Bayesian update in `src/propagation/propagate_polls.py`: mu_post = Sigma_post(Sigma_prior⁻¹ mu_prior + Σ_polls Hᵀσ⁻²y). Uses Stan covariance matrix but does not require running Stan for each forecast. Full MRP (R+Stan) deferred to post-MVP; Python approach sufficient for state-level polls. |
 | 2026-03-18 | 2026 forward prediction pipeline complete (placeholder polls) | `src/assembly/ingest_polls.py` + `data/polls/polls_2026.csv` + `src/prediction/predict_2026.py`. FL Senate: polls 43.9% → model 39.5% (R+21); GA Senate: polls 50.5% → model 43.4% (R+13). Model applies structural downward correction to FL consistent with 2022/2024 validation showing ~5pp poll overestimate of Democrats. County predictions saved to `data/predictions/county_predictions_2026.parquet`. |
 | 2026-03-18 | RCMS 2020 religious data integrated (county level) | `src/assembly/fetch_rcms.py` scrapes ARDA county map tool (parameterized GET, no login required). Produces `data/raw/rcms_county.parquet` (293 counties, 7 data cols). `build_features.py` computes 6 derived features → `data/assembled/county_rcms_features.parquet`. RCMS is county-level only; ACS tract features remain in separate file. 38 new tests in `tests/test_rcms.py`. |
+| 2026-03-18 | IRS SOI county-to-county migration edge list integrated | `src/assembly/fetch_irs_migration.py` downloads IRS SOI inflow CSVs (default: latest 3 year pairs: 2019-2020, 2020-2021, 2021-2022). Filters to flows involving FL/GA/AL, skips aggregate rows (statefips ≥ 96) and non-migrant same-county rows. Produces `data/raw/irs_migration.parquet` (edge list: origin_fips, dest_fips, n_returns, n_exemptions, agi, year_pair). Inflow-only design avoids double-counting. 48 new tests in `tests/test_irs_migration.py`. Feature computation from edge list deferred to post-MVP. |

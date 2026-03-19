@@ -59,7 +59,7 @@ The initial implementation covers **Florida, Georgia, and Alabama** (226 countie
 
 | Stage | Status | Key result |
 |-------|--------|------------|
-| 1 — Data Assembly | Complete | ACS tracts, VEST 2016-2020, MEDSL 2022-2024, RCMS 2020 religious data |
+| 1 — Data Assembly | Complete | ACS tracts, VEST 2016-2020, MEDSL 2022-2024, RCMS 2020 religious data, IRS migration flows (2019-2022) |
 | 2 — Community Detection | Complete | K=7 NMF canonical solution; 9,393 tract soft assignments |
 | 3 — Covariance Estimation | Complete | R²=0.689/0.636/0.661 across 2016/2018/2020; hypothesis confirmed |
 | 4 — Poll Propagation | MVP complete | Gaussian/Kalman update; full MRP (R+Stan) deferred |
@@ -68,8 +68,8 @@ The initial implementation covers **Florida, Georgia, and Alabama** (226 countie
 
 ### Primary gaps
 
-- **Test coverage**: 155 tests covering assembly, detection, covariance, propagation, sabermetrics, and RCMS integration
-- **Additional data sources**: RCMS 2020 religious data now integrated (293 counties × 6 features). Still pending: IRS migration flows, LODES commuting flows, and Facebook SCI
+- **Test coverage**: 203 tests covering assembly, detection, covariance, propagation, sabermetrics, RCMS integration, and IRS migration
+- **Additional data sources**: RCMS 2020 religious data integrated (293 counties × 6 features). IRS migration edge list integrated (county-to-county flows, 2019-2022). Still pending: per-county migration feature computation from edge list, LODES commuting flows, and Facebook SCI
 - **Real poll data**: `data/polls/polls_2026.csv` contains synthetic placeholder polls; real 2026 polls must replace these as the cycle advances
 - **Full MRP**: R+Stan propagation pipeline is scaffolded but not implemented; Python Gaussian update is sufficient for the October 2026 target
 - **Sabermetrics**: all five sabermetrics source files contain only function signatures; no implemented logic yet
@@ -122,7 +122,7 @@ src/            Source code organized by pipeline stage
   sabermetrics/ Politician analytics (scaffolded)
 data/           Data artifacts (gitignored)
 notebooks/      Exploratory analysis
-tests/          Test suite (117 tests across all pipeline stages)
+tests/          Test suite (203 tests across all pipeline stages)
 scripts/        Utility scripts
 ```
 

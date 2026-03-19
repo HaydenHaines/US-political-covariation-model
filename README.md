@@ -59,7 +59,7 @@ The initial implementation covers **Florida, Georgia, and Alabama** (226 countie
 
 | Stage | Status | Key result |
 |-------|--------|------------|
-| 1 — Data Assembly | Complete | ACS tracts, VEST 2016-2020, MEDSL 2022-2024 fetched and assembled |
+| 1 — Data Assembly | Complete | ACS tracts, VEST 2016-2020, MEDSL 2022-2024, RCMS 2020 religious data |
 | 2 — Community Detection | Complete | K=7 NMF canonical solution; 9,393 tract soft assignments |
 | 3 — Covariance Estimation | Complete | R²=0.689/0.636/0.661 across 2016/2018/2020; hypothesis confirmed |
 | 4 — Poll Propagation | MVP complete | Gaussian/Kalman update; full MRP (R+Stan) deferred |
@@ -68,8 +68,8 @@ The initial implementation covers **Florida, Georgia, and Alabama** (226 countie
 
 ### Primary gaps
 
-- **Test coverage**: 117 real tests covering assembly, detection, covariance, propagation, and sabermetrics modules
-- **Additional data sources**: current community detection uses only 12 ACS demographic features; RCMS religious data, IRS migration flows, LODES commuting flows, and Facebook SCI are designed-in but not yet integrated
+- **Test coverage**: 155 tests covering assembly, detection, covariance, propagation, sabermetrics, and RCMS integration
+- **Additional data sources**: RCMS 2020 religious data now integrated (293 counties × 6 features). Still pending: IRS migration flows, LODES commuting flows, and Facebook SCI
 - **Real poll data**: `data/polls/polls_2026.csv` contains synthetic placeholder polls; real 2026 polls must replace these as the cycle advances
 - **Full MRP**: R+Stan propagation pipeline is scaffolded but not implemented; Python Gaussian update is sufficient for the October 2026 target
 - **Sabermetrics**: all five sabermetrics source files contain only function signatures; no implemented logic yet

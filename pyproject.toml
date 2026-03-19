@@ -19,6 +19,10 @@ dependencies = [
     "python-igraph>=0.11",
     "infomap>=2.7",
 
+    # Spatial community discovery
+    "libpysal>=4.9",
+    "kneed>=0.8",
+
     # Machine learning / matrix factorization
     "scikit-learn>=1.4",
     # lightfm removed: fails to build on Python 3.13 (old C extension setup.py)

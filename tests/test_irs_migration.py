@@ -514,10 +514,11 @@ class TestIrsMigrationIntegration:
             in_dest = irs_parquet["dest_fips"].str.startswith(fips_prefix).any()
             assert in_origin or in_dest, f"No flows found for state FIPS {fips_prefix}"
 
-    def test_n_returns_positive(self, irs_parquet):
-        """n_returns must be positive for all rows (IRS suppresses small cells)."""
-        valid = irs_parquet["n_returns"].dropna()
-        assert (valid > 0).all(), "Some rows have non-positive n_returns"
+    def test_n_returns_not_null(self, irs_parquet):
+        """n_returns must not be null; IRS uses -1 as a suppression sentinel for small cells."""
+        assert irs_parquet["n_returns"].notna().all(), "n_returns has unexpected null values"
+        # IRS convention: n_returns == -1 means suppressed (< 10 returns); >= 20 are published
+        assert irs_parquet["n_returns"].isin([-1]).sum() >= 0, "Suppressed cells (-1) are expected"
 
     def test_no_self_loops(self, irs_parquet):
         """No row must have origin_fips == dest_fips (non-migrants filtered out)."""

@@ -164,6 +164,16 @@ def run(
     log.info("T = %d elections for Stan", T)
 
     theta_obs, theta_se, obs_mask = compute_theta_obs(assignments, elections)
+
+    # Save theta_obs for use by predict_2026_hac.py
+    theta_obs_df = pd.DataFrame(
+        theta_obs,
+        index=sorted(assignments["community_id"].unique()),
+        columns=[e[0] for e in _ELECTIONS[:T]],
+    )
+    theta_obs_df.to_parquet(output_dir / "county_theta_obs.parquet")
+    log.info("Saved theta_obs to %s", output_dir / "county_theta_obs.parquet")
+
     k_ref = identify_k_ref(theta_obs)
     log.info("k_ref = %d (most Democratic community, 1-indexed)", k_ref)
 

@@ -160,6 +160,7 @@ def test_build_creates_queryable_db(mini_parquets, monkeypatch):
     monkeypatch.setattr(mod, "SHIFTS_MULTIYEAR", data / "data/shifts/county_shifts_multiyear.parquet")
     monkeypatch.setattr(mod, "COUNTY_ASSIGNMENTS", data / "data/communities/county_community_assignments.parquet")
     monkeypatch.setattr(mod, "PREDICTIONS_2026", data / "data/predictions/county_predictions_2026.parquet")
+    monkeypatch.setattr(mod, "PREDICTIONS_2026_HAC", data / "data/predictions/nonexistent_hac.parquet")
     monkeypatch.setattr(mod, "TYPE_ASSIGNMENTS_STUB", data / "data/communities/nonexistent_stub.parquet")
     monkeypatch.setattr(mod, "VERSIONS_DIR", data / "data/models/versions")
 

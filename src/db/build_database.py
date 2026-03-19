@@ -42,6 +42,7 @@ COUNTY_ASSIGNMENTS = PROJECT_ROOT / "data" / "communities" / "county_community_a
 PREDICTIONS_2026 = PROJECT_ROOT / "data" / "predictions" / "county_predictions_2026.parquet"
 TYPE_ASSIGNMENTS_STUB = PROJECT_ROOT / "data" / "communities" / "county_type_assignments_stub.parquet"
 VERSIONS_DIR = PROJECT_ROOT / "data" / "models" / "versions"
+PREDICTIONS_2026_HAC = PROJECT_ROOT / "data" / "predictions" / "county_predictions_2026_hac.parquet"
 
 
 # ---------------------------------------------------------------------------
@@ -332,6 +333,19 @@ def build(db_path: Path, reset: bool = False) -> None:
         log.info("Ingested predictions: %d rows", len(pred_rows))
     else:
         log.warning("No predictions file found; skipping predictions table")
+
+    # ── Ingest HAC predictions ──────────────────────────────────────────────────
+    if PREDICTIONS_2026_HAC.exists():
+        pred_hac = pd.read_parquet(PREDICTIONS_2026_HAC)
+        pred_hac["county_fips"] = pred_hac["county_fips"].astype(str).str.zfill(5)
+        pred_hac_rows = _build_predictions(pred_hac, current_version_id)
+        existing_races = set(con.execute("SELECT DISTINCT race FROM predictions").fetchdf()["race"])
+        new_rows = pred_hac_rows[~pred_hac_rows["race"].isin(existing_races)]
+        if len(new_rows):
+            con.execute("INSERT INTO predictions SELECT * FROM new_rows")
+            log.info("Ingested HAC predictions: %d rows", len(new_rows))
+    else:
+        log.info("No HAC predictions file found; skipping")
 
     # ── Ingest community sigma ─────────────────────────────────────────────────
     sigma_path = PROJECT_ROOT / "data" / "covariance" / "county_community_sigma.parquet"

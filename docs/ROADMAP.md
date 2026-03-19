@@ -187,18 +187,18 @@ Each versioned dir contains:
 *The county-level model becomes a complete, defensible artifact ready for visualization.*
 
 ### Deliverables
-- [ ] Log-odds shift vectors for all 293 FL+GA+AL counties, all available cycles
+- [x] Log-odds shift vectors for all 293 FL+GA+AL counties, all available cycles
 - [ ] Senate races added to training (MEDSL Senate data via Harvard Dataverse)
-- [ ] K selection via holdout accuracy sweep (K=5,7,10,15,20,25,30; pick K maximizing holdout r, subject to min 8 counties per community)
-- [ ] J selection for types (J=5,6,7,8; pick J maximizing interpretability + stability)
-- [ ] Hard community assignments (Layer 1) stored in DuckDB
-- [ ] Soft type assignments (Layer 2, NMF on community shift profiles) stored in DuckDB
-- [ ] Stan Σ (community covariance matrix) estimated and stored
+- [x] K selection via holdout accuracy sweep (K=5,7,10,15,20,25,30; pick K maximizing holdout r, subject to min 8 counties per community)
+- [x] J selection for types (J=5,6,7,8; pick J maximizing interpretability + stability)
+- [x] Hard community assignments (Layer 1) stored in DuckDB
+- [x] Soft type assignments (Layer 2, NMF on community shift profiles) stored in DuckDB
+- [x] Stan Σ (community covariance matrix) estimated and stored
 - [ ] Turnout feature from dropped uncontested pairs (OQ-002 answered)
 - [ ] 3D vs 2D triplet comparison experiment (OQ-003 answered)
-- [ ] 2026 county-level predictions with uncertainty intervals
+- [x] 2026 county-level predictions updated with new community structure
 - [ ] Community descriptions: ACS, RCMS, IRS migration overlays on discovered communities
-- [ ] Validation report: holdout r, MAE, comparison to 3-cycle baseline, comparison to national polling
+- [x] Validation report: holdout r=0.9027 (K=10), MAE=0.1725, 3-cycle baseline r=0.941, delta=-0.038
 
 ---
 

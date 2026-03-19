@@ -1,6 +1,7 @@
 version: county_multiyear_logodds_20260319
 role: current
-k: 7
+k: 10
+holdout_r: 0.8823
 shift_type: logodds
 vote_share_type: total
 description: >

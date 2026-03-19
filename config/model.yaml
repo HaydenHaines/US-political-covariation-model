@@ -1,82 +1,113 @@
-# Bedrock — county model configuration
-# Working name: Bedrock (bedrock.vote)
-# All pipeline scripts read from this file via src/core/config.py
-
 model:
-  id: "county_multiyear_logodds_v1"
-  description: "County-level multi-year model — log-odds shifts, total vote share"
-
+  id: county_multiyear_logodds_v1
+  description: "County-level multi-year model \u2014 log-odds shifts, total vote share"
 geography:
-  states: ["FL", "GA", "AL"]
+  states:
+  - FL
+  - GA
+  - AL
   state_fips:
-    FL: "12"
-    GA: "13"
-    AL: "01"
-  al_fips_prefix: "01"
-
+    FL: '12'
+    GA: '13'
+    AL: '01'
+  al_fips_prefix: '01'
 election:
-  vote_share_type: "total"       # "total" = dem/all_candidates; "twoparty" = dem/(dem+rep)
-  shift_type: "logodds"          # "logodds" = logit(later) - logit(earlier); "raw" = later - earlier
-  logodds_epsilon: 0.01          # clip dem_share to [epsilon, 1-epsilon] before logit
-
-  presidential_years: [2000, 2004, 2008, 2012, 2016, 2020, 2024]
-  governor_years: [2002, 2006, 2010, 2014, 2018]
-  senate_years: []               # placeholder — not yet ingested
-
+  vote_share_type: total
+  shift_type: logodds
+  logodds_epsilon: 0.01
+  presidential_years:
+  - 2000
+  - 2004
+  - 2008
+  - 2012
+  - 2016
+  - 2020
+  - 2024
+  governor_years:
+  - 2002
+  - 2006
+  - 2010
+  - 2014
+  - 2018
+  senate_years: []
   presidential_pairs:
-    - [2000, 2004]
-    - [2004, 2008]
-    - [2008, 2012]
-    - [2012, 2016]
-    - [2016, 2020]
+  - - 2000
+    - 2004
+  - - 2004
+    - 2008
+  - - 2008
+    - 2012
+  - - 2012
+    - 2016
+  - - 2016
+    - 2020
   governor_pairs:
-    - [2002, 2006]
-    - [2006, 2010]
-    - [2010, 2014]
-    - [2014, 2018]
-    - [2018, 2022]
+  - - 2002
+    - 2006
+  - - 2006
+    - 2010
+  - - 2010
+    - 2014
+  - - 2014
+    - 2018
+  - - 2018
+    - 2022
   holdout_pairs:
-    presidential: [[2020, 2024]]
-
-  uncontested_policy: "drop"     # "drop" = zero-fill shifts for dropped pairs; "zero" = explicit zero
-
+    presidential:
+    - - 2020
+      - 2024
+  uncontested_policy: drop
 clustering:
-  algorithm: "ward_hac"
-  spatial_constraint: "queen_contiguity"
-  layer1_assignment: "hard"      # geographic communities — always hard
-  layer2_assignment: "soft"      # electoral types — always soft (NMF)
-  k: null                        # null = select via holdout accuracy sweep
-  k_candidates: [5, 7, 10, 12, 15, 20, 25, 30]
-  min_community_size: 8          # minimum counties per community
-
+  algorithm: ward_hac
+  spatial_constraint: queen_contiguity
+  layer1_assignment: hard
+  layer2_assignment: soft
+  k: 10
+  k_candidates:
+  - 5
+  - 7
+  - 10
+  - 12
+  - 15
+  - 20
+  - 25
+  - 30
+  min_community_size: 8
 types:
-  algorithm: "nmf"
-  j: null                        # null = select for interpretability
-  j_candidates: [5, 6, 7, 8]
-
+  algorithm: nmf
+  j: null
+  j_candidates:
+  - 5
+  - 6
+  - 7
+  - 8
 validation:
-  holdout_k_values: [5, 7, 10, 15, 20]
+  holdout_k_values:
+  - 5
+  - 7
+  - 10
+  - 15
+  - 20
   baseline_3cycle:
     k5: 0.983
     k7: 0.964
     k10: 0.941
     k15: 0.934
     k20: 0.932
-
 data:
   presidential_files:
-    "00": "medsl_county_presidential_2000.parquet"
-    "04": "medsl_county_presidential_2004.parquet"
-    "08": "medsl_county_presidential_2008.parquet"
-    "12": "medsl_county_presidential_2012.parquet"
-    "16": "medsl_county_presidential_2016.parquet"
-    "20": "medsl_county_presidential_2020.parquet"
-    "24": "medsl_county_presidential_2024.parquet"
+    '00': medsl_county_presidential_2000.parquet
+    '04': medsl_county_presidential_2004.parquet
+    08: medsl_county_presidential_2008.parquet
+    '12': medsl_county_presidential_2012.parquet
+    '16': medsl_county_presidential_2016.parquet
+    '20': medsl_county_presidential_2020.parquet
+    '24': medsl_county_presidential_2024.parquet
   governor_files:
-    "02": "algara_county_governor_2002.parquet"
-    "06": "algara_county_governor_2006.parquet"
-    "10": "algara_county_governor_2010.parquet"
-    "14": "algara_county_governor_2014.parquet"
-    "18": "algara_county_governor_2018.parquet"
-    "22": "medsl_county_2022_governor.parquet"
-  spine_file: "medsl_county_presidential_2024.parquet"
+    '02': algara_county_governor_2002.parquet
+    '06': algara_county_governor_2006.parquet
+    '10': algara_county_governor_2010.parquet
+    '14': algara_county_governor_2014.parquet
+    '18': algara_county_governor_2018.parquet
+    '22': medsl_county_2022_governor.parquet
+  spine_file: medsl_county_presidential_2024.parquet

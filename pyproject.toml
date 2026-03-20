@@ -52,6 +52,12 @@ dev = [
     "streamlit>=1.30",
 ]
 
+api = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "httpx>=0.27.0",
+]
+
 graph-tool = [
     # graph-tool must be installed via conda or system package manager
     # It cannot be installed via pip

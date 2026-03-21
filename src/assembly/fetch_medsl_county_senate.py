@@ -1,30 +1,51 @@
-"""Fetch MEDSL county-level U.S. Senate returns for FL, GA, AL.
+"""Fetch county-level U.S. Senate returns for FL, GA, AL.
 
-Source: MIT Election Data + Science Lab, Harvard Dataverse
-  doi:10.7910/DVN/PEJ5QU  (U.S. Senate Returns, county-level)
-
-Downloads a single unified tab-delimited file covering U.S. Senate elections
-at the county level. Filters to FL, GA, AL for the target Senate years.
-Computes total-vote dem share (dem / all_candidates) per county per year.
+Data sources by year:
+  2022: MEDSL county-level results
+        doi:10.7910/DVN/YB60EJ  (senate_2022.tab, has county_fips)
+  2016/2018/2020: VEST Senate Precinct-Level Returns, aggregated to county
+        2016: doi:10.7910/DVN/NLTQAD  (2016-precinct-senate.tab)
+        2018: doi:10.7910/DVN/DGNAFS  (SENATE_precinct_general.tab)
+        2020: doi:10.7910/DVN/ER9XTV  (2020-SENATE-precinct-general.csv)
+  2002-2014: Algara & Amlani County Electoral Dataset
+        doi:10.7910/DVN/DGUMFI
+        file: dataverse_shareable_us_senate_county_returns_1908_2020.Rdata
+        Covers general-election Senate returns at county level from 1908-2020.
+        Not every state has a Senate race every cycle (each seat is contested
+        every 6 years), so some year-state combos produce 0 counties — correct.
 
 Senate seats per state in this model:
-  FL  Class I  (2000, 2006, 2012, 2018, 2024)  Nelson/Scott seat
-  FL  Class III (2004, 2010, 2016, 2022)        Martinez/Rubio seat
-  GA  Class II  (2002, 2008, 2014, 2020)        Cleland/Warnock seat
-  GA  Class III (2004, 2010, 2016, 2022)        Miller/Ossoff seat
-  AL  Class II  (2002, 2008, 2014, 2020)        Sessions/Jones seat
-  AL  Class III (2004, 2010, 2016, 2022)        Shelby seat
+  FL  Class I   (2000, 2006, 2012, 2018, 2024)  Nelson/Scott seat
+  FL  Class III (2004, 2010, 2016, 2022)         Martinez/Rubio seat
+  GA  Class II  (2002, 2008, 2014, 2020)         Cleland/Warnock seat
+  GA  Class III (2004, 2010, 2016, 2022)         Miller/Ossoff seat
+  AL  Class II  (2002, 2008, 2014, 2020)         Sessions/Jones seat
+  AL  Class III (2004, 2010, 2016, 2022)         Shelby seat
+
+So for 2002-2014:
+  2002: GA Class II + AL Class II → county data expected
+  2004: FL Class III + GA Class III + AL Class III → county data expected
+  2006: FL Class I → county data expected
+  2008: GA Class II + AL Class II → county data expected
+  2010: FL Class III + GA Class III + AL Class III → county data expected
+  2012: FL Class I → county data expected
+  2014: GA Class II + AL Class II → county data expected
 
 NOTE: Multiple Senate races may exist in the same state-year (e.g. GA 2020
-special + regular). When that happens this module keeps all rows and lets the
-caller aggregate; downstream uncontested_policy handles structural zeros.
+special + regular). When that happens candidatevotes are summed across races
+per county. This produces a blended dem_share weighted by turnout.
 
 Output (one parquet per election year, data/assembled/):
   medsl_county_senate_{year}.parquet
   Columns: county_fips, state_abbr, senate_dem_{year}, senate_rep_{year},
            senate_total_{year}, senate_dem_share_{year}
 
-Cache: data/raw/medsl/county_senate.tab
+Caches:
+  data/raw/medsl/senate_2022.tab
+  data/raw/medsl/senate_precinct_2016.tab
+  data/raw/medsl/senate_precinct_2018.tab
+  data/raw/medsl/senate_precinct_2020.csv
+  data/raw/algara_amlani/dataverse_shareable_us_senate_county_returns_1908_2020.Rdata
 """
 from __future__ import annotations
 
@@ -42,86 +63,168 @@ log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 RAW_DIR = PROJECT_ROOT / "data" / "raw" / "medsl"
 ASSEMBLED_DIR = PROJECT_ROOT / "data" / "assembled"
-CACHE_PATH = RAW_DIR / "county_senate.tab"
 
-DATAVERSE_DOI = "doi:10.7910/DVN/PEJ5QU"
 DATAVERSE_API = "https://dataverse.harvard.edu/api"
 
-STATES: dict[str, str] = _cfg.STATE_ABBR   # fips_prefix → abbr
+STATES: dict[str, str] = _cfg.STATE_ABBR   # fips_prefix → abbr  e.g. "12" → "FL"
+STATE_PO_SET: set[str] = set(STATES.values())  # {"FL", "GA", "AL"}
+
+# Public constants consumed by tests and downstream modules
 SENATE_YEARS: list[int] = _cfg.SENATE_YEARS
 
+# ── Source definitions ─────────────────────────────────────────────────────────
 
-def _dataverse_download(doi: str, cache_path: Path) -> Path:
-    """Download primary data file from a Harvard Dataverse DOI."""
+# MEDSL 2022 county-level Senate (has county_fips column directly)
+MEDSL_2022_FILE_ID = 7412054   # senate_2022.tab inside doi:10.7910/DVN/YB60EJ
+MEDSL_2022_CACHE = RAW_DIR / "senate_2022.tab"
+
+# VEST precinct-level Senate (have county_fips; need county aggregation)
+# Filenames and Dataverse file IDs for the main tabular data files:
+VEST_SOURCES: dict[int, tuple[int, Path, str]] = {
+    # year → (file_id, cache_path, separator)
+    2016: (3345325, RAW_DIR / "senate_precinct_2016.tab", "\t"),
+    2018: (6692658, RAW_DIR / "senate_precinct_2018.tab", "\t"),
+    2020: (6100391, RAW_DIR / "senate_precinct_2020.csv", ","),
+}
+
+# Algara & Amlani county-level Senate returns 1908-2020 (doi:10.7910/DVN/DGUMFI)
+# Covers 2002-2014 (and beyond, but VEST/MEDSL preferred for 2016+).
+ALGARA_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "algara_amlani"
+ALGARA_SENATE_FILE_ID = 5028534
+ALGARA_SENATE_FILENAME = "dataverse_shareable_us_senate_county_returns_1908_2020.Rdata"
+ALGARA_SENATE_CACHE = ALGARA_RAW_DIR / ALGARA_SENATE_FILENAME
+
+
+# ── Download helpers ───────────────────────────────────────────────────────────
+
+def _download_file(file_id: int, cache_path: Path) -> Path:
+    """Download a single Dataverse file by its numeric file ID."""
     if cache_path.exists():
         log.info("Using cached file: %s", cache_path)
         return cache_path
 
-    list_url = f"{DATAVERSE_API}/datasets/:persistentId/versions/:latest/files"
-    resp = requests.get(list_url, params={"persistentId": doi}, timeout=30)
-    resp.raise_for_status()
-    files = resp.json()["data"]
-
-    # Find the main tabular data file; skip README / codebook / sources
-    data_files = [
-        f for f in files
-        if f["dataFile"]["filename"].lower().endswith((".csv", ".tab"))
-        and "readme" not in f["dataFile"]["filename"].lower()
-        and "codebook" not in f["dataFile"]["filename"].lower()
-        and "sources" not in f["dataFile"]["filename"].lower()
-        and ".md" not in f["dataFile"]["filename"].lower()
-    ]
-    if not data_files:
-        raise FileNotFoundError(f"No tabular data file found in {doi}")
-
-    # Pick the largest file (most likely the main data file)
-    main_file = max(data_files, key=lambda f: f["dataFile"].get("filesize", 0))
-    file_id = main_file["dataFile"]["id"]
-    filename = main_file["dataFile"]["filename"]
-    log.info("Downloading %s (id=%s)...", filename, file_id)
-
     cache_path.parent.mkdir(parents=True, exist_ok=True)
-    dl_url = f"{DATAVERSE_API}/access/datafile/{file_id}"
-    with requests.get(dl_url, stream=True, timeout=300) as r:
+    url = f"{DATAVERSE_API}/access/datafile/{file_id}"
+    log.info("Downloading file_id=%d → %s ...", file_id, cache_path.name)
+    with requests.get(url, stream=True, timeout=600) as r:
         r.raise_for_status()
         with open(cache_path, "wb") as fh:
-            for chunk in r.iter_content(chunk_size=65536):
+            for chunk in r.iter_content(chunk_size=131072):
                 fh.write(chunk)
-
-    log.info("Saved → %s", cache_path)
+    log.info("Saved → %s (%.1f MB)", cache_path, cache_path.stat().st_size / 1e6)
     return cache_path
 
+
+# ── Shared aggregation logic ───────────────────────────────────────────────────
+
+def _normalise_fips(series: pd.Series) -> pd.Series:
+    """Convert county_fips (float or int or str) to zero-padded 5-char string."""
+    return (
+        pd.to_numeric(series, errors="coerce")
+        .fillna(0)
+        .astype(int)
+        .astype(str)
+        .str.zfill(5)
+    )
+
+
+def _aggregate_to_county(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Aggregate precinct/county rows to one row per county for a given year.
+
+    Expects columns: county_fips, party_simplified, candidatevotes.
+    totalvotes is computed as the sum of ALL candidate votes per county
+    (avoids the double-counting issue when a totalvotes column is absent).
+    Multiple races per county (e.g. GA specials) are summed.
+
+    Uncontested policy = drop: counties where dem or rep votes are zero
+    are dropped to avoid distorting log-odds shifts.
+
+    Returns county_fips, state_abbr, senate_dem_{year}, senate_rep_{year},
+    senate_total_{year}, senate_dem_share_{year}.
+    """
+    df = df.copy()
+    df["county_fips"] = _normalise_fips(df["county_fips"])
+
+    dem = (
+        df[df["party_simplified"] == "DEMOCRAT"]
+        .groupby("county_fips")["candidatevotes"]
+        .sum()
+        .rename(f"senate_dem_{year}")
+    )
+    rep = (
+        df[df["party_simplified"] == "REPUBLICAN"]
+        .groupby("county_fips")["candidatevotes"]
+        .sum()
+        .rename(f"senate_rep_{year}")
+    )
+    # Total votes = all candidate votes per county (D + R + other/writein).
+    # This is the correct denominator for dem_share (total-vote basis).
+    total = (
+        df.groupby("county_fips")["candidatevotes"]
+        .sum()
+        .rename(f"senate_total_{year}")
+    )
+
+    result = pd.concat([dem, rep, total], axis=1).reset_index()
+    result[f"senate_dem_share_{year}"] = (
+        result[f"senate_dem_{year}"] / result[f"senate_total_{year}"]
+    )
+
+    # Drop uncontested counties
+    dem_col, rep_col = f"senate_dem_{year}", f"senate_rep_{year}"
+    contested = (result[dem_col] > 0) & (result[rep_col] > 0)
+    n_dropped = (~contested).sum()
+    if n_dropped:
+        log.warning(
+            "Year %d: dropping %d uncontested/missing counties",
+            year, n_dropped,
+        )
+    result = result[contested].copy()
+
+    result["state_abbr"] = result["county_fips"].str[:2].map(STATES)
+    return result[["county_fips", "state_abbr",
+                   dem_col, rep_col,
+                   f"senate_total_{year}", f"senate_dem_share_{year}"]]
+
+
+# ── Public-API wrappers (used by tests and build_county_shifts_multiyear) ──────
 
 def filter_senate_rows(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only D/R U.S. Senate rows for FL, GA, AL.
 
-    Expects state_po column to contain state abbreviations (FL, GA, AL).
-    The MEDSL office field is 'US SENATE' or similar.
+    Expects columns: office, party_simplified, state_po (or state_postal for
+    2016 VEST).  This is the public-API entry-point used by test_senate.py and
+    build_county_shifts_multiyear.
     """
+    state_col = "state_po" if "state_po" in df.columns else "state_postal"
     mask = (
-        (df["office"].str.upper().str.contains("SENATE"))
-        & (~df["office"].str.upper().str.contains("STATE"))
+        (df["office"].str.upper().str.contains("SENATE", na=False))
+        & (~df["office"].str.upper().str.contains("STATE", na=False))
         & (df["party_simplified"].isin({"DEMOCRAT", "REPUBLICAN"}))
-        & (df["state_po"].isin(set(STATES.values())))
+        & (df[state_col].isin(STATE_PO_SET))
     )
     return df[mask].copy()
 
 
 def aggregate_county_year(df: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Aggregate filtered rows to one row per county for a given year.
+    """Aggregate filtered MEDSL/VEST rows to one row per county for a given year.
 
-    When a state has two Senate races in the same year (e.g. GA 2020 regular +
-    special), the candidatevotes and totalvotes are summed across all races for
-    that county. This produces a blended dem_share that represents the average
-    D performance weighted by turnout.
+    This is the public wrapper around _aggregate_to_county for the
+    MEDSL/VEST-style long-form input (party_simplified + candidatevotes).
 
-    Returns county_fips, state_abbr, senate_dem_{year}, senate_rep_{year},
-    senate_total_{year}, senate_dem_share_{year}.
+    Expects columns: year (optional filter), county_fips, party_simplified,
+    candidatevotes.  When a totalvotes column is present, it is used as the
+    total-votes denominator (so that other/third-party votes are included in
+    the total); otherwise the sum of all candidatevotes per county is used.
 
-    Applies uncontested_policy=drop: counties where dem or rep votes are zero
-    are dropped (NaN dem_share would distort log-odds shifts).
+    Multiple races per county-year (e.g. GA 2020 regular + special) are
+    summed before computing dem_share.
     """
-    yr = df[df["year"] == year].copy()
+    if "year" in df.columns:
+        yr = df[df["year"] == year].copy()
+    else:
+        yr = df.copy()
+
     if yr.empty:
         return pd.DataFrame(columns=[
             "county_fips", "state_abbr",
@@ -129,14 +232,7 @@ def aggregate_county_year(df: pd.DataFrame, year: int) -> pd.DataFrame:
             f"senate_total_{year}", f"senate_dem_share_{year}",
         ])
 
-    # Normalise county_fips: handle float representation (e.g. 12086.0 → "12086")
-    yr["county_fips"] = (
-        pd.to_numeric(yr["county_fips"], errors="coerce")
-        .fillna(0)
-        .astype(int)
-        .astype(str)
-        .str.zfill(5)
-    )
+    yr["county_fips"] = _normalise_fips(yr["county_fips"])
 
     dem = (
         yr[yr["party_simplified"] == "DEMOCRAT"]
@@ -150,106 +246,358 @@ def aggregate_county_year(df: pd.DataFrame, year: int) -> pd.DataFrame:
         .sum()
         .rename(f"senate_rep_{year}")
     )
-    # totalvotes is reported per row in MEDSL; for counties with multiple races
-    # (GA/AL specials) we sum totalvotes across races so the denominator matches
-    # the summed candidatevotes.
-    total_all = (
-        yr[yr["party_simplified"] == "DEMOCRAT"]
-        .groupby("county_fips")["totalvotes"]
-        .sum()
-        .rename(f"senate_total_{year}")
-    )
 
-    result = pd.concat([dem, rep, total_all], axis=1).reset_index()
+    # Total denominator: prefer totalvotes (includes other/third-party);
+    # fall back to summing all candidatevotes if totalvotes absent.
+    if "totalvotes" in yr.columns:
+        # Per MEDSL convention: totalvotes is the same for all rows in the
+        # same county-year; sum across D rows to match multi-race behaviour.
+        total = (
+            yr[yr["party_simplified"] == "DEMOCRAT"]
+            .groupby("county_fips")["totalvotes"]
+            .sum()
+            .rename(f"senate_total_{year}")
+        )
+    else:
+        total = (
+            yr.groupby("county_fips")["candidatevotes"]
+            .sum()
+            .rename(f"senate_total_{year}")
+        )
+
+    result = pd.concat([dem, rep, total], axis=1).reset_index()
     result[f"senate_dem_share_{year}"] = (
         result[f"senate_dem_{year}"] / result[f"senate_total_{year}"]
     )
 
-    # Uncontested policy: drop counties where either party has zero votes
-    dem_col = f"senate_dem_{year}"
-    rep_col = f"senate_rep_{year}"
+    # Drop uncontested counties
+    dem_col, rep_col = f"senate_dem_{year}", f"senate_rep_{year}"
     contested = (result[dem_col] > 0) & (result[rep_col] > 0)
     n_dropped = (~contested).sum()
     if n_dropped:
         log.warning(
-            "Year %d: dropping %d uncontested counties (uncontested_policy=drop)",
+            "Year %d: dropping %d uncontested/missing counties",
             year, n_dropped,
         )
     result = result[contested].copy()
 
     result["state_abbr"] = result["county_fips"].str[:2].map(STATES)
     return result[["county_fips", "state_abbr",
-                   f"senate_dem_{year}", f"senate_rep_{year}",
+                   dem_col, rep_col,
                    f"senate_total_{year}", f"senate_dem_share_{year}"]]
 
 
-def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize MEDSL column names and voting-mode rows to canonical schema.
+# ── 2022 MEDSL county-level ────────────────────────────────────────────────────
 
-    Mirrors the same logic used in fetch_medsl_county_presidential:
-      - Renames 'party' → 'party_simplified' if needed.
-      - For counties with a TOTAL mode row, keep only those.
-      - For counties without a TOTAL row, sum across all non-TOTAL mode rows.
+def fetch_2022() -> pd.DataFrame:
+    """Download and process MEDSL 2022 county-level Senate data."""
+    path = _download_file(MEDSL_2022_FILE_ID, MEDSL_2022_CACHE)
+    df = pd.read_csv(path, sep="\t", low_memory=False)
+    log.info("2022 MEDSL raw rows: %d", len(df))
 
-    Result has one row per (year, state_po, county_fips, party_simplified).
-    """
-    if "party" in df.columns and "party_simplified" not in df.columns:
-        df = df.rename(columns={"party": "party_simplified"})
-
-    if "mode" not in df.columns:
-        return df
-
-    has_total = (
-        df[df["mode"].str.upper().str.strip() == "TOTAL"]
-        .groupby(["year", "county_fips"])
-        .size()
-        .reset_index(drop=False)[["year", "county_fips"]]
-        .assign(_has_total=True)
+    # Filter to FL/GA/AL, US Senate, D/R, general election, TOTAL mode
+    mask = (
+        (df["state_po"].isin(STATE_PO_SET))
+        & (df["office"].str.upper().str.contains("SENATE"))
+        & (~df["office"].str.upper().str.contains("STATE"))
+        & (df["party_simplified"].isin({"DEMOCRAT", "REPUBLICAN"}))
+        & (df["stage"].str.upper().str.strip().isin({"GEN", "GENERAL"}))
     )
-    df = df.merge(has_total, on=["year", "county_fips"], how="left")
-    df["_has_total"] = df["_has_total"].fillna(False)
+    df = df[mask].copy()
+    log.info("2022 after filter: %d rows", len(df))
 
-    total_rows = df[df["_has_total"] & (df["mode"].str.upper().str.strip() == "TOTAL")]
-    summed_rows = (
-        df[~df["_has_total"]]
-        .groupby(["year", "state_po", "county_fips", "office", "party_simplified"],
-                 dropna=False)
-        .agg(candidatevotes=("candidatevotes", "sum"),
-             totalvotes=("totalvotes", "first"))
+    # Resolve voting modes: prefer TOTAL rows when present; otherwise sum modes
+    mode_col = "mode"
+    if mode_col in df.columns:
+        has_total = (
+            df[df[mode_col].str.upper().str.strip() == "TOTAL"]
+            .groupby("county_fips").size().reset_index()[["county_fips"]]
+            .assign(_has_total=True)
+        )
+        df = df.merge(has_total, on="county_fips", how="left")
+        df["_has_total"] = df["_has_total"].fillna(False)
+        total_rows = df[df["_has_total"] & (df[mode_col].str.upper().str.strip() == "TOTAL")]
+        other_rows = df[~df["_has_total"]].groupby(
+            ["county_fips", "party_simplified"], dropna=False
+        ).agg(candidatevotes=("candidatevotes", "sum"),
+              totalvotes=("totalvotes", "first")).reset_index()
+        df = pd.concat([total_rows, other_rows], ignore_index=True)
+
+    # Add year column expected by _aggregate_to_county
+    df["year"] = 2022
+    return _aggregate_to_county(df, 2022)
+
+
+# ── VEST precinct-level (2016/2018/2020) ──────────────────────────────────────
+
+def _filter_vest_senate(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Filter VEST precinct data to FL/GA/AL US Senate all-candidate general rows.
+
+    Returns one row per (county_fips, party_simplified) with summed candidatevotes.
+    Keeps ALL party rows (not just D/R) so totalvotes can be computed correctly
+    in _aggregate_to_county; rows with party not in D/R are included for the
+    total denominator but will not appear in the dem/rep sums.
+    """
+    df = df.copy()
+
+    # ── Column name normalisation across VEST years ────────────────────────────
+    # 2016: "state_postal", "party" (raw lowercase), "votes"
+    # 2018/2020: "state_po", "party_simplified" (mixed case), "votes"
+    if "state_postal" in df.columns and "state_po" not in df.columns:
+        df = df.rename(columns={"state_postal": "state_po"})
+    if "votes" in df.columns and "candidatevotes" not in df.columns:
+        df = df.rename(columns={"votes": "candidatevotes"})
+
+    # Build a normalised party_simplified column
+    if "party_simplified" not in df.columns:
+        if "party" in df.columns:
+            df["party_simplified"] = df["party"].fillna("OTHER").str.upper().str.strip()
+        else:
+            df["party_simplified"] = "OTHER"
+    else:
+        df["party_simplified"] = df["party_simplified"].fillna("OTHER").str.upper().str.strip()
+
+    # Map VEST party labels to canonical DEMOCRAT/REPUBLICAN/OTHER
+    df["party_simplified"] = df["party_simplified"].replace({
+        "DEMOCRATIC": "DEMOCRAT",
+        "DEM": "DEMOCRAT",
+        "REP": "REPUBLICAN",
+        "": "OTHER",
+        "NAN": "OTHER",
+    })
+
+    # ── Row filter ─────────────────────────────────────────────────────────────
+    state_col = "state_po"
+    mask = (
+        (df[state_col].str.upper().str.strip().isin(STATE_PO_SET))
+        & (df["office"].str.upper().str.contains("SENATE", na=False))
+        & (~df["office"].str.upper().str.contains("STATE", na=False))
+    )
+    if "stage" in df.columns:
+        mask &= df["stage"].str.lower().str.strip().isin({"gen", "general"})
+    if "writein" in df.columns:
+        # exclude pure write-in rows for cleaner totals
+        mask &= ~df["writein"].astype(str).str.upper().str.strip().isin({"TRUE", "1"})
+
+    df = df[mask].copy()
+
+    # Ensure candidatevotes is numeric
+    df["candidatevotes"] = pd.to_numeric(df["candidatevotes"], errors="coerce").fillna(0)
+
+    # ── Aggregate to county × party ────────────────────────────────────────────
+    agg = (
+        df.groupby(["county_fips", "party_simplified"], dropna=False)["candidatevotes"]
+        .sum()
         .reset_index()
     )
+    log.info("VEST %d after filter+agg: %d county-party rows (%d counties)",
+             year, len(agg), agg["county_fips"].nunique())
+    return agg
 
-    combined = pd.concat([total_rows, summed_rows], ignore_index=True)
-    log.info("After mode resolution: %d rows (from %d raw)", len(combined), len(df))
-    return combined
 
+def fetch_vest_year(year: int) -> pd.DataFrame | None:
+    """Download VEST Senate precinct data for a given year and aggregate to county."""
+    if year not in VEST_SOURCES:
+        log.warning("No VEST source defined for year %d", year)
+        return None
+
+    file_id, cache_path, sep = VEST_SOURCES[year]
+    try:
+        path = _download_file(file_id, cache_path)
+    except Exception as exc:
+        log.error("Failed to download VEST %d: %s", year, exc)
+        return None
+
+    log.info("Loading VEST %d (%.1f MB)...", year, path.stat().st_size / 1e6)
+    df = pd.read_csv(path, sep=sep, low_memory=False)
+    log.info("VEST %d raw rows: %d", year, len(df))
+
+    df = _filter_vest_senate(df, year)
+    if df.empty:
+        log.warning("VEST %d: no rows after filtering", year)
+        return None
+
+    return _aggregate_to_county(df, year)
+
+
+# ── Algara & Amlani historical Senate (2002-2014) ─────────────────────────────
+
+def _load_algara_senate() -> "pd.DataFrame":
+    """Download and cache the Algara & Amlani Senate Rdata, return raw DataFrame.
+
+    The returned DataFrame is the full senate_elections_release object covering
+    Senate general elections 1908-2020 at county level.  Key columns:
+        election_year     float64   e.g. 2002.0
+        fips              object    5-char or shorter county FIPS (needs zfill)
+        state             object    2-letter abbreviation e.g. 'FL'
+        election_type     object    'G' = general, 'S' = special
+        democratic_raw_votes  float64
+        republican_raw_votes  float64
+        raw_county_vote_totals float64  total across ALL candidates
+    """
+    try:
+        import pyreadr  # type: ignore[import]
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "pyreadr is required to read Algara .Rdata files. "
+            "Install via: uv add pyreadr"
+        ) from exc
+
+    path = _download_file(ALGARA_SENATE_FILE_ID, ALGARA_SENATE_CACHE)
+    log.info("Loading Algara Senate Rdata (%s)...", path.name)
+    result = pyreadr.read_r(str(path))
+    df = result["senate_elections_release"].reset_index(drop=True)
+    log.info("Algara Senate raw rows: %d", len(df))
+    return df
+
+
+def fetch_algara_historical(years: list[int] | None = None) -> dict[int, "pd.DataFrame"]:
+    """Download Algara Senate data and produce one aggregated DataFrame per year.
+
+    Parameters
+    ----------
+    years:
+        Election years to process. Defaults to 2002-2014 (the years not covered
+        by VEST or MEDSL county-level data).  Years where no FL/GA/AL race ran
+        will return an empty DataFrame (not an error).
+
+    Returns
+    -------
+    dict mapping year → aggregated county DataFrame (may be empty for years
+    with no contested races in FL/GA/AL).
+    """
+    if years is None:
+        years = [2002, 2004, 2006, 2008, 2010, 2012, 2014]
+
+    raw = _load_algara_senate()
+
+    # Filter to FL/GA/AL general elections only
+    state_mask = raw["state"].isin(STATE_PO_SET)
+    gen_mask = raw["election_type"] == "G"
+    raw_filtered = raw[state_mask & gen_mask].copy().reset_index(drop=True)
+    log.info(
+        "Algara Senate after FL/GA/AL + general filter: %d rows",
+        len(raw_filtered),
+    )
+
+    # Normalise FIPS: already stored as string like '01001'
+    raw_filtered["county_fips"] = _normalise_fips(raw_filtered["fips"])
+
+    results: dict[int, pd.DataFrame] = {}
+    for year in years:
+        year_mask = raw_filtered["election_year"] == float(year)
+        year_df = raw_filtered[year_mask].copy().reset_index(drop=True)
+
+        if year_df.empty:
+            log.info("Algara Senate %d: no FL/GA/AL general races found — skipping", year)
+            results[year] = pd.DataFrame()
+            continue
+
+        log.info(
+            "Algara Senate %d: %d county-race rows across states: %s",
+            year,
+            len(year_df),
+            year_df["state"].value_counts().to_dict(),
+        )
+
+        # Build a candidatevotes-style long DataFrame compatible with _aggregate_to_county.
+        # Algara gives dem and rep votes as separate columns; pivot to long form.
+        dem_rows = year_df[["county_fips", "democratic_raw_votes", "raw_county_vote_totals"]].copy()
+        dem_rows["party_simplified"] = "DEMOCRAT"
+        dem_rows = dem_rows.rename(columns={"democratic_raw_votes": "candidatevotes"})
+
+        rep_rows = year_df[["county_fips", "republican_raw_votes", "raw_county_vote_totals"]].copy()
+        rep_rows["party_simplified"] = "REPUBLICAN"
+        rep_rows = rep_rows.rename(columns={"republican_raw_votes": "candidatevotes"})
+
+        # Other/third-party votes = raw_county_vote_totals - dem - rep (per row).
+        # We include them so _aggregate_to_county uses total-vote denominator.
+        other_votes = (
+            year_df["raw_county_vote_totals"]
+            - year_df["democratic_raw_votes"].fillna(0)
+            - year_df["republican_raw_votes"].fillna(0)
+        ).clip(lower=0)
+        other_rows = pd.DataFrame({
+            "county_fips": year_df["county_fips"],
+            "candidatevotes": other_votes,
+            "party_simplified": "OTHER",
+        })
+
+        long_df = pd.concat(
+            [dem_rows[["county_fips", "party_simplified", "candidatevotes"]],
+             rep_rows[["county_fips", "party_simplified", "candidatevotes"]],
+             other_rows[["county_fips", "party_simplified", "candidatevotes"]]],
+            ignore_index=True,
+        )
+        long_df["candidatevotes"] = pd.to_numeric(long_df["candidatevotes"], errors="coerce").fillna(0)
+
+        aggregated = _aggregate_to_county(long_df, year)
+        results[year] = aggregated
+
+    return results
+
+
+# ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
-    csv_path = _dataverse_download(DATAVERSE_DOI, CACHE_PATH)
-    sep = "\t" if str(csv_path).endswith(".tab") else ","
-    log.info("Loading data file (sep=%r)...", sep)
-    df = pd.read_csv(csv_path, sep=sep, low_memory=False)
-    log.info("Raw rows: %d", len(df))
-
-    df = _normalize_columns(df)
-    df_filtered = filter_senate_rows(df)
-    log.info("After filter (FL+GA+AL D/R Senate only): %d rows", len(df_filtered))
-
     ASSEMBLED_DIR.mkdir(parents=True, exist_ok=True)
-    years_in_data = sorted(df_filtered["year"].unique())
-    log.info("Years in data: %s", years_in_data)
 
-    for year in SENATE_YEARS:
-        if year not in years_in_data:
-            log.warning("Year %d not in dataset — skipping", year)
-            continue
-        agg = aggregate_county_year(df_filtered, year)
-        if agg.empty:
-            log.warning("Year %d produced no rows after aggregation — skipping", year)
-            continue
-        out = ASSEMBLED_DIR / f"medsl_county_senate_{year}.parquet"
-        agg.to_parquet(out, index=False)
-        log.info("  %d → %s (%d counties)", year, out.name, len(agg))
+    # --- 2002-2014 via Algara & Amlani county-level Senate ---
+    log.info("=== Processing 2002-2014 (Algara & Amlani county-level Senate) ===")
+    try:
+        historical = fetch_algara_historical([2002, 2004, 2006, 2008, 2010, 2012, 2014])
+        for year, agg in historical.items():
+            if agg is not None and not agg.empty:
+                out = ASSEMBLED_DIR / f"medsl_county_senate_{year}.parquet"
+                agg.to_parquet(out, index=False)
+                log.info("%d → %s (%d counties)", year, out.name, len(agg))
+            else:
+                log.info(
+                    "%d: no contested FL/GA/AL races this cycle — "
+                    "no parquet written (expected for years with no eligible race)",
+                    year,
+                )
+    except Exception as exc:
+        log.error("Algara historical fetch failed: %s", exc)
+
+    # --- 2016/2018/2020 via VEST precinct aggregation ---
+    for year in [2016, 2018, 2020]:
+        log.info("=== Processing %d (VEST precinct aggregation) ===", year)
+        try:
+            agg = fetch_vest_year(year)
+            if agg is not None and not agg.empty:
+                out = ASSEMBLED_DIR / f"medsl_county_senate_{year}.parquet"
+                agg.to_parquet(out, index=False)
+                log.info("%d → %s (%d counties)", year, out.name, len(agg))
+            else:
+                log.warning("%d: no counties produced", year)
+        except Exception as exc:
+            log.error("%d failed: %s", year, exc)
+
+    # --- 2022 via MEDSL county-level ---
+    log.info("=== Processing 2022 (MEDSL county-level) ===")
+    try:
+        agg_2022 = fetch_2022()
+        if not agg_2022.empty:
+            out = ASSEMBLED_DIR / "medsl_county_senate_2022.parquet"
+            agg_2022.to_parquet(out, index=False)
+            log.info("2022 → %s (%d counties)", out.name, len(agg_2022))
+        else:
+            log.warning("2022: no counties produced")
+    except Exception as exc:
+        log.error("2022 failed: %s", exc)
+
+    # --- Summary ---
+    log.info("=== Senate fetch complete ===")
+    all_years = [2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022]
+    for year in all_years:
+        p = ASSEMBLED_DIR / f"medsl_county_senate_{year}.parquet"
+        if p.exists():
+            import pyarrow.parquet as pq  # noqa: PLC0415
+            n = pq.read_metadata(p).num_rows
+            log.info("  %d: %d counties ✓", year, n)
+        else:
+            log.info("  %d: no parquet (no eligible race this cycle)", year)
 
 
 if __name__ == "__main__":

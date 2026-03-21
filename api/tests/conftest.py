@@ -150,6 +150,45 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
                 [i, j, float(sigma[i, j]), TEST_VERSION],
             )
 
+    # ── Type-primary tables ────────────────────────────────────────────────
+    con.execute("""
+        CREATE TABLE types (
+            type_id INTEGER NOT NULL,
+            super_type_id INTEGER NOT NULL,
+            display_name VARCHAR NOT NULL,
+            version_id VARCHAR NOT NULL,
+            PRIMARY KEY (type_id, version_id)
+        )
+    """)
+    # 4 types, 2 super-types
+    type_data = [
+        (0, 0, "Rural Conservative", TEST_VERSION),
+        (1, 0, "Small Town Traditional", TEST_VERSION),
+        (2, 1, "Suburban Moderate", TEST_VERSION),
+        (3, 1, "Urban Progressive", TEST_VERSION),
+    ]
+    for td in type_data:
+        con.execute("INSERT INTO types VALUES (?, ?, ?, ?)", list(td))
+
+    con.execute("""
+        CREATE TABLE county_type_assignments (
+            county_fips VARCHAR NOT NULL,
+            dominant_type INTEGER NOT NULL,
+            super_type INTEGER NOT NULL,
+            version_id VARCHAR NOT NULL,
+            PRIMARY KEY (county_fips, version_id)
+        )
+    """)
+    county_type_map = {
+        "12001": (3, 1), "12003": (0, 0), "13001": (1, 0),
+        "13003": (0, 0), "01001": (2, 1),
+    }
+    for fips, (dt, st) in county_type_map.items():
+        con.execute(
+            "INSERT INTO county_type_assignments VALUES (?, ?, ?, ?)",
+            [fips, dt, st, TEST_VERSION],
+        )
+
     return con
 
 

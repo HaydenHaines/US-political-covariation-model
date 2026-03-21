@@ -5,7 +5,15 @@ import duckdb
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.db import get_db
-from api.models import CommunityDemographics, CommunityDetail, CommunitySummary, CountyInCommunity
+from api.models import (
+    CommunityDemographics,
+    CommunityDetail,
+    CommunitySummary,
+    CountyInCommunity,
+    SuperTypeSummary,
+    TypeDetail,
+    TypeSummary,
+)
 
 router = APIRouter(tags=["communities"])
 
@@ -193,3 +201,186 @@ def get_community(
         shift_profile=shift_profile,
         demographics=demographics,
     )
+
+
+# ── Type endpoints ───────────────────────────────────────────────────────────
+
+def _has_table(db: duckdb.DuckDBPyConnection, table_name: str) -> bool:
+    """Check if a table exists in DuckDB."""
+    result = db.execute(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+        [table_name],
+    ).fetchone()
+    return result is not None and result[0] > 0
+
+
+@router.get("/types", response_model=list[TypeSummary])
+def list_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)):
+    """List all electoral types with summary info."""
+    if not _has_table(db, "types"):
+        return []
+
+    version_id = request.app.state.version_id
+
+    rows = db.execute(
+        """
+        SELECT
+            t.type_id,
+            t.super_type_id,
+            t.display_name,
+            COUNT(DISTINCT cta.county_fips) AS n_counties,
+            AVG(p.pred_dem_share) AS mean_pred_dem_share
+        FROM types t
+        LEFT JOIN county_type_assignments cta
+            ON t.type_id = cta.dominant_type
+            AND cta.version_id = ?
+        LEFT JOIN predictions p
+            ON cta.county_fips = p.county_fips
+            AND p.version_id = ?
+        WHERE t.version_id = ?
+        GROUP BY t.type_id, t.super_type_id, t.display_name
+        ORDER BY t.type_id
+        """,
+        [version_id, version_id, version_id],
+    ).fetchdf()
+
+    results = []
+    for _, row in rows.iterrows():
+        mean_share = None if pd.isna(row["mean_pred_dem_share"]) else float(row["mean_pred_dem_share"])
+        results.append(
+            TypeSummary(
+                type_id=int(row["type_id"]),
+                super_type_id=int(row["super_type_id"]),
+                display_name=str(row["display_name"]),
+                n_counties=int(row["n_counties"]),
+                mean_pred_dem_share=mean_share,
+            )
+        )
+    return results
+
+
+@router.get("/types/{type_id}", response_model=TypeDetail)
+def get_type(
+    type_id: int,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+):
+    """Get detail for a single electoral type."""
+    if not _has_table(db, "types"):
+        raise HTTPException(status_code=404, detail="Type data not available")
+
+    version_id = request.app.state.version_id
+
+    # Get type metadata
+    type_row = db.execute(
+        "SELECT type_id, super_type_id, display_name FROM types WHERE type_id = ? AND version_id = ? LIMIT 1",
+        [type_id, version_id],
+    ).fetchone()
+    if not type_row:
+        raise HTTPException(status_code=404, detail=f"Type {type_id} not found")
+
+    tid, super_type_id, display_name = type_row
+
+    # Counties assigned to this type (dominant)
+    county_rows = db.execute(
+        """
+        SELECT county_fips FROM county_type_assignments
+        WHERE dominant_type = ? AND version_id = ?
+        ORDER BY county_fips
+        """,
+        [type_id, version_id],
+    ).fetchdf()
+
+    counties = county_rows["county_fips"].tolist() if not county_rows.empty else []
+
+    # Demographic profile: average demographics of member counties
+    demographics: dict[str, float] = {}
+    if counties and _has_table(db, "type_profiles"):
+        try:
+            demo_row = db.execute(
+                "SELECT * FROM type_profiles WHERE type_id = ? AND version_id = ? LIMIT 1",
+                [type_id, version_id],
+            ).fetchdf()
+            if not demo_row.empty:
+                r = demo_row.iloc[0]
+                for col in demo_row.columns:
+                    if col not in ("type_id", "version_id", "display_name", "super_type_id"):
+                        val = r[col]
+                        if not pd.isna(val):
+                            demographics[col] = float(val)
+        except Exception:
+            pass
+
+    # Shift profile: mean shifts across member counties
+    shift_profile: dict[str, float] | None = None
+    if counties:
+        try:
+            shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
+            shift_col_names = [
+                c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
+            ]
+            if shift_col_names:
+                placeholders = ", ".join("?" * len(counties))
+                shift_rows = db.execute(
+                    f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders}) AND version_id = ?",
+                    counties + [version_id],
+                ).fetchdf()
+                shift_profile = {}
+                for col in shift_col_names:
+                    if col in shift_rows.columns:
+                        val = shift_rows[col].mean()
+                        shift_profile[col] = float(val) if not pd.isna(val) else 0.0
+        except Exception:
+            pass
+
+    return TypeDetail(
+        type_id=int(tid),
+        super_type_id=int(super_type_id),
+        display_name=str(display_name),
+        n_counties=len(counties),
+        counties=counties,
+        demographics=demographics,
+        shift_profile=shift_profile,
+    )
+
+
+@router.get("/super-types", response_model=list[SuperTypeSummary])
+def list_super_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)):
+    """List super-types with member type IDs."""
+    if not _has_table(db, "types"):
+        return []
+
+    version_id = request.app.state.version_id
+
+    rows = db.execute(
+        """
+        SELECT
+            t.super_type_id,
+            MIN(t.display_name) AS display_name,
+            ARRAY_AGG(DISTINCT t.type_id ORDER BY t.type_id) AS member_type_ids,
+            COUNT(DISTINCT cta.county_fips) AS n_counties
+        FROM types t
+        LEFT JOIN county_type_assignments cta
+            ON t.type_id = cta.dominant_type
+            AND cta.version_id = t.version_id
+        WHERE t.version_id = ?
+        GROUP BY t.super_type_id
+        ORDER BY t.super_type_id
+        """,
+        [version_id],
+    ).fetchdf()
+
+    results = []
+    for _, row in rows.iterrows():
+        member_ids = row["member_type_ids"]
+        if member_ids is None:
+            member_ids = []
+        results.append(
+            SuperTypeSummary(
+                super_type_id=int(row["super_type_id"]),
+                display_name=str(row["display_name"]),
+                member_type_ids=[int(x) for x in member_ids],
+                n_counties=int(row["n_counties"]),
+            )
+        )
+    return results

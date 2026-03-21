@@ -71,6 +71,8 @@ class CountyRow(BaseModel):
     county_fips: str
     state_abbr: str
     community_id: int
+    dominant_type: int | None = None
+    super_type: int | None = None
 
 
 class ForecastRow(BaseModel):
@@ -91,3 +93,26 @@ class PollInput(BaseModel):
     race: str           # e.g. "FL_Senate"
     dem_share: float = Field(..., ge=0.0, le=1.0)
     n: int = 600        # poll sample size
+
+
+# ── Type-primary models ─────────────────────────────────────────────────────
+
+class TypeSummary(BaseModel):
+    type_id: int
+    super_type_id: int
+    display_name: str
+    n_counties: int
+    mean_pred_dem_share: float | None = None
+
+
+class TypeDetail(TypeSummary):
+    counties: list[str]  # FIPS codes
+    demographics: dict[str, float]  # demographic profile
+    shift_profile: dict[str, float] | None = None
+
+
+class SuperTypeSummary(BaseModel):
+    super_type_id: int
+    display_name: str
+    member_type_ids: list[int]
+    n_counties: int

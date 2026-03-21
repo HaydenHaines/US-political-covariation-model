@@ -79,7 +79,94 @@ def update_forecast_with_poll(
     request: Request,
     db: duckdb.DuckDBPyConnection = Depends(get_db),
 ):
-    """Run a Bayesian update: given a new poll, return updated county predictions."""
+    """Run a Bayesian update: given a new poll, return updated county predictions.
+
+    Uses type-based pipeline if type data is loaded, otherwise falls back to HAC.
+    """
+    # ── Try type-based prediction first ──────────────────────────────────
+    type_scores = getattr(request.app.state, "type_scores", None)
+    type_covariance = getattr(request.app.state, "type_covariance", None)
+    type_priors = getattr(request.app.state, "type_priors", None)
+    type_county_fips = getattr(request.app.state, "type_county_fips", None)
+
+    if (
+        type_scores is not None
+        and type_covariance is not None
+        and type_priors is not None
+        and type_county_fips is not None
+    ):
+        return _forecast_poll_types(
+            poll, request, db, type_scores, type_covariance, type_priors, type_county_fips
+        )
+
+    # ── Fallback: HAC community-based pipeline ──────────────────────────
+    return _forecast_poll_hac(poll, request, db)
+
+
+def _forecast_poll_types(
+    poll: PollInput,
+    request: Request,
+    db: duckdb.DuckDBPyConnection,
+    type_scores: np.ndarray,
+    type_covariance: np.ndarray,
+    type_priors: np.ndarray,
+    type_county_fips: list[str],
+) -> list[ForecastRow]:
+    """Type-based Bayesian update using predict_race from predict_2026_types."""
+    from src.prediction.predict_2026_types import predict_race
+
+    version_id = request.app.state.version_id
+
+    # Get county names from DB
+    county_info = db.execute(
+        """SELECT c.county_fips, c.county_name, c.state_abbr
+           FROM counties c ORDER BY c.county_fips""",
+        [],
+    ).fetchdf()
+    name_map = dict(zip(county_info["county_fips"], county_info["county_name"]))
+    state_map = dict(zip(county_info["county_fips"], county_info["state_abbr"]))
+
+    states = [state_map.get(f, f[:2]) for f in type_county_fips]
+    county_names = [name_map.get(f, "") for f in type_county_fips]
+
+    result_df = predict_race(
+        race=poll.race,
+        poll_dem_share=poll.dem_share,
+        poll_n=poll.n,
+        type_scores=type_scores,
+        type_covariance=type_covariance,
+        type_priors=type_priors,
+        county_fips=type_county_fips,
+        states=states,
+        county_names=county_names,
+        state_filter=None,
+    )
+
+    results = []
+    for _, row in result_df.iterrows():
+        results.append(
+            ForecastRow(
+                county_fips=row["county_fips"],
+                county_name=row["county_name"] if row["county_name"] else None,
+                state_abbr=row["state"],
+                race=poll.race,
+                pred_dem_share=float(row["pred_dem_share"]),
+                pred_std=float(row["ci_upper"] - row["ci_lower"]) / (2 * 1.645),
+                pred_lo90=float(row["ci_lower"]),
+                pred_hi90=float(row["ci_upper"]),
+                state_pred=None,
+                poll_avg=poll.dem_share,
+            )
+        )
+    return results
+
+
+def _forecast_poll_hac(
+    poll: PollInput,
+    request: Request,
+    db: duckdb.DuckDBPyConnection,
+) -> list[ForecastRow]:
+    """Original HAC community-based Bayesian update."""
     sigma = request.app.state.sigma
     K = request.app.state.K
     mu_prior = request.app.state.mu_prior
@@ -107,7 +194,6 @@ def update_forecast_with_poll(
     mu_post = sigma_post @ (sigma_inv @ mu_prior + W.T @ np.linalg.solve(R, y))
 
     # Map community posteriors → county predictions via hard assignment
-    # county_weights has columns: county_fips, community_id, state_fips, recent_total
     version_id = request.app.state.version_id
     county_info = db.execute(
         """SELECT c.county_fips, c.county_name, c.state_abbr, ca.community_id

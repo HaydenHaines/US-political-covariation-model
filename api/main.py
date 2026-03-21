@@ -107,6 +107,42 @@ async def lifespan(app: FastAPI):
         log.warning("county_weights not found at %s", county_w_path)
         app.state.county_weights = pd.DataFrame()
 
+    # ── Type-primary data (optional — graceful fallback if not present) ──
+    app.state.type_scores = None
+    app.state.type_covariance = None
+    app.state.type_priors = None
+    app.state.type_county_fips = None
+
+    type_scores_path = data_dir / "communities" / "type_assignments.parquet"
+    type_cov_path = data_dir / "covariance" / "type_covariance.parquet"
+    type_profiles_path = data_dir / "communities" / "type_profiles.parquet"
+
+    if type_scores_path.exists() and type_cov_path.exists():
+        try:
+            ta_df = pd.read_parquet(type_scores_path)
+            score_cols = sorted([c for c in ta_df.columns if c.endswith("_score")])
+            if score_cols:
+                app.state.type_scores = ta_df[score_cols].values
+                app.state.type_county_fips = ta_df["county_fips"].astype(str).str.zfill(5).tolist()
+                J = app.state.type_scores.shape[1]
+                log.info("Loaded type_scores: %d counties x %d types", *app.state.type_scores.shape)
+
+                cov_df = pd.read_parquet(type_cov_path)
+                app.state.type_covariance = cov_df.values[:J, :J]
+                log.info("Loaded type_covariance: %d x %d", J, J)
+
+                # Type priors
+                app.state.type_priors = np.full(J, 0.45)
+                if type_profiles_path.exists():
+                    profiles = pd.read_parquet(type_profiles_path)
+                    if "mean_dem_share" in profiles.columns:
+                        app.state.type_priors = profiles["mean_dem_share"].values[:J]
+                log.info("Type priors loaded: %s", np.round(app.state.type_priors, 3))
+        except Exception:
+            log.warning("Failed to load type data — falling back to HAC pipeline", exc_info=True)
+    else:
+        log.info("Type data not found — will use HAC pipeline for forecasts")
+
     yield
 
     app.state.db.close()

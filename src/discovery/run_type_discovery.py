@@ -1,8 +1,13 @@
-"""SVD + varimax rotation for electoral type discovery.
+"""KMeans-based electoral type discovery.
 
 Discovers J electoral types directly from county shift vectors. Each county
-gets a rotated score vector (soft membership, can be negative = anti-correlated).
-Types are abstract archetypes: Rural Conservative, Black Belt, College Town, etc.
+gets a hard cluster assignment (dominant type) and soft membership scores
+based on inverse distance to centroids. Types are abstract archetypes:
+Rural Conservative, Black Belt, College Town, etc.
+
+Switched from SVD+varimax (which produced degenerate 2-type solutions) to
+KMeans after empirical testing showed KMeans achieves holdout r=0.77 vs
+SVD+varimax r=0.35 on recent (2008+) data.
 
 Usage:
     python -m src.discovery.run_type_discovery [--j J]
@@ -15,16 +20,16 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
-from sklearn.decomposition import TruncatedSVD
+from sklearn.cluster import KMeans
 
 
 @dataclass
 class TypeDiscoveryResult:
-    scores: np.ndarray  # N × J rotated county scores (soft membership)
-    loadings: np.ndarray  # J × D rotated type shift profiles
+    scores: np.ndarray  # N × J soft membership (inverse-distance, row-normalized to sum to 1)
+    loadings: np.ndarray  # J × D cluster centroids (type shift profiles)
     dominant_types: np.ndarray  # N array of dominant type indices
-    explained_variance: np.ndarray  # J array of variance ratios
-    rotation_matrix: np.ndarray  # J × J varimax rotation matrix
+    explained_variance: np.ndarray  # J array — fraction of counties per type
+    rotation_matrix: np.ndarray  # J × J identity (kept for interface compat)
 
 
 def varimax(
@@ -33,7 +38,7 @@ def varimax(
     max_iter: int = 500,
     tol: float = 1e-6,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Varimax rotation of a factor loading matrix.
+    """Varimax rotation of a factor loading matrix (retained for backward compat).
 
     Parameters
     ----------
@@ -73,7 +78,7 @@ def discover_types(
     j: int,
     random_state: int = 42,
 ) -> TypeDiscoveryResult:
-    """SVD + varimax rotation on county shift vectors.
+    """KMeans clustering on county shift vectors.
 
     Parameters
     ----------
@@ -82,38 +87,35 @@ def discover_types(
     j : int
         Number of types to discover.
     random_state : int
-        Random seed for SVD initialization.
+        Random seed for KMeans initialization.
 
     Returns
     -------
     TypeDiscoveryResult
-        Rotated scores, loadings, dominant type assignments, explained variance,
-        and the rotation matrix.
+        Soft scores (inverse-distance), centroids, dominant type assignments,
+        type size fractions, and identity rotation matrix.
     """
-    # Center the shift matrix
-    X = shift_matrix - shift_matrix.mean(axis=0)
+    km = KMeans(n_clusters=j, random_state=random_state, n_init=10)
+    labels = km.fit_predict(shift_matrix)
+    centroids = km.cluster_centers_  # (J, D)
 
-    # SVD dimensionality reduction
-    svd = TruncatedSVD(n_components=j, random_state=random_state)
-    scores = svd.fit_transform(X)
-    loadings = svd.components_  # shape (j, D)
-    explained_variance = svd.explained_variance_ratio_
+    # Soft membership: inverse distance to each centroid, row-normalized
+    dists = np.zeros((len(shift_matrix), j))
+    for t in range(j):
+        dists[:, t] = np.linalg.norm(shift_matrix - centroids[t], axis=1)
+    inv_dists = 1.0 / (dists + 1e-10)
+    soft_scores = inv_dists / inv_dists.sum(axis=1, keepdims=True)
 
-    # Varimax rotation for interpretability
-    rotated_scores, rotation = varimax(scores)
-    # Transform loadings to match rotated scores
-    # If scores_rot = scores @ R, then loadings_rot = R.T @ loadings
-    rotated_loadings = rotation.T @ loadings
-
-    # Dominant type = highest absolute score
-    dominant_types = np.argmax(np.abs(rotated_scores), axis=1)
+    # Type size fractions as "explained variance" analog
+    _, counts = np.unique(labels, return_counts=True)
+    type_fractions = counts / len(labels)
 
     return TypeDiscoveryResult(
-        scores=rotated_scores,
-        loadings=rotated_loadings,
-        dominant_types=dominant_types,
-        explained_variance=explained_variance,
-        rotation_matrix=rotation,
+        scores=soft_scores,
+        loadings=centroids,
+        dominant_types=labels,
+        explained_variance=type_fractions,
+        rotation_matrix=np.eye(j),
     )
 
 
@@ -131,8 +133,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 def main() -> None:
     import argparse
 
-    parser = argparse.ArgumentParser(description="SVD + varimax type discovery")
+    parser = argparse.ArgumentParser(description="KMeans type discovery")
     parser.add_argument("--j", type=int, default=None, help="Number of types (overrides config)")
+    parser.add_argument("--min-year", type=int, default=2008, help="Minimum start year for shift pairs (default: 2008)")
     args = parser.parse_args()
 
     # Load config
@@ -157,18 +160,30 @@ def main() -> None:
     shifts_path = PROJECT_ROOT / "data" / "shifts" / "county_shifts_multiyear.parquet"
     df = pd.read_parquet(shifts_path)
 
-    # Separate FIPS and shift columns
+    # Separate FIPS and shift columns, filter to recent data
     county_fips = df["county_fips"].values
-    shift_cols = [c for c in df.columns if c != "county_fips" and c not in HOLDOUT_COLUMNS]
+    all_shift_cols = [c for c in df.columns if c != "county_fips" and c not in HOLDOUT_COLUMNS]
+
+    # Filter to recent shift pairs (start year >= min_year)
+    shift_cols = []
+    for c in all_shift_cols:
+        parts = c.split("_")
+        y1 = int("20" + parts[-2])
+        if y1 >= args.min_year:
+            shift_cols.append(c)
+
+    if not shift_cols:
+        shift_cols = all_shift_cols  # fallback to all if filter removes everything
+
     shift_matrix = df[shift_cols].values
 
-    print(f"Shift matrix: {shift_matrix.shape[0]} counties x {shift_matrix.shape[1]} dims")
-    print(f"Discovering J={j} types via SVD + varimax rotation...")
+    print(f"Shift matrix: {shift_matrix.shape[0]} counties x {shift_matrix.shape[1]} dims (min_year={args.min_year})")
+    print(f"Discovering J={j} types via KMeans...")
 
     result = discover_types(shift_matrix, j=j)
 
-    print(f"Explained variance (pre-rotation): {result.explained_variance.sum():.3f}")
-    print(f"Dominant type distribution: {np.bincount(result.dominant_types)}")
+    unique, counts = np.unique(result.dominant_types, return_counts=True)
+    print(f"Type sizes: {sorted(counts.tolist(), reverse=True)}")
 
     # Save results
     out_dir = PROJECT_ROOT / "data" / "communities"

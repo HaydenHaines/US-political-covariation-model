@@ -34,10 +34,9 @@ def list_counties(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_
                 AND ca.version_id = ?
             LEFT JOIN county_type_assignments cta
                 ON c.county_fips = cta.county_fips
-                AND cta.version_id = ?
             ORDER BY c.county_fips
             """,
-            [version_id, version_id],
+            [version_id],
         ).fetchdf()
     else:
         rows = db.execute(

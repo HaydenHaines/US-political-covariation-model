@@ -47,6 +47,13 @@ CROSSWALK_PATH = PROJECT_ROOT / "data" / "raw" / "fips_county_crosswalk.csv"
 COMMUNITY_PROFILES_PATH = PROJECT_ROOT / "data" / "communities" / "community_profiles.parquet"
 COUNTY_ACS_FEATURES_PATH = PROJECT_ROOT / "data" / "assembled" / "county_acs_features.parquet"
 
+# Type-primary pipeline paths
+TYPE_PROFILES_PATH = PROJECT_ROOT / "data" / "communities" / "type_profiles.parquet"
+COUNTY_TYPE_ASSIGNMENTS_PATH = PROJECT_ROOT / "data" / "communities" / "county_type_assignments_full.parquet"
+SUPER_TYPES_PATH = PROJECT_ROOT / "data" / "communities" / "super_types.parquet"
+TYPE_COVARIANCE_LONG_PATH = PROJECT_ROOT / "data" / "covariance" / "type_covariance_long.parquet"
+DEMOGRAPHICS_INTERPOLATED_PATH = PROJECT_ROOT / "data" / "assembled" / "demographics_interpolated.parquet"
+
 
 # ---------------------------------------------------------------------------
 # Schema DDL
@@ -154,6 +161,11 @@ CREATE TABLE IF NOT EXISTS county_demographics (
     pct_owner_occupied    DOUBLE,
     pct_wfh               DOUBLE,
     pct_management        DOUBLE
+);
+
+CREATE TABLE IF NOT EXISTS super_types (
+    super_type_id  INTEGER PRIMARY KEY,
+    display_name   VARCHAR
 );
 """
 
@@ -463,10 +475,57 @@ def build(db_path: Path, reset: bool = False) -> None:
     else:
         log.info("No county_acs_features.parquet found; skipping")
 
+    # ── Ingest type profiles (types table) ────────────────────────────────────
+    if TYPE_PROFILES_PATH.exists():
+        tp_df = pd.read_parquet(TYPE_PROFILES_PATH)
+        con.execute("DROP TABLE IF EXISTS types")
+        con.execute("CREATE TABLE types AS SELECT * FROM tp_df")
+        log.info("Ingested types: %d rows", len(tp_df))
+    else:
+        log.info("No type_profiles.parquet found; skipping types table")
+
+    # ── Ingest county type assignments ─────────────────────────────────────────
+    if COUNTY_TYPE_ASSIGNMENTS_PATH.exists():
+        cta_df = pd.read_parquet(COUNTY_TYPE_ASSIGNMENTS_PATH)
+        cta_df["county_fips"] = cta_df["county_fips"].astype(str).str.zfill(5)
+        con.execute("DROP TABLE IF EXISTS county_type_assignments")
+        con.execute("CREATE TABLE county_type_assignments AS SELECT * FROM cta_df")
+        log.info("Ingested county_type_assignments: %d rows", len(cta_df))
+    else:
+        log.info("No county_type_assignments_full.parquet found; skipping")
+
+    # ── Ingest super-types ─────────────────────────────────────────────────────
+    if SUPER_TYPES_PATH.exists():
+        st_df = pd.read_parquet(SUPER_TYPES_PATH)
+        con.execute("DELETE FROM super_types")
+        con.execute("INSERT INTO super_types SELECT * FROM st_df")
+        log.info("Ingested super_types: %d rows", len(st_df))
+    else:
+        log.info("No super_types.parquet found; skipping")
+
+    # ── Ingest type covariance (long format) ───────────────────────────────────
+    if TYPE_COVARIANCE_LONG_PATH.exists():
+        tcov_df = pd.read_parquet(TYPE_COVARIANCE_LONG_PATH)
+        con.execute("DROP TABLE IF EXISTS type_covariance")
+        con.execute("CREATE TABLE type_covariance AS SELECT * FROM tcov_df")
+        log.info("Ingested type_covariance: %d rows", len(tcov_df))
+    else:
+        log.info("No type_covariance_long.parquet found; skipping")
+
+    # ── Ingest demographics interpolated ───────────────────────────────────────
+    if DEMOGRAPHICS_INTERPOLATED_PATH.exists():
+        di_df = pd.read_parquet(DEMOGRAPHICS_INTERPOLATED_PATH)
+        di_df["county_fips"] = di_df["county_fips"].astype(str).str.zfill(5)
+        con.execute("DROP TABLE IF EXISTS demographics_interpolated")
+        con.execute("CREATE TABLE demographics_interpolated AS SELECT * FROM di_df")
+        log.info("Ingested demographics_interpolated: %d rows", len(di_df))
+    else:
+        log.info("No demographics_interpolated.parquet found; skipping")
+
     # ── Summary query ──────────────────────────────────────────────────────────
     log.info("Database build complete: %s", db_path)
     print("\n=== bedrock.duckdb summary ===")
-    for table in ["counties", "model_versions", "community_assignments", "type_assignments", "county_shifts", "predictions", "community_sigma", "community_profiles", "county_demographics"]:
+    for table in ["counties", "model_versions", "community_assignments", "type_assignments", "county_shifts", "predictions", "community_sigma", "community_profiles", "county_demographics", "types", "county_type_assignments", "super_types", "type_covariance", "demographics_interpolated"]:
         try:
             n = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"  {table}: {n:,} rows")

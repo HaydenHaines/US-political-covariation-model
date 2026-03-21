@@ -233,3 +233,166 @@ def test_build_counties_name_fallback(sample_shifts):
     counties = _build_counties(sample_shifts, crosswalk_path=None)
     assert "county_name" in counties.columns
     assert counties["county_name"].isna().all()
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Type-primary DuckDB table tests
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def mini_parquets_with_types(mini_parquets):
+    """Extend mini_parquets with type-primary artifacts."""
+    data = mini_parquets
+
+    comm_dir = data / "data" / "communities"
+
+    # Type profiles (types table)
+    type_profiles = pd.DataFrame({
+        "type_id": [0, 1, 2],
+        "super_type_id": [0, 0, 1],
+        "display_name": ["Rural Conservative", "Black Belt", "Suburban"],
+        "n_counties": [120, 50, 123],
+        "pop_total": [3_000_000.0, 1_500_000.0, 5_000_000.0],
+        "pct_white_nh": [0.75, 0.30, 0.60],
+        "pct_black": [0.10, 0.55, 0.15],
+        "median_hh_income": [45000.0, 35000.0, 65000.0],
+    })
+    type_profiles.to_parquet(comm_dir / "type_profiles.parquet", index=False)
+
+    # County type assignments (scores + dominant)
+    county_type_assignments = pd.DataFrame({
+        "county_fips": ["12001", "12003", "13001"],
+        "dominant_type": [0, 2, 1],
+        "super_type": [0, 1, 0],
+        "type_0_score": [0.8, 0.1, 0.2],
+        "type_1_score": [0.1, 0.2, 0.7],
+        "type_2_score": [0.1, 0.7, 0.1],
+    })
+    county_type_assignments.to_parquet(
+        comm_dir / "county_type_assignments_full.parquet", index=False
+    )
+
+    # Super-types
+    super_types = pd.DataFrame({
+        "super_type_id": [0, 1],
+        "display_name": ["Traditional", "Metro"],
+    })
+    super_types.to_parquet(comm_dir / "super_types.parquet", index=False)
+
+    # Type covariance (long format for DB)
+    cov_dir = data / "data" / "covariance"
+    cov_dir.mkdir(parents=True, exist_ok=True)
+    type_cov_long = pd.DataFrame({
+        "type_i": [0, 0, 0, 1, 1, 1, 2, 2, 2],
+        "type_j": [0, 1, 2, 0, 1, 2, 0, 1, 2],
+        "correlation": [1.0, 0.5, 0.3, 0.5, 1.0, 0.4, 0.3, 0.4, 1.0],
+        "covariance": [0.005, 0.002, 0.001, 0.002, 0.005, 0.002, 0.001, 0.002, 0.005],
+    })
+    type_cov_long.to_parquet(cov_dir / "type_covariance_long.parquet", index=False)
+
+    # Demographics interpolated
+    assembled_dir = data / "data" / "assembled"
+    assembled_dir.mkdir(parents=True, exist_ok=True)
+    demographics_interp = pd.DataFrame({
+        "county_fips": ["12001", "12001", "12003", "13001"],
+        "year": [2004, 2008, 2004, 2004],
+        "pop_total": [230000.0, 245000.0, 28000.0, 50000.0],
+        "pct_white_nh": [0.65, 0.62, 0.80, 0.35],
+        "median_hh_income": [40000.0, 42000.0, 35000.0, 30000.0],
+    })
+    demographics_interp.to_parquet(
+        assembled_dir / "demographics_interpolated.parquet", index=False
+    )
+
+    return data
+
+
+def test_types_table_exists(mini_parquets_with_types, monkeypatch):
+    """build() should create a 'types' table from type_profiles.parquet."""
+    import src.db.build_database as mod
+    data = mini_parquets_with_types
+
+    _patch_all_paths(mod, data, monkeypatch)
+
+    db_path = data / "test_bedrock_types.duckdb"
+    build(db_path=db_path, reset=True)
+
+    con = duckdb.connect(str(db_path))
+    tables = [r[0] for r in con.execute("SHOW TABLES").fetchall()]
+    assert "types" in tables
+    n = con.execute("SELECT COUNT(*) FROM types").fetchone()[0]
+    assert n == 3
+    con.close()
+
+
+def test_county_type_assignments_table_exists(mini_parquets_with_types, monkeypatch):
+    """build() should create 'county_type_assignments' table."""
+    import src.db.build_database as mod
+    data = mini_parquets_with_types
+
+    _patch_all_paths(mod, data, monkeypatch)
+
+    db_path = data / "test_bedrock_cta.duckdb"
+    build(db_path=db_path, reset=True)
+
+    con = duckdb.connect(str(db_path))
+    tables = [r[0] for r in con.execute("SHOW TABLES").fetchall()]
+    assert "county_type_assignments" in tables
+    n = con.execute("SELECT COUNT(*) FROM county_type_assignments").fetchone()[0]
+    assert n == 3
+    con.close()
+
+
+def test_type_covariance_table_exists(mini_parquets_with_types, monkeypatch):
+    """build() should create 'type_covariance' table."""
+    import src.db.build_database as mod
+    data = mini_parquets_with_types
+
+    _patch_all_paths(mod, data, monkeypatch)
+
+    db_path = data / "test_bedrock_tcov.duckdb"
+    build(db_path=db_path, reset=True)
+
+    con = duckdb.connect(str(db_path))
+    tables = [r[0] for r in con.execute("SHOW TABLES").fetchall()]
+    assert "type_covariance" in tables
+    n = con.execute("SELECT COUNT(*) FROM type_covariance").fetchone()[0]
+    assert n == 9  # 3x3 matrix
+    con.close()
+
+
+def test_demographics_interpolated_table_exists(mini_parquets_with_types, monkeypatch):
+    """build() should create 'demographics_interpolated' table."""
+    import src.db.build_database as mod
+    data = mini_parquets_with_types
+
+    _patch_all_paths(mod, data, monkeypatch)
+
+    db_path = data / "test_bedrock_demo.duckdb"
+    build(db_path=db_path, reset=True)
+
+    con = duckdb.connect(str(db_path))
+    tables = [r[0] for r in con.execute("SHOW TABLES").fetchall()]
+    assert "demographics_interpolated" in tables
+    n = con.execute("SELECT COUNT(*) FROM demographics_interpolated").fetchone()[0]
+    assert n == 4
+    con.close()
+
+
+def _patch_all_paths(mod, data, monkeypatch):
+    """Patch all module-level path constants for test isolation."""
+    monkeypatch.setattr(mod, "SHIFTS_MULTIYEAR", data / "data/shifts/county_shifts_multiyear.parquet")
+    monkeypatch.setattr(mod, "COUNTY_ASSIGNMENTS", data / "data/communities/county_community_assignments.parquet")
+    monkeypatch.setattr(mod, "PREDICTIONS_2026", data / "data/predictions/county_predictions_2026.parquet")
+    monkeypatch.setattr(mod, "PREDICTIONS_2026_HAC", data / "data/predictions/nonexistent_hac.parquet")
+    monkeypatch.setattr(mod, "TYPE_ASSIGNMENTS_STUB", data / "data/communities/nonexistent_stub.parquet")
+    monkeypatch.setattr(mod, "VERSIONS_DIR", data / "data/models/versions")
+    monkeypatch.setattr(mod, "CROSSWALK_PATH", data / "data/raw/fips_county_crosswalk.csv")
+    monkeypatch.setattr(mod, "COMMUNITY_PROFILES_PATH", data / "data/communities/nonexistent_profiles.parquet")
+    monkeypatch.setattr(mod, "COUNTY_ACS_FEATURES_PATH", data / "data/assembled/nonexistent_acs.parquet")
+    # Type-primary paths
+    monkeypatch.setattr(mod, "TYPE_PROFILES_PATH", data / "data/communities/type_profiles.parquet")
+    monkeypatch.setattr(mod, "COUNTY_TYPE_ASSIGNMENTS_PATH", data / "data/communities/county_type_assignments_full.parquet")
+    monkeypatch.setattr(mod, "SUPER_TYPES_PATH", data / "data/communities/super_types.parquet")
+    monkeypatch.setattr(mod, "TYPE_COVARIANCE_LONG_PATH", data / "data/covariance/type_covariance_long.parquet")
+    monkeypatch.setattr(mod, "DEMOGRAPHICS_INTERPOLATED_PATH", data / "data/assembled/demographics_interpolated.parquet")

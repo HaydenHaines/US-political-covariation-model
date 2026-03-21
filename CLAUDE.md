@@ -50,31 +50,28 @@ See `docs/ROADMAP.md` for the full path forward.
 
 ## Architecture
 
-Two-layer electoral community model:
+Type-primary electoral model (ADR-006, supersedes community-primary HAC approach):
 
-**Layer 1 — Geographic communities** (HAC with spatial constraint)
-Spatially contiguous blobs of counties/tracts that shift together politically. Each community is a specific place. Discovered by Ward hierarchical agglomerative clustering on log-odds shift vectors with Queen contiguity constraint.
+**Primary layer — Electoral types** (SVD + varimax on county shift vectors)
+Abstract archetypes discovered directly from how counties shift electorally. Each county gets soft membership across J=15-25 types. Types are the primary predictive engine: covariance estimation, poll propagation, and prediction all flow through type structure. Types nest hierarchically into 5-8 super-types for public communication. Asymmetric type sizes are expected (a "Rural Conservative" type may span 40% of counties; an "Asian Professional" type may cover 2%).
 
-**Layer 2 — Electoral types** (NMF on community profiles)
-Abstract archetypes shared across non-contiguous communities. Rural Georgia and rural Washington are different communities; they may be the same type. Types are interpretable, named, and carry soft membership weights. J types << K communities.
+**Secondary layer — Geographic communities** (HAC, deferred to tract phase)
+Spatially contiguous clusters of tracts for spatial smoothing. Not used in the county-level model. Will become relevant when tract-level data enables sub-county resolution.
 
 **Full pipeline:**
-1. **Data Assembly** -- Historical election returns (presidential, governor, Senate), ACS, RCMS, LODES, IRS migration at county/tract level
-2. **Shift Vector Computation** -- Log-odds shift vectors across all available election pairs (pres 2000–2020 + governor 2002–2022 + Senate). Total vote share denominator. 30 training dims + 3 holdout dims.
-3. **Spatial Adjacency Graph** -- Queen-contiguity adjacency matrix (county or tract)
-4. **Layer 1: Community Discovery** -- Ward HAC on shift vectors with spatial constraint → K geographically contiguous communities. K selected by holdout predictive accuracy.
-5. **Layer 2: Type Classification** -- NMF on community shift profiles → J electoral types with soft membership weights. J selected for interpretability.
-6. **Community Description** -- ACS, RCMS, LODES, IRS migration overlaid on discovered communities; types named from demographic character
-7. **Covariance Estimation** -- Stan factor model → K×K community covariance matrix Σ
-8. **Poll Propagation** -- Gaussian Bayesian update distributes state-level poll signal to communities via Σ
-9. **Prediction** -- Community-level forward estimates → county/tract predictions with uncertainty
-10. **Validation** -- Temporal holdout (2020→2024), cross-validation, calibration
-6. **Temporal Validation** -- Falsifiability via holdout: train community discovery on pre-2024 shifts (2016→2020, 2020→2024), test on 2024 actual vs. predicted shifts
-7. **Poll Propagation** -- Propagate current polling data through community structure (Gaussian Bayesian update)
-8. **Prediction / Interpretation** -- Generate tract-level and county-level dual estimates: vote share and turnout
-9. **Validation** -- Temporal holdout (2024), cross-validation, calibration checks
+1. **Data Assembly** -- Historical election returns (presidential 2000-2024, governor 2002-2022, Senate 2002-2022), Decennial Census (2000/2010/2020) with interpolation, ACS 2022, RCMS, IRS migration, FEC donor density
+2. **Shift Vector Computation** -- 51 training + 3 holdout log-odds shift dimensions across all election pairs. Total vote share denominator. 293 FL+GA+AL counties.
+3. **Type Discovery** -- SVD + varimax rotation on 293 × 51 county shift matrix → J types. J selected by leave-one-election-pair-out CV. Each county gets rotated score vector (soft membership, can be negative = anti-correlated).
+4. **Hierarchical Nesting** -- Ward HAC on type loadings (no spatial constraint) → 5-8 super-types for interpretability.
+5. **Type Description** -- Time-matched demographics (interpolated census), RCMS, IRS migration, FEC donor density overlaid on discovered types. Types named from demographic + behavioral character.
+6. **Type Covariance Construction** -- Economist-inspired: Pearson correlation from type demographic profiles → shrink toward all-1s (national swing) → validate against observed historical comovement. Hybrid fallback if validation fails.
+7. **Poll Propagation** -- Gaussian Bayesian update distributes state-level poll signal to types via type covariance Σ.
+8. **Prediction** -- Type-level estimates × county membership weights → county predictions. Dual output: vote share + turnout.
+9. **Validation** -- Leave-one-pair-out CV, type coherence, type stability across time windows, covariance validation, calibration.
 
-**Historical approach (shelved, retained for comparison):** The original two-stage approach discovered community types from non-political data (ACS + RCMS via NMF), then validated through historical election covariance (R²~0.66). This approach is no longer the primary discovery method but comparison to it remains valuable.
+**Historical approaches (shelved, retained for comparison):**
+- HAC community-primary (K=10, ADR-005): retained as `county_baseline` in model versioning
+- NMF-on-demographics (K=7): original two-stage approach, R²~0.66
 
 **Separate silo: Political Sabermetrics** -- Advanced analytics for politician performance. Shares data infrastructure with the shift discovery pipeline but has its own compute pipeline. Decomposes election outcomes into district baseline + national environment + candidate effect. See `docs/SABERMETRICS_ARCHITECTURE.md`.
 
@@ -174,17 +171,18 @@ US-political-covariation-model/
 ## Conventions
 
 ### Research Integrity
-- **Communities defined by political behavior**: The shift-based approach inverts the historical two-stage model. Communities are discovered directly from spatially correlated electoral shifts, not from demographic proxies. This is more direct and falsifiable: communities that shift together politically are grouped together. See ADR-005.
-- **Falsifiability via temporal holdout**: Train community discovery on shifts before 2024 (2016→2020, 2020→2024), test on 2024 actual shifts. If discovered communities predict 2024 political shifts, the model is validated. If not, it fails cleanly.
-- **Demographics are descriptive**: After discovering communities from shifts, overlay demographics (ACS, RCMS, LODES, IRS migration) to characterize them. This reverses the historical dependency: demographics explain communities, not the other way around.
+- **Types defined by electoral behavior**: Types are discovered directly from county-level shift vectors via SVD + varimax. No demographic inputs to discovery. See ADR-005 (shift-based) and ADR-006 (type-primary pivot).
+- **Falsifiability via leave-one-pair-out CV**: Hold out each election pair in turn, predict held-out shifts via type structure. If types fail to predict, the model fails cleanly.
+- **Demographics are descriptive + covariance construction**: After discovering types from shifts, overlay time-matched demographics (interpolated decennial census) to characterize types. Demographics also inform the type covariance matrix (Economist-inspired construction), but do NOT influence type discovery.
 - **Assumptions are explicit**: Every modeling assumption is logged in `docs/ASSUMPTIONS_LOG.md` with its status (untested / supported / refuted).
 - **Falsification over confirmation**: Design validation to try to break the model, not confirm it. Negative results are documented, not hidden.
 - **Reproducibility**: All data transformations are scripted. No manual steps between raw data and outputs. Random seeds are pinned.
 
 ### Data
 - **Free data only for MVP**: Census, ACS, election returns, FEC, religious congregation data -- all publicly available at no cost.
-- **Census tract resolution**: The unit of analysis is the census tract (9,393 in FL+GA+AL per 2022 ACS). See ADR-004. County-level data may be used where tract-level is unavailable, but all community assignments and predictions are at tract level.
-- **Soft assignment**: Counties have mixed membership across community types (probability vectors), not hard cluster labels.
+- **County-level primary**: The unit of analysis is the county (293 in FL+GA+AL). Tract-level refinement deferred to post-MVP when precinct data coverage improves.
+- **Soft assignment**: Counties have mixed membership across types via SVD scores. Scores can be negative (anti-correlated with a type), which is meaningful.
+- **Census interpolation**: Decennial census (2000/2010/2020) linearly interpolated for election years. Provides time-matched demographics for type description and covariance construction.
 
 ### Code
 - **Python formatting**: ruff for linting and formatting
@@ -216,18 +214,25 @@ python src/validation/validate_2020.py              # 2020 holdout: within-state
 python src/validation/validate_2022.py              # 2022 governor: 2020 prior → actuals
 python src/validation/validate_2024.py              # 2024 president: 2022 prior → actuals
 
-# 2026 forward prediction
-python src/prediction/predict_2026.py               # All 2026 races
-python src/prediction/predict_2026.py --race "FL Senate"   # Single race
-python src/prediction/predict_2026.py --top-counties 10    # More counties shown
+# Census interpolation
+python -m src.assembly.fetch_census_decennial --all         # Decennial census 2000/2010/2020 → data/assembled/census_{year}.parquet
+python -m src.assembly.interpolate_demographics             # Interpolate for election years → data/assembled/demographics_interpolated.parquet
 
-# Visualization
-python src/viz/build_blended_map.py                 # Community blend map → data/viz/
+# Type-primary pipeline (current)
+python -m src.discovery.select_j                            # J selection sweep via leave-one-pair-out CV
+python -m src.discovery.run_type_discovery                  # SVD + varimax → type assignments
+python -m src.description.describe_types                    # Overlay time-matched demographics on types
+python -m src.covariance.construct_type_covariance          # Economist-inspired covariance construction
+python -m src.prediction.predict_2026_types                 # Type-based 2026 predictions
+python -m src.validation.validate_types                     # Type validation report
+
+# Legacy HAC pipeline (retained for comparison)
+python src/prediction/predict_2026.py               # All 2026 races (old HAC pipeline)
 
 # Multi-year county data pipeline
 python src/assembly/fetch_medsl_county_presidential.py      # MEDSL county pres 2000–2024 (Harvard Dataverse)
 python src/assembly/fetch_algara_amlani.py                  # Algara/Amlani governor 2002–2018 (Harvard Dataverse)
-python src/assembly/build_county_shifts_multiyear.py        # 30-dim county shift vectors → data/shifts/county_shifts_multiyear.parquet
+python src/assembly/build_county_shifts_multiyear.py        # 54-dim county shift vectors → data/shifts/county_shifts_multiyear.parquet
 python -m src.validation.validate_county_holdout_multiyear  # Compare multi-year vs 3-cycle baseline
 
 # Quality
@@ -286,3 +291,9 @@ uvicorn api.main:app --reload --port 8000          # API at http://localhost:800
 | 2026-03-19 | Phase 1 Stan Σ: county HAC model, T=5 elections | Stan rank-1 factor model fit on 5 elections (2016 pres, 2018 gov, 2020 pres, 2022 gov, 2024 pres). k_ref selected dynamically as most Democratic community. Σ stored at data/covariance/county_community_sigma.parquet. DuckDB has community_sigma table. |
 | 2026-03-19 | Phase 2 API architecture: FastAPI + DuckDB read-only + in-process Bayesian update | FastAPI opens bedrock.duckdb read-only at startup; loads K×K sigma, mu_prior, and weight matrices into app.state. All data endpoints are simple SQL queries via Depends(get_db). POST /forecast/poll calls bayesian_update() from src/prediction/predict_2026_hac.py (HAC K=10 pipeline) — NOT propagate_polls.py (old NMF K=7). Test isolation via create_app(lifespan_override=_noop_lifespan) factory + in-memory DuckDB fixture. |
 | 2026-03-19 | Phase 2 frontend: Next.js App Router + Deck.gl + Observable Plot | Persistent choropleth map (left) + tabbed right panel. Tab bar holds View 3 (Forecast) now; Views 2 and 4 slot in as future tabs. Community age slider (3–10 training pairs) deferred to future phase. Visual style: Clean Academic (light background, Georgia serif headings, #2166ac/#d73027 partisan colors). |
+| 2026-03-20 | Type-primary architecture pivot (ADR-006) | Types become the primary predictive engine, replacing HAC geographic communities. SVD + varimax directly on 293 county shift vectors (51 training dims) discovers J=15-25 types. Types carry covariance and prediction. Geographic communities deferred to tract phase. Motivated by: HAC K=10 produced "alternative states" (10 giant blobs), not the stained glass pattern of many small units colored by behavioral type. |
+| 2026-03-20 | SVD + varimax for type discovery (not NMF) | Log-odds shift vectors contain negative values (-2 to +2). NMF requires non-negative input; offsetting destroys the signal. SVD handles negatives naturally; varimax rotation produces interpretable type loadings. Model choice risk: if results unsatisfactory, fallback to archetypal analysis or semi-NMF. |
+| 2026-03-20 | Economist-inspired covariance construction (not Stan estimation) | Construct J×J type covariance from demographic profiles (Pearson correlation + shrinkage toward all-1s + PD enforcement), following Heidemanns/Gelman/Morris 2020. Validated against observed comovement; hybrid fallback if off-diagonal r < 0.4. Stan factor model retained as ultimate fallback. Deterministic Python, no sampling needed. |
+| 2026-03-20 | Census interpolation for time-matched demographics | Decennial census 2000/2010/2020 at county level, linearly interpolated for election years. Demographics describe types and construct covariance. ACS 2022 preferred where it provides better temporal resolution. CPI-adjusted income before interpolation. |
+| 2026-03-20 | Hierarchical type nesting: J fine types → 5-8 super-types | Fine types give model resolution; super-types give public interpretability. Ward HAC on type loadings (no spatial constraint). Super-types are the "colors" of the stained glass map. |
+| 2026-03-20 | 293 counties in FL+GA+AL (not 226) | All three states included. Prior references to 226 counties were FL+GA only (pre-AL inclusion). |

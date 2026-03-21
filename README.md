@@ -1,33 +1,42 @@
 # US Political Covariation Model
 
-A Bayesian model that discovers latent community types from non-political data -- religious affiliation, class and occupation structure, neighborhood characteristics -- and estimates how those community types covary in their political behavior. By learning the covariance structure from historical elections, the model can propagate sparse polling information through communities that share social identity, producing county-level estimates of both vote share and turnout. The key premise is that communities sharing social structure will move together politically, even when they are geographically distant, and that this covariance is detectable without using political data to define the communities in the first place.
+A political modeling platform that discovers electoral types directly from how counties shift across elections, estimates how those types covary using demographic profiles, and propagates polling signals through the covariance structure to produce county-level predictions. The key insight is that beneath the noise of individual elections lies a structural landscape of communities that move together politically -- communities that cross administrative boundaries, persist across decades, and can be discovered purely from spatially correlated electoral shifts.
 
 ## Core Hypothesis
 
-Political behavior at the community level is better predicted by shared social identity and behavioral patterns (religion, class, occupation, neighborhood type) than by geography or broad demographics alone. Communities that share these non-political characteristics will exhibit correlated political shifts -- a pattern that can be learned from historical data and exploited for prediction.
+Counties that shift similarly across elections -- regardless of geographic distance -- share underlying structural characteristics that make them covary politically. These "electoral types" can be discovered directly from shift vectors (log-odds changes in vote share across election pairs), and their covariance structure (constructed from demographic profiles) can propagate sparse polling information to produce county-level predictions.
 
-This hypothesis is **falsifiable by design**: the model discovers community types entirely from non-political data, then separately tests whether those types predict political covariance. If they do not, the hypothesis fails cleanly.
+This hypothesis is **falsifiable by design**: types are discovered from pre-2024 electoral shifts, then tested against held-out 2024 shifts. If types fail to predict the holdout, the model fails cleanly. Current holdout correlation: **r = 0.778** across 293 counties.
 
 ## Architecture
 
-The system is a six-stage pipeline with a strict firewall between community detection and political modeling:
+The system is a nine-stage pipeline where types are discovered from electoral shifts, then described and connected via demographics:
 
 ```
-Data Assembly --> Community Detection --> Covariance Estimation --> Poll Propagation --> Prediction --> Validation
-   (Python)          (Python)            (Python + Stan)           (Python)             (Python)     (Python)
+Data Assembly --> Shift Vectors --> Type Discovery --> Hierarchical Nesting --> Type Description
+   (Python)        (Python)         (Python/KMeans)     (Python/Ward HAC)       (Python)
+
+--> Covariance Construction --> Poll Propagation --> Prediction --> Validation
+        (Python)                   (Python)           (Python)      (Python)
 ```
 
-**Stage 1 -- Data Assembly.** Ingest and harmonize census tract-level data from the Census, American Community Survey, and election return sources. Output: a clean tract-by-feature matrix for FL, GA, and AL (9,393 tracts across 226 counties). Sources: ACS 5-year (demographics, income, education, commute), VEST (precinct election returns 2016-2020), MEDSL (county returns 2022-2024).
+**Stage 1 -- Data Assembly.** Ingest historical election returns (presidential 2000-2024, governor 2002-2022), decennial census (2000/2010/2020), ACS 2022, RCMS religious data, IRS migration flows. Output: county-level data for 293 FL+GA+AL counties.
 
-**Stage 2 -- Community Detection.** Discover latent community types from the non-political feature matrix using Non-negative Matrix Factorization (NMF). Tracts receive soft assignments (probability vectors across community types), not hard cluster labels, because real tracts contain mixtures of community types. Canonical solution: K=7.
+**Stage 2 -- Shift Vector Computation.** Compute log-odds shift vectors for each county across all election pairs. Presidential shifts are weighted 2.5x (they correlate across state lines); governor/Senate shifts are state-centered (demeaned within each state) to capture within-state differentiation without isolating types by state.
 
-**Stage 3 -- Covariance Estimation.** Using historical election returns, estimate how the discovered community types covary in their political behavior. This is where political data enters the model for the first time. Implemented in Stan (cmdstanpy) as an F=1 factor model. Validated against 2016, 2018, and 2020 elections.
+**Stage 3 -- Type Discovery (KMeans J=20).** Cluster counties into J=20 electoral types using KMeans on the weighted, state-centered shift vectors. Types represent abstract archetypes of electoral behavior -- counties that shift similarly belong to the same type regardless of geography. 10 of 20 types span multiple states.
 
-**Stage 4 -- Poll Propagation.** Propagate current polling data through the community covariance structure. Implemented as an analytical Gaussian/Kalman filter update: when a poll captures opinion in one geography, the covariance structure informs estimates for related community types elsewhere. Full MRP (R+Stan) is scaffolded but deferred to post-MVP.
+**Stage 4 -- Hierarchical Nesting.** Ward HAC on KMeans centroids (no spatial constraint) produces 6-8 super-types for public interpretability. Super-types are the "colors" of the stained glass map.
 
-**Stage 5 -- Prediction and Interpretation.** Combine propagated estimates with community-type assignments to produce county-level predictions. The model outputs two quantities jointly: **vote share** (partisan split) and **turnout** (participation rate).
+**Stage 5 -- Type Description.** Overlay time-matched demographics (interpolated decennial census), RCMS religious data, and IRS migration on discovered types. Types are named from their demographic character, not discovered from it.
 
-**Stage 6 -- Validation.** Holdout backtesting against known election results, cross-validation, and calibration diagnostics. Designed to stress-test the model, not confirm it.
+**Stage 6 -- Covariance Construction.** Economist-inspired approach (Heidemanns/Gelman/Morris 2020): construct J x J type covariance from demographic profiles via Pearson correlation, shrunk toward all-1s (national swing prior), with PD enforcement. Deterministic Python, no sampling needed.
+
+**Stage 7 -- Poll Propagation.** Gaussian Bayesian update distributes state-level poll signal to types via the covariance structure. Full MRP (R+Stan) deferred to post-MVP.
+
+**Stage 8 -- Prediction.** Type-level estimates multiplied by county soft-membership weights (inverse-distance to KMeans centroids, row-normalized to sum to 1) produce county-level predictions. Dual output: vote share + turnout.
+
+**Stage 9 -- Validation.** Holdout backtesting (train on pre-2024 shifts, test on 2024), type coherence analysis, and calibration diagnostics.
 
 ## Key Innovation: Dual Output
 
@@ -35,76 +44,91 @@ Most political prediction models estimate vote share only, treating turnout as e
 
 ## Proof of Concept
 
-The initial implementation covers **Florida, Georgia, and Alabama** (226 counties, 9,393 census tracts). This three-state region was chosen for its political diversity: major metro areas, rural counties, the Black Belt, retirement communities, college towns, military-adjacent communities, and Cuban-American enclaves. It is large enough to test the covariance structure meaningfully and small enough to iterate quickly.
+The initial implementation covers **Florida, Georgia, and Alabama** (293 counties). This three-state region was chosen for its political diversity: major metro areas, rural counties, the Black Belt, retirement communities, college towns, military-adjacent communities, and Cuban-American enclaves. It is large enough to test the covariance structure meaningfully and small enough to iterate quickly.
 
 ## Technology Stack
 
 | Layer | Technology | Role | Status |
 |-------|-----------|------|--------|
 | Data assembly | Python (pandas, geopandas, pyarrow) | Ingestion, cleaning, harmonization | Working |
-| Community detection | Python (scikit-learn NMF) | Latent community type discovery | Working |
-| Covariance estimation | Python + Stan (cmdstanpy) | Bayesian factor model | Working |
+| Shift vectors | Python (numpy, scipy) | Log-odds shift computation with presidential weighting | Working |
+| Type discovery | Python (scikit-learn KMeans) | Electoral type clustering (J=20) | Working |
+| Hierarchical nesting | Python (scipy Ward HAC) | Super-type grouping (6-8) | Working |
+| Type description | Python (pandas) | Demographic overlay on discovered types | Working |
+| Covariance construction | Python (numpy) | Economist-inspired demographic correlation | Working |
 | Poll propagation (MVP) | Python (numpy, scipy) | Gaussian/Kalman update | Working |
 | Poll propagation (full) | R + Stan (cmdstanr, brms) | Full MRP | Scaffolded, deferred |
-| Prediction | Python | Combining estimates, generating outputs | Working |
-| Validation | Python | Backtesting, calibration, diagnostics | Working |
-| Visualization | Python (matplotlib, plotly) | Maps, diagnostics, results | Partial |
+| Prediction | Python | Type-level estimates x county weights | Working |
+| Validation | Python | Holdout backtesting, calibration | Working |
+| Visualization | Next.js + Deck.gl | Stained glass map, interactive frontend | Working |
+| API | FastAPI + DuckDB | REST endpoints for model data | Working |
 | Sabermetrics | Python | Politician performance analytics | Scaffolded, not started |
 
 ## Project Status
 
-**Substantially implemented through Stage 5.** The pipeline runs end-to-end from data assembly through 2026 forecast generation. Architecture is complete and validated.
+**Type-primary architecture implemented end-to-end.** The pipeline runs from data assembly through KMeans type discovery, hierarchical nesting, demographic description, covariance construction, and county-level prediction. Stained glass map live at bedrock.hhaines.duckdns.org.
 
 ### Stage summary
 
 | Stage | Status | Key result |
 |-------|--------|------------|
-| 1 — Data Assembly | Complete | ACS tracts, VEST 2016-2020, MEDSL 2022-2024, RCMS 2020 religious data, IRS migration flows (2019-2022) |
-| 2 — Community Detection | Complete | K=7 NMF canonical solution; 9,393 tract soft assignments |
-| 3 — Covariance Estimation | Complete | R²=0.689/0.636/0.661 across 2016/2018/2020; hypothesis confirmed |
-| 4 — Poll Propagation | MVP complete | Gaussian/Kalman update; full MRP (R+Stan) deferred |
-| 5 — Prediction | Complete | 2026 forecast pipeline running with placeholder polls |
-| 6 — Validation | Complete through 2024 | Catches ~5pp FL poll overestimate of Democrats |
+| 1 — Data Assembly | Complete | MEDSL presidential 2000-2024, Algara/Amlani governor 2002-2018, Census decennial 2000/2010/2020, ACS 2022, RCMS 2020, IRS migration |
+| 2 — Shift Vectors | Complete | Log-odds shifts with presidential x2.5 weighting + state-centered governor/Senate |
+| 3 — Type Discovery | Complete | KMeans J=20; 10/20 types span multiple states; balanced sizes (3-31 counties per type) |
+| 4 — Hierarchical Nesting | Complete | 6-8 super-types via Ward HAC on centroids |
+| 5 — Type Description | Complete | Time-matched census demographics overlaid on discovered types |
+| 6 — Covariance Construction | Complete | Economist-inspired demographic correlation with shrinkage |
+| 7 — Poll Propagation | MVP complete | Gaussian/Kalman update; full MRP (R+Stan) deferred |
+| 8 — Prediction | Complete | 2026 forecast pipeline running with placeholder polls |
+| 9 — Validation | Complete | Holdout r=0.778 (train pre-2024, test 2024); catches FL poll overestimate |
 
 ### Primary gaps
 
-- **Test coverage**: 203 tests covering assembly, detection, covariance, propagation, sabermetrics, RCMS integration, and IRS migration
-- **Additional data sources**: RCMS 2020 religious data integrated (293 counties × 6 features). IRS migration edge list integrated (county-to-county flows, 2019-2022). Still pending: per-county migration feature computation from edge list, LODES commuting flows, and Facebook SCI
+- **Test coverage**: 641 tests covering assembly, discovery, covariance, propagation, API, and frontend
+- **Additional data sources**: RCMS 2020 religious data integrated (293 counties x 6 features). IRS migration edge list integrated (county-to-county flows, 2019-2022). Still pending: LODES commuting flows, Facebook SCI, FEC donor density
 - **Real poll data**: `data/polls/polls_2026.csv` contains synthetic placeholder polls; real 2026 polls must replace these as the cycle advances
 - **Full MRP**: R+Stan propagation pipeline is scaffolded but not implemented; Python Gaussian update is sufficient for the October 2026 target
+- **Historical VEST expansion**: 2012/2014 VEST data would add election pairs for richer shift vectors
 - **Sabermetrics**: all five sabermetrics source files contain only function signatures; no implemented logic yet
 
-## Community Types (K=7)
+## Electoral Types (KMeans J=20)
 
-NMF applied to ACS features identifies seven latent community types. Each tract receives a probability vector (soft assignment) across these types, not a hard label.
+KMeans clustering on presidential-weighted, state-centered shift vectors discovers 20 electoral types. Each county receives soft membership via inverse-distance to KMeans centroids (row-normalized to sum to 1). Types nest into 6-8 super-types via Ward HAC for public interpretability.
 
-| ID | Label | Key features |
-|----|-------|-------------|
-| c1 | White rural homeowner | Older, work-from-home, low density |
-| c2 | Black urban | Transit use, lower income, high density |
-| c3 | Knowledge worker | Management occupations, WFH, college-educated |
-| c4 | Asian | Distinct from knowledge worker; different geographic logic |
-| c5 | Working-class homeowner | Blue-collar occupations, homeownership |
-| c6 | Hispanic low-income | Lower income, distinct from c2 trajectory |
-| c7 | Generic suburban baseline | ~60% of tracts; genuine Deep South suburban heterogeneity |
+### Example types (illustrative)
 
-Community ordering by Democratic vote share is stable across all three historical elections: c7 < c1 < c5 < c3 < c4 < c6 < c2.
+| Type | Geography | Key demographics | Notable pattern |
+|------|-----------|-----------------|-----------------|
+| Cross-state rural | AL + FL + GA rural counties | Low density, older, white | Spans 3 states -- validates cross-border hypothesis |
+| Atlanta metro professional | Metro Atlanta suburbs | $78K median income, 40% BA+ | High-education suburban cluster |
+| Miami-Dade Hispanic enclave | 3 South FL counties | 51% Hispanic | Captures Cuban American shift distinctly |
+| Alabama Black Belt | 9 AL counties | 68% Black, $31K income | Historical plantation belt pattern |
 
-Key finding: c6 (Hispanic) shows detectable realignment (+4.9pp→+1.2pp Democratic swing, 2016→2020). c6 and c4 (Asian) are negatively correlated over this period -- c4 shifted Democratic as c6 shifted Republican.
+10 of 20 types span multiple states, confirming that electoral behavior crosses administrative boundaries. Type sizes are balanced (3-31 counties per type), avoiding the "alternative states" problem of earlier HAC K=10 approach.
+
+Key discovery: presidential shifts at 2.5x weight enable cross-state correlation while state-centered governor/Senate shifts provide within-state differentiation. Raw all-shifts produced state-isolated types; presidential-only lost governor signal; this weighting was the empirical sweet spot.
 
 ## Validation Results
 
-The F=1 Stan factor model was fit on 2016+2018+2020 election returns and validated via holdout:
+Types are discovered from pre-2024 shift vectors, then validated against held-out 2024 presidential shifts:
 
-| Election | R² | Notes |
-|----------|-----|-------|
-| 2016 presidential | 0.689 | Training set |
-| 2018 gubernatorial | 0.636 | FL+GA only (AL race uncontested) |
-| 2020 presidential | 0.661 | Training set |
-| 2022 gubernatorial | — | Back-calculated via Tikhonov ridge; extends prior chain |
-| 2024 presidential | — | Back-calculated via Tikhonov ridge (genuine 2-year lag validation) |
+| Metric | Value | Notes |
+|--------|-------|-------|
+| Holdout Pearson r | 0.778 | Train on pre-2024 shifts, predict 2024 pres D-share shift |
+| Cross-state types | 10/20 | Types spanning multiple states validate cross-border hypothesis |
+| Type size range | 3-31 counties | Balanced -- no single type dominates |
+| Super-types | 6-8 | Ward HAC on centroids for public interpretability |
 
-The validation pipeline (`src/validation/`) confirms that the model catches the ~5pp Democratic poll overestimate in Florida that is visible in both 2022 and 2024 actual results.
+### Historical approaches (retained for comparison)
+
+| Approach | Holdout metric | Notes |
+|----------|---------------|-------|
+| KMeans J=20 (current) | r=0.778 | Presidential x2.5 + state-centered governor |
+| HAC K=10 geographic blobs | r=0.903 | High autocorrelation but "alternative states" not types |
+| NMF K=7 on demographics | R²=0.661 | Indirect: demographics -> political validation |
+| 3-cycle county baseline | r=0.941 | Simple autocorrelation, no community structure |
+
+The KMeans approach trades raw holdout correlation for interpretable, cross-state types that capture genuine electoral structure rather than geographic proximity.
 
 ## Repository Structure
 
@@ -112,17 +136,21 @@ The validation pipeline (`src/validation/`) confirms that the model catches the 
 docs/           Detailed documentation (architecture, assumptions, data sources, decisions)
 research/       Literature review and methods research
 src/            Source code organized by pipeline stage
-  assembly/     Data ingestion and feature engineering
-  detection/    NMF community type discovery
-  covariance/   Stan factor model and covariance estimation
+  assembly/     Data ingestion, census interpolation, shift computation
+  discovery/    KMeans type discovery, shift vectors, adjacency
+  description/  Demographic overlay on discovered types
+  detection/    Historical NMF discovery (shelved, comparison only)
+  covariance/   Economist-inspired covariance construction
   propagation/  Poll propagation (Python MVP + scaffolded R+Stan MRP)
   prediction/   2026 forecast generation
   validation/   Holdout backtesting and calibration
-  viz/          Visualization (partial)
+  viz/          Visualization
   sabermetrics/ Politician analytics (scaffolded)
+api/            FastAPI backend (REST endpoints, DuckDB)
+web/            Next.js frontend (stained glass map)
 data/           Data artifacts (gitignored)
 notebooks/      Exploratory analysis
-tests/          Test suite (203 tests across all pipeline stages)
+tests/          Test suite (641 tests across all pipeline stages)
 scripts/        Utility scripts
 ```
 
@@ -134,15 +162,20 @@ See `docs/ARCHITECTURE.md` for the full technical specification. See `docs/ASSUM
 # Install
 pip install -e .    # or: uv sync
 
-# Run end-to-end (requires data files in data/)
-python src/prediction/predict_2026.py
+# Run type-primary pipeline
+python -m src.discovery.run_type_discovery          # KMeans type discovery
+python -m src.description.describe_types            # Demographic overlay
+python -m src.covariance.construct_type_covariance  # Covariance construction
+python -m src.prediction.predict_2026_types         # 2026 predictions
+python -m src.validation.validate_types             # Validation report
 
-# Run specific validation
-python src/validation/validate_2024.py
+# Build DuckDB + run API
+python src/db/build_database.py --reset
+uvicorn api.main:app --reload --port 8000
 
 # Lint
-ruff check src/
-ruff format src/
+ruff check src/ api/
+ruff format src/ api/
 
 # Tests
 pytest

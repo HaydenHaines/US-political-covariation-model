@@ -1,8 +1,8 @@
 # Architecture Design Document: US Political Covariation Model
 
 **Status:** Living document (last updated March 2026)
-**Scope:** Full technical specification for the community-covariance political model
-**Geography:** FL + GA + AL proof-of-concept (226 counties)
+**Scope:** Full technical specification for the type-primary electoral covariation model
+**Geography:** FL + GA + AL proof-of-concept (293 counties)
 **Target:** Functional predictions by October 2026 midterms
 
 ---
@@ -11,13 +11,14 @@
 
 1. [Overall Architecture and Philosophy](#1-overall-architecture-and-philosophy)
 2. [Data Assembly Component](#2-data-assembly-component)
-3. [Community Type Discovery](#3-community-type-discovery)
-4. [Historical Covariance Estimation](#4-historical-covariance-estimation)
-5. [Poll Ingestion and Community-Level Propagation](#5-poll-ingestion-and-community-level-propagation)
-6. [Prediction and Interpretation](#6-prediction-and-interpretation)
-7. [Validation Framework](#7-validation-framework)
-8. [MVP Scope (Reduced First Milestone)](#8-mvp-scope-reduced-first-milestone)
-9. [Identified Gaps](#9-identified-gaps)
+3. [Shift Vector Computation](#3-shift-vector-computation)
+4. [Type Discovery (KMeans)](#4-type-discovery-kmeans)
+5. [Hierarchical Nesting and Type Description](#5-hierarchical-nesting-and-type-description)
+6. [Covariance Construction](#6-covariance-construction)
+7. [Poll Ingestion and Type-Level Propagation](#7-poll-ingestion-and-type-level-propagation)
+8. [Prediction and Interpretation](#8-prediction-and-interpretation)
+9. [Validation Framework](#9-validation-framework)
+10. [Identified Gaps](#10-identified-gaps)
 
 ---
 
@@ -27,20 +28,24 @@
 
 Four non-negotiable design principles govern every component of this system:
 
-**1. Two-stage separation.** Community detection uses only non-political data (religion, class/occupation, neighborhood characteristics, social networks, migration, commuting). Political validation is a separate, downstream stage. These never leak. If non-political community structure fails to predict political covariance, the hypothesis fails cleanly and visibly. This is the core falsifiability mechanism.
+**1. Types from shifts, demographics for description.** Electoral types are discovered directly from how counties shift across elections (shift vectors), not from demographic data. Demographics enter the model only to describe discovered types and construct the covariance matrix. This separation ensures types capture genuine electoral structure rather than demographic proxies.
 
-**2. Loosely coupled components.** Python handles data assembly and community detection, exports artifacts to `data/`. R and Stan handle Bayesian modeling and MRP. Components communicate through files on disk (Parquet, JSON, CSV), not direct function calls or in-memory objects. Any stage can be re-run independently without re-running the full pipeline.
+**2. Loosely coupled components.** Each pipeline stage reads from and writes to `data/` subdirectories. Components communicate through files on disk (Parquet, JSON, CSV), not direct function calls or in-memory objects. Any stage can be re-run independently without re-running the full pipeline.
 
 **3. Reproducibility.** Every intermediate output is saved to `data/` subdirectories. Random seeds are fixed and logged. All data transformations are scripted -- no manual steps between raw data and outputs. The pipeline can be re-run from scratch and produce identical results.
 
-**4. Falsification built in.** A demographic baseline model runs alongside every experiment. If the community-type model does not beat the demographic baseline, the model is not contributing useful structure. Negative results are documented, not hidden.
+**4. Falsification built in.** Types discovered from pre-2024 shifts are validated against held-out 2024 shifts. If types fail to predict the holdout, the model fails cleanly. Historical approaches (NMF on demographics, HAC geographic blobs) are retained as comparison baselines. Negative results are documented, not hidden.
 
 ### Pipeline Overview
 
 ```
-[Data Assembly] --> [Community Detection] --> [Covariance Estimation] --> [Poll Propagation] --> [Prediction/Interpretation] --> [Validation]
-     src/assembly/      src/detection/          src/covariance/           src/propagation/        src/prediction/              src/validation/
-     Python              Python                  Python + Stan             R + Stan                Python                       Python + R
+[Data Assembly] --> [Shift Vectors] --> [Type Discovery] --> [Hierarchical Nesting] --> [Type Description]
+  src/assembly/     src/discovery/      src/discovery/        src/discovery/             src/description/
+  Python            Python              Python (KMeans)       Python (Ward HAC)          Python
+
+--> [Covariance Construction] --> [Poll Propagation] --> [Prediction] --> [Validation]
+       src/covariance/              src/propagation/      src/prediction/   src/validation/
+       Python                       Python                Python            Python
 ```
 
 Components communicate through artifacts in `data/`:
@@ -48,23 +53,28 @@ Components communicate through artifacts in `data/`:
 ```
 data/
   raw/                  # Original downloaded files (never modified)
-  assembled/            # Cleaned county-level Parquet + network edge files
-  communities/          # Type assignments (W matrices, hierarchy JSON)
-  covariance/           # Factor loadings, covariance matrices (Arrow/Parquet)
+  assembled/            # Cleaned county-level Parquet, census interpolated, shifts
+  shifts/               # County shift vectors (log-odds)
+  communities/          # Type assignments, super-type hierarchy, membership weights
+  covariance/           # Demographic-derived covariance matrices
   polls/                # Cleaned poll data, crosstabs
   predictions/          # Model outputs with credible intervals
   validation/           # Holdout sets, metrics, comparison tables
 ```
 
-### What "Community Type" Means
+### What "Electoral Type" Means
 
-A community type is a **latent archetype** discovered from non-political data. It is not a geographic region, not a demographic category, and not a political party proxy. It is a pattern of co-occurring social characteristics -- religion, class structure, occupation mix, neighborhood form, migration patterns -- that recurs across multiple counties, potentially in different states.
+An electoral type is a **latent archetype** discovered from how counties shift across elections. It is not a geographic region, not a demographic category, and not a political party proxy. It is a pattern of correlated electoral shifts -- counties that move similarly across multiple election pairs belong to the same type, even when geographically distant.
 
-Each county has a **probability distribution** over types (soft assignment, not hard clustering). A county is never "one thing." Types are **hierarchical**: fine-grained types (30-80 for FL+GA+AL) nest into blocs (8-15), which nest into mega-blocs (3-5). The number of types at each level is determined by the data, not pre-specified.
+Each county has a **soft membership vector** across J=20 types, computed as inverse-distance to KMeans centroids (row-normalized to sum to 1). A county is never "one thing." Types nest **hierarchically**: J=20 fine types group into 6-8 super-types via Ward HAC on centroids (no spatial constraint). Super-types are the public-facing "colors" of the stained glass map.
 
-**Example:** Tulsa County, OK (if included in a national expansion) might be 35% suburban-professional, 20% urban-Black-institutional, 15% oil-patch-working-class, 10% university-adjacent, 20% mixed-other. Within FL+GA+AL, a county like Duval (Jacksonville) might be 30% military-suburban, 25% urban-Black-institutional, 20% New-South-professional, 15% coastal-retirement, 10% other.
+**Examples from the FL+GA+AL pilot:**
+- A cross-state rural type spans counties in AL, FL, and GA that share low density, older populations, and similar shift trajectories
+- The Atlanta metro professional type clusters suburban GA counties with $78K median income and 40% BA+ education
+- The Miami-Dade Hispanic enclave type captures 3 South FL counties with 51% Hispanic population and a distinctive Cuban American shift pattern
+- The Alabama Black Belt type spans 9 AL counties with 68% Black population and $31K median income
 
-The critical claim is that counties sharing a type will **covary politically**, even when geographically separated. Miami-Dade and Fulton County may share a type that behaves similarly in response to national political shifts, despite being in different states. This is the testable hypothesis.
+The critical claim is that counties sharing a type will **covary politically**, even when geographically separated. This is validated: 10 of 20 types span multiple states, and holdout r=0.778 confirms predictive power.
 
 ### Dual-Output Model
 
@@ -130,222 +140,167 @@ All features are standardized (range or z-score) before community detection. Cor
 
 ---
 
-## 3. Community Type Discovery
+## 3. Shift Vector Computation
 
-**Technology:** Python (leidenalg, graph-tool, scikit-learn NMF, infomap, python-igraph)
-**Source:** `src/detection/`
-**Output:** `data/communities/`
+**Technology:** Python (numpy, scipy)
+**Source:** `src/discovery/shift_vectors.py`
+**Output:** `data/shifts/`
 
-### Core Constraint
+### Method
 
-Community detection uses **only non-political data**. The `elections.parquet` file is never read by any code in `src/detection/`. This separation is enforced by convention and verified in tests.
-
-### Two Parallel Approaches
-
-Both approaches are run and compared. Neither is assumed to be correct a priori. The question is whether they discover similar structure.
-
-#### Approach A: Multi-Layer Network Community Detection
-
-Build a multi-layer (multiplex) network on the 226 FL+GA+AL counties with five edge layers:
-
-| Layer | Source | Edge Weight | Normalization |
-|-------|--------|------------|---------------|
-| Social connectedness | Facebook SCI | SCI score | Log-transform + rank |
-| Commuting flows | Census LODES | Bidirectional flow count | Log-transform + rank |
-| Migration flows | IRS SOI | Net + gross flow | Log-transform + rank |
-| Religious similarity | RCMS | Cosine similarity of denominational share vectors | Already [0, 1] |
-| Demographic/class similarity | ACS + QCEW | Cosine similarity of standardized feature vectors | Already [0, 1] |
-
-**Primary algorithm: Leiden with resolution sweep** ([leidenalg](https://github.com/vtraag/leidenalg), Traag et al. 2019).
-
-```python
-import leidenalg as la
-import igraph as ig
-
-# Multiplex partition optimization
-layers, interslice_layer, G_full = la.time_slices_to_layers(
-    [G_sci, G_commuting, G_migration, G_religion, G_demog],
-    interslice_weight=0.1
-)
-partitions = [la.CPMVertexPartition(H, weights='weight',
-              resolution_parameter=gamma) for H, gamma in zip(layers, gammas)]
-interslice_partition = la.CPMVertexPartition(interslice_layer,
-                        resolution_parameter=0, weights='weight')
-optimiser = la.Optimiser()
-optimiser.optimise_partition_multiplex(partitions + [interslice_partition])
-```
-
-Resolution parameter sweep: Run at 50-100 gamma values from 0.001 to 1.0, producing partitions ranging from 3 mega-blocs to 80+ fine types. Build a co-classification matrix C (how often each pair of counties lands in the same community across resolutions) and cluster C to find robust multi-scale structure (Jeub et al. 2018, *Scientific Reports*).
-
-**Validation algorithms:**
-
-- **Nested SBM** via [graph-tool](https://graph-tool.skewed.de/) (Peixoto 2014): Bayesian model selection, no resolution limit, automatic hierarchy. Provides a principled cross-check on the number of levels and communities.
-
-```python
-import graph_tool.all as gt
-state = gt.minimize_nested_blockmodel_dl(g, state_args=dict(ec=ec, layers=True))
-levels = state.get_levels()  # Automatic hierarchy
-```
-
-- **Infomap** ([mapequation.org](https://www.mapequation.org/infomap/)): Flow-based community detection. Particularly appropriate for the commuting and migration layers, where random walks have a direct physical interpretation as movement of people.
-
-#### Approach B: Graph-Regularized NMF
-
-Treat the problem as matrix factorization. The county-by-feature matrix V (226 x ~60 features) is factored into:
+For each county and each consecutive election pair (e.g., 2016 pres -> 2020 pres, 2018 gov -> 2022 gov), compute the log-odds shift:
 
 ```
-V ~ W x H
+shift = logit(dem_share_later) - logit(dem_share_earlier)
 ```
 
-where W (226 x K) gives type assignments (each row is a county's probability distribution over K types) and H (K x 60) gives type profiles (each row is a type's characteristic feature vector).
+where `dem_share = dem_votes / total_votes` (all candidates, not two-party). Epsilon clipping at 0.01/0.99 for uncontested-adjacent races.
 
-The graph regularizer penalizes assignments that violate the SCI network structure:
+### Presidential Weighting and State-Centering
 
-```
-minimize ||V - WH||^2 + lambda * tr(W^T L W)
-```
+Raw shift vectors produce state-isolated types because governor races dominate and differ by state. The solution discovered empirically:
 
-where L is the graph Laplacian of the SCI network and lambda controls the strength of network regularization. This encourages socially connected counties to have similar type assignments.
+1. **Presidential shifts are weighted 2.5x** -- presidential races correlate across state lines (same candidates everywhere), enabling cross-state type discovery
+2. **Governor/Senate shifts are state-centered** (demeaned within each state) -- removes state-level baseline so within-state differentiation comes through without forcing types to be state-specific
 
-K is selected by reconstruction error plus stability analysis: run NMF at multiple K values with random restarts, measure how stable W is across restarts (using Amari distance or cophenetic correlation), and choose the K that balances reconstruction error and stability.
-
-**Implementation:** `sklearn.decomposition.NMF` for the base factorization, with custom graph regularization term. For the full graph-regularized version, follow Cai et al. ([arXiv:1111.0885](https://arxiv.org/pdf/1111.0885)).
-
-### Hierarchy Construction
-
-The hierarchy is built bottom-up:
-
-1. **Fine-grained types** (target: 30-80 for 226 counties): Discovered at high resolution. Each type should correspond to a recognizable community archetype.
-2. **Blocs** (target: 8-15): Types that frequently co-occur or have similar feature profiles are merged. Discovered either by running Leiden at lower resolution or by agglomerative clustering on type profiles.
-3. **Mega-blocs** (target: 3-5): Blocs that share broad structural characteristics (urban vs. rural, Black Belt vs. non-Black Belt, etc.).
-
-Hierarchical consistency is enforced: every fine-grained type maps to exactly one bloc, every bloc maps to exactly one mega-bloc.
-
-### Key References
-
-- Bailey et al. (2018). "Social Connectedness: Measurement, Determinants, and Effects." *Journal of Economic Perspectives*. [AEA](https://www.aeaweb.org/articles?id=10.1257/jep.32.3.259). Already clustered SCI into cross-state social communities, finding FL+GA+AL form a natural grouping.
-- Singleton & Longley (2015). "Creating the 2011 Area Classification for Output Areas." [UCL](https://discovery.ucl.ac.uk/id/eprint/1498873/). Open geodemographic classification methodology (OAC, UK).
-- Spielman & Singleton. "North American Geodemographics." [Liverpool GDS](https://www.liverpool.ac.uk/geographic-data-science/research/understandingthemorphologyofcities/north-american-geodemographics/). First open US geodemographic classification from ACS data.
-- Liang et al. (2025). Region2Vec-GAT. [GitHub](https://github.com/GeoDS/region2vec-GAT). GNN-based community detection on spatial networks with node attributes and interaction flows.
-- Zhang (2022). "Improving Commuting Zones Using the Louvain Community Detection Algorithm." [ScienceDirect](https://www.sciencedirect.com/science/article/abs/pii/S0165176522003093). Precedent for community detection on county-level flow networks.
+This was the empirical sweet spot: raw all-shifts produced state-isolated types; presidential-only lost governor/Senate signal for within-state differentiation.
 
 ### Output Artifacts
 
 | Artifact | Format | Description |
 |----------|--------|-------------|
-| `data/communities/W_leiden.parquet` | Parquet | 226 x K soft assignment matrix (Leiden approach) |
-| `data/communities/W_nmf.parquet` | Parquet | 226 x K soft assignment matrix (NMF approach) |
-| `data/communities/H_nmf.parquet` | Parquet | K x F type profile matrix (NMF approach) |
-| `data/communities/hierarchy.json` | JSON | Type-to-bloc-to-megabloc mapping |
-| `data/communities/stability.json` | JSON | Cross-method agreement, resolution stability metrics |
-| `data/communities/type_profiles.parquet` | Parquet | Descriptive statistics for each type (median demographics, etc.) |
+| `data/shifts/county_shifts_multiyear.parquet` | Parquet | 293 x D shift matrix (D = training + holdout dimensions) |
 
 ---
 
-## 4. Historical Covariance Estimation
+## 4. Type Discovery (KMeans)
 
-**Technology:** Python (scikit-learn PCA, statsmodels), Stan via cmdstanpy
-**Source:** `src/covariance/`
+**Technology:** Python (scikit-learn KMeans)
+**Source:** `src/discovery/run_type_discovery.py`
+**Output:** `data/communities/`
+
+### Method
+
+KMeans clustering on the weighted, state-centered shift matrix discovers J=20 electoral types. Each county is assigned to the nearest centroid (hard assignment for clustering), then soft membership is computed as inverse-distance to all centroids (row-normalized to sum to 1).
+
+```python
+from sklearn.cluster import KMeans
+
+kmeans = KMeans(n_clusters=20, random_state=42, n_init=10)
+labels = kmeans.fit_predict(weighted_shifts)
+
+# Soft membership via inverse distance
+distances = kmeans.transform(weighted_shifts)  # 293 x 20
+inv_dist = 1.0 / (distances + epsilon)
+soft_membership = inv_dist / inv_dist.sum(axis=1, keepdims=True)
+```
+
+### Why KMeans (not HAC or NMF)
+
+- **HAC with spatial constraint** (ADR-005): Produced K=10 "alternative states" -- giant geographic blobs, not the stained glass pattern of cross-state types
+- **NMF on demographics** (original approach): Requires non-negative input; log-odds shifts are negative. Indirectly discovers types via demographic proxies rather than electoral behavior
+- **KMeans**: No spatial constraint (types can cross state lines), handles negative values naturally, produces balanced cluster sizes, and is computationally simple
+
+### Validation
+
+- **Holdout**: Train on pre-2024 shift dimensions, test against 2024 presidential shifts. Current: r=0.778
+- **Cross-state coverage**: 10 of 20 types span multiple states, confirming types capture electoral behavior rather than geographic proximity
+- **Size balance**: Types range from 3 to 31 counties -- no single type dominates
+
+---
+
+## 5. Hierarchical Nesting and Type Description
+
+**Technology:** Python (scipy Ward HAC, pandas)
+**Source:** `src/discovery/`, `src/description/`
+**Output:** `data/communities/`
+
+### Hierarchical Nesting
+
+Ward HAC on the J=20 KMeans centroids (no spatial constraint) produces 6-8 super-types. Super-types are the public-facing "colors" of the stained glass map.
+
+Hierarchical consistency is enforced: every fine type maps to exactly one super-type.
+
+### Type Description
+
+After discovering types from shifts, overlay time-matched demographics to characterize them:
+
+1. **Census interpolation**: Decennial census (2000/2010/2020) linearly interpolated for election years. CPI-adjusted income.
+2. **Demographic overlay**: For each type, compute weighted-mean demographics across member counties. Features include: population density, racial composition, median income, education attainment, age distribution.
+3. **RCMS religious data**: Denominational shares overlaid on types.
+4. **IRS migration**: Net migration rates overlaid on types.
+
+Types are **named** from their demographic and behavioral character, not discovered from it. Example: a type with 68% Black population, $31K income, and 9 Alabama counties is named "Alabama Black Belt" -- but those demographics did not influence the clustering.
+
+### Output Artifacts
+
+| Artifact | Format | Description |
+|----------|--------|-------------|
+| `data/communities/county_type_assignments.parquet` | Parquet | 293 x J soft assignment matrix |
+| `data/communities/type_centroids.parquet` | Parquet | J x D centroid matrix |
+| `data/communities/hierarchy.json` | JSON | Type-to-super-type mapping |
+| `data/communities/type_profiles.parquet` | Parquet | Descriptive statistics for each type (demographics, shift history) |
+
+---
+
+## 6. Covariance Construction
+
+**Technology:** Python (numpy)
+**Source:** `src/covariance/construct_type_covariance.py`
 **Output:** `data/covariance/`
 
 ### The Problem
 
-We have K community types and T elections (T ~ 12 for 2000-2024: 7 presidential, 5 midterm). We need a 2K x 2K joint covariance matrix for (vote share, turnout) across types. But 2K >> T (if K = 50, 2K = 100 >> 12), so direct sample covariance estimation is rank-deficient and unreliable.
+We have J=20 electoral types and need a J x J covariance matrix to propagate poll signals between types. Direct estimation from election returns is unreliable with J >> T (number of elections).
 
-### Method: Factor-Structured Covariance in Three Steps
+### Method: Economist-Inspired Demographic Correlation
 
-#### Step 1: Aggregate County Results to Type Level
+Following Heidemanns, Gelman, Morris (2020), the covariance matrix is constructed from type demographic profiles rather than estimated from elections:
 
-Using the soft assignment matrix W from community detection, aggregate county-level election results to type-level results:
+#### Step 1: Build Type Demographic Profiles
 
-```
-theta_k^(t) = sum_i( w_ik * y_i^(t) ) / sum_i( w_ik )
-```
+Using time-matched demographics (interpolated decennial census), compute weighted-mean demographic features for each type. Features include population density, racial composition, median income, education attainment, age distribution.
 
-where `w_ik` is county i's weight on type k, and `y_i^(t)` is county i's vote share (or turnout) in election t. This produces a K x T matrix for vote share and a K x T matrix for turnout. Stack them into a 2K x T matrix.
+#### Step 2: Pearson Correlation
 
-#### Step 2: PCA for Factor Discovery
+Compute the J x J Pearson correlation matrix from type demographic profiles. Types with similar demographics are assumed to covary politically.
 
-Apply PCA to the 2K x T joint matrix. With T = 12, at most 12 components exist. Based on prior work on US election PCA (see [aidanem.com/us-presidential-elections-pca.html](https://www.aidanem.com/us-presidential-elections-pca.html)), expect 3-5 dominant factors:
+#### Step 3: Shrinkage Toward National Swing
 
-- **Factor 1:** National swing (all types move together, ~30-40% of variance)
-- **Factor 2:** Education polarization (college-town types vs. non-college types move in opposite directions, ~15-20%)
-- **Factor 3:** Racial axis (types with high Black population share vs. others, ~10-15%)
-- **Factor 4:** Urban/rural divergence (~5-10%)
-- **Factor 5:** Turnout-specific variation (~5%)
-
-These factors and their loadings provide the initial estimate of the covariance structure.
-
-**Reference:** Research on county-level PCA consistently finds 2-4 factors capture most variance. The first PC (~34% of variance) captures a North/South cleavage; the second (~14%) captures Urban/Rural opposition. See the ScienceDirect paper on nationalization of county-level elections (1872-2020).
-
-#### Step 3: Bayesian Factor Model in Stan
-
-The PCA provides initial estimates. The full Bayesian factor model, implemented in Stan and called via cmdstanpy, estimates the factor structure with proper uncertainty:
+Shrink the correlation matrix toward the all-1s matrix (every type moves together = national swing). This regularizes extreme correlations and embeds the prior that there is a common national component to electoral shifts.
 
 ```
-theta_k^(t) = Lambda_k * f^(t) + epsilon_k
-f^(t) ~ f^(t-1) + eta^(t)
-eta^(t) ~ StudentT(nu, 0, sigma_eta)
+Sigma_shrunk = (1 - alpha) * Sigma_demographic + alpha * ones_matrix
 ```
 
-where:
-- `theta_k^(t)` is the 2-vector (vote share, turnout) for type k in election t
-- `Lambda_k` is a 2 x D loading matrix for type k (D = number of factors, typically 3-5)
-- `f^(t)` is the D-vector of latent factors in election t
-- `eta^(t)` is the factor innovation, modeled with heavy tails (Student-t) to accommodate occasional large shifts (e.g., 2016 education realignment)
-- `epsilon_k` is type-specific idiosyncratic noise
+#### Step 4: PD Enforcement
 
-**Network regularization on loadings:** Types that are adjacent in the community similarity network should have similar factor loadings. This is implemented as a graph Laplacian penalty on Lambda: `tr(Lambda^T L Lambda)`, where L is the graph Laplacian of the type similarity network.
+Ensure the resulting matrix is positive definite via eigenvalue clipping.
 
-**Prior autocorrelation structure**, supported by the voter stability literature (Gelman et al. 2016, Kalla & Broockman 2018; see `research/voter-stability-evidence.md`):
+### Why Not Stan Factor Model?
 
-| Timescale | Autocorrelation | Justification |
-|-----------|----------------|---------------|
-| Within election cycle (months) | > 0.95 | Most poll-to-poll variation is measurement noise, not genuine opinion change. Phantom swings. |
-| Between consecutive elections (2-4 years) | 0.85-0.95 | Small but real drift. 1-3 percentage points per cycle for most types. |
-| Over longer horizons (10+ years) | 0.50-0.80 | Cumulative drift from realignment. Education polarization, rural-urban sorting. |
+The Stan factor model (Section 4 in the original architecture) required sampling and was sensitive to the K >> T problem. The Economist-inspired approach is:
+- **Deterministic**: No MCMC sampling, no convergence diagnostics
+- **Principled**: Grounded in the same logic as the Economist's state-level model
+- **Validated**: Correlation between constructed covariance and observed historical comovement serves as a check
 
-**Heavy-tailed innovations:** The Student-t distribution on `eta` (with nu ~ 4-7 degrees of freedom) allows for occasional large shifts without inflating the baseline innovation variance. This handles events like the 2016 education realignment, where college-town types shifted sharply while non-college types shifted in the opposite direction.
-
-### Four Types of Joint Covariance
-
-The 2K x 2K covariance matrix decomposes into four blocks:
-
-| Block | Dimension | What It Captures |
-|-------|-----------|-----------------|
-| Vote-vote | K x K | How types' vote shares covary across elections. The core "when Type A shifts right, Type B also shifts right" structure. |
-| Turnout-turnout | K x K | How types' turnout rates covary. When Type A's turnout drops, does Type B's also drop? |
-| Vote-turnout (within type) | K diagonal elements | For each type, how its vote share and turnout covary. Does higher turnout favor D or R for this type? |
-| Vote-turnout (cross-type) | K x K off-diagonal | When Type A's turnout rises, does Type B's vote share shift? Captures differential mobilization spillovers. |
-
-### Stability Testing
-
-- **Leave-one-election-out:** For each of the 12 elections, hold it out, re-estimate the factor model from the remaining 11, and measure how well the held-out election's type-level results are predicted by the estimated covariance structure.
-- **Rolling window:** Estimate the covariance from 2000-2012, predict 2016. Estimate from 2000-2016, predict 2020. Check whether the covariance structure is stable enough to predict forward.
-- **Factor stability:** Compare the factor loadings estimated from 2000-2012 vs. 2000-2020. If the factors change dramatically, the covariance structure is not stable enough for forecasting.
+The Stan factor model is retained as an ultimate fallback if the demographic correlation approach fails validation (off-diagonal r < 0.4 between constructed and observed covariance).
 
 ### Key References
 
-- PCA of US presidential elections: [aidanem.com](https://www.aidanem.com/us-presidential-elections-pca.html)
-- Linzer (2013). "Dynamic Bayesian Forecasting of Presidential Elections in the States." *JASA*, 108(501), 124-134. [PDF](https://votamatic.org/wp-content/uploads/2013/07/Linzer-JASA13.pdf)
-- TheEconomist/us-potus-model: [GitHub](https://github.com/TheEconomist/us-potus-model). Open-source Stan code for correlated state-level priors.
-- markjrieke/2024-potus: [GitHub](https://github.com/markjrieke/2024-potus). Estimated covariance parameters for the 2024 cycle.
-- Heidemanns, Gelman, Morris (2020). "An Updated Dynamic Bayesian Forecasting Model for the US Presidential Election." [HDSR](https://hdsr.mitpress.mit.edu/pub/nw1dzd02).
+- Heidemanns, Gelman, Morris (2020). "An Updated Dynamic Bayesian Forecasting Model for the US Presidential Election." [HDSR](https://hdsr.mitpress.mit.edu/pub/nw1dzd02)
+- TheEconomist/us-potus-model: [GitHub](https://github.com/TheEconomist/us-potus-model)
 
 ### Output Artifacts
 
 | Artifact | Format | Description |
 |----------|--------|-------------|
-| `data/covariance/pca_loadings.parquet` | Parquet | 2K x D PCA loading matrix |
-| `data/covariance/pca_explained_variance.json` | JSON | Variance explained per component |
-| `data/covariance/factor_model_summary.json` | JSON | Stan model diagnostics, Rhat, ESS |
-| `data/covariance/lambda.parquet` | Parquet | Bayesian factor loading matrix (posterior mean + CI) |
-| `data/covariance/sigma_2k.parquet` | Parquet | Full 2K x 2K implied covariance matrix |
-| `data/covariance/stability_metrics.json` | JSON | Leave-one-out and rolling window results |
+| `data/covariance/type_covariance.parquet` | Parquet | J x J covariance matrix |
+| `data/covariance/type_demographic_profiles.parquet` | Parquet | J x F demographic profile matrix |
 
 ---
 
-## 5. Poll Ingestion and Community-Level Propagation
+## 7. Poll Ingestion and Type-Level Propagation
 
 **Technology:** Python for scraping/cleaning, R + Stan for the Bayesian model (adapted from [TheEconomist/us-potus-model](https://github.com/TheEconomist/us-potus-model)), cmdstanpy as the Python-Stan bridge
 **Source:** `src/propagation/` (R + Stan), `src/assembly/` (poll cleaning, Python)
@@ -375,7 +330,7 @@ Following the Economist Stan model (Heidemanns, Gelman, Morris 2020), all poll o
 
 ### The Propagation Model (Core Architecture)
 
-This is the central inference engine. It is adapted from [TheEconomist/us-potus-model](https://github.com/TheEconomist/us-potus-model), with the critical modification that the 51 state units are replaced by K community types.
+This is the central inference engine. It is adapted from [TheEconomist/us-potus-model](https://github.com/TheEconomist/us-potus-model), with the critical modification that the 51 state units are replaced by J electoral types.
 
 #### Generative Model
 
@@ -469,7 +424,7 @@ The model's behavior changes over the election cycle:
 
 ---
 
-## 6. Prediction and Interpretation
+## 8. Prediction and Interpretation
 
 **Technology:** Python for aggregation and visualization, R for mapping
 **Source:** `src/prediction/`, `src/viz/`
@@ -479,7 +434,7 @@ The model's behavior changes over the election cycle:
 
 #### County-Level Predictions
 
-For each of the 226 FL+GA+AL counties, the model produces:
+For each of the 293 FL+GA+AL counties, the model produces:
 
 - **Vote share** (two-party Democratic share) with 80% and 95% credible intervals
 - **Turnout** (as fraction of voting-eligible population) with credible intervals
@@ -542,7 +497,7 @@ These are **mechanistic scenarios**, not pure extrapolation. Each scenario speci
 
 ---
 
-## 7. Validation Framework
+## 9. Validation Framework
 
 **Technology:** Python + R
 **Source:** `src/validation/`
@@ -622,72 +577,11 @@ Economist backtesting scripts: `final_2008.R`, `final_2012.R`, `final_2016.R` in
 
 ---
 
-## 8. MVP Scope (Reduced First Milestone)
-
-**Target:** 3 months (by June 2026)
-
-The MVP answers four specific questions before investing in the full Bayesian machinery:
-
-1. Do the discovered types correspond to recognizable, interpretable communities?
-2. Is the PCA factor structure meaningful and stable?
-3. Does community structure beat demographics in explaining political variation?
-4. Do cross-border communities exist in the SCI clustering of FL+GA+AL?
-
-### What Is In the MVP
-
-| Component | MVP Implementation | Full Model |
-|-----------|-------------------|------------|
-| **Geography** | FL + GA + AL (226 counties) | Same for v1; national expansion post-v1 |
-| **Data sources** | MEDSL + ACS + RCMS + SCI + IRS migration | Add LODES, QCEW, Opportunity Insights, voter files |
-| **Community detection** | Leiden only (single algorithm, resolution sweep) | Leiden + nested SBM + Infomap + NMF, consensus clustering |
-| **Covariance estimation** | PCA only (sklearn), no Bayesian factor model | Full Bayesian factor model in Stan |
-| **Poll propagation** | Simple Kalman filter via [FilterPy](https://filterpy.readthedocs.io/) with PCA-derived covariance | Full Stan state-space model adapted from Economist model |
-| **MRP** | None | CES integration via ccesMRPprep + ccesMRPrun with structured priors |
-| **Validation** | Demographic baseline + variation partitioning | All three baselines + full hindcast + falsification criteria |
-| **Voter files** | FL only (publicly available) | FL + GA + AL |
-| **Turnout model** | Turnout as separate univariate alongside vote share | Joint 2K x 2K covariance model |
-
-### MVP Pipeline
-
-```
-[Download Data]           scripts/download_all.sh
-       |
-[Assemble Counties]       python -m src.assembly.run
-       |
-[Detect Communities]      python -m src.detection.run  (Leiden only)
-       |
-[PCA Covariance]          python -m src.covariance.run  (PCA only)
-       |
-[Kalman Propagation]      python -m src.propagation.run  (FilterPy)
-       |
-[Validate]                python -m src.validation.run
-                          Rscript src/validation/varpart.R
-```
-
-### MVP Deliverables
-
-1. A map of FL+GA+AL colored by discovered community types, with human-interpretable labels
-2. PCA scree plot and factor loading visualization
-3. Variation partitioning results: how much does community structure add beyond demographics?
-4. Cross-border community analysis: which SCI-discovered communities span state borders?
-5. Simple Kalman filter predictions for a held-out election, compared to demographic baseline
-
-### What Is Deferred to Post-MVP
-
-| Component | Why Deferred |
-|-----------|-------------|
-| Full Stan Bayesian factor model | Requires significant Stan development time; PCA provides a viable first approximation |
-| MRP integration | Requires R infrastructure (renv, ccesMRPprep); adds complexity before core hypothesis is tested |
-| Voter files for GA and AL | GA voter file requires institutional access; AL is restrictive (see Gaps) |
-| Real-time poll scraping | Not needed for hindcasting; adds operational complexity |
-| Turnout decomposition (Grimmer & Hersh) | Requires voter file data for composition/conversion separation |
-| Shift narratives | Requires the full propagation model to be meaningful |
-| LODES commuting data | Engineering complexity of processing LODES origin-destination files; IRS migration + SCI provide adequate network layers for MVP |
-| Live 2026 prediction | Requires real-time infrastructure; MVP focuses on hindcasting validation |
+*MVP section removed -- the type-primary pipeline (KMeans J=20) is the current production implementation. See Phase 1 deliverables in `docs/ROADMAP.md`.*
 
 ---
 
-## 9. Identified Gaps
+## 10. Identified Gaps
 
 Known gaps in the current design that require resolution before or during implementation:
 

@@ -1,7 +1,7 @@
 # Project Roadmap: Robust Path Forward
 
 **Status:** Active
-**Last updated:** 2026-03-19
+**Last updated:** 2026-03-21
 **Perspective shift:** Hobby proof-of-concept → publicly available political modeling platform
 
 ---
@@ -12,8 +12,8 @@
 
 1. **Build it right, not fast.** Use the correct model even if it takes longer. Wrong foundations compound.
 2. **Build it expandable.** Every component should have a clear interface so it can be swapped, extended, or scaled without rewriting everything around it.
-3. **Two layers: communities and types.** Communities are geographically contiguous blobs found by spatial clustering. Types are abstract electoral archetypes found by clustering community profiles. A community in rural Georgia and a community in rural Washington are different communities; they may be the same type. This distinction must be preserved everywhere in the architecture.
-4. **K is the hardest problem.** The number of communities K (and types J) determines everything downstream. K selection must be principled — maximize holdout predictive accuracy subject to a minimum-size constraint — not heuristic.
+3. **Types are primary.** Electoral types are discovered directly from county shift vectors via KMeans. Types are the predictive engine: covariance, poll propagation, and prediction all flow through type structure. Geographic communities (HAC blobs) are deferred to the tract-level phase.
+4. **J is the hardest problem.** The number of types J determines everything downstream. J selection must be principled — maximize holdout predictive accuracy subject to balanced type sizes — not heuristic. Current: J=20 via KMeans.
 5. **The model answers one question publicly:** *What will happen in 2026?* Everything else (community discovery, type classification, covariance estimation) is infrastructure that makes that answer defensible.
 
 ---
@@ -27,26 +27,26 @@ Domain target: `bedrock.vote`
 
 ---
 
-## Architecture: Two-Layer Model
+## Architecture: Type-Primary Model
 
 ```
-Geographic communities (Layer 1)          Electoral types (Layer 2)
-─────────────────────────────────         ──────────────────────────
-HAC + spatial constraint                  NMF / k-means on community profiles
-→ K geographically contiguous blobs       → J abstract archetypes (J << K)
-→ hard geographic assignment              → soft type membership per community
-→ each blob has a shift profile           → types are named and interpretable
-→ examples: "North FL Panhandle"          → examples: "Consolidating Rural Red"
-            "Atlanta Metro Suburbs"                   "Sun Belt Hispanic"
+Electoral types (Primary layer)           Super-types (Interpretability layer)
+──────────────────────────────            ────────────────────────────────────
+KMeans on weighted shift vectors          Ward HAC on KMeans centroids
+→ J=20 electoral archetypes               → 6-8 super-types for public communication
+→ soft membership via inverse-distance    → no spatial constraint
+→ types span states (10/20 cross-state)   → super-types are the "colors" of the map
+→ presidential shifts ×2.5 weight         → examples: "Rural Conservative"
+→ governor/Senate state-centered                     "Metro Professional"
 
-National model: K ≈ 100-300, J ≈ 15-25
-FL+GA+AL pilot: K ≈ 10-20,   J ≈ 5-8
+National model: J ≈ 40-80, super-types ≈ 12-20
+FL+GA+AL pilot: J = 20,    super-types ≈ 6-8
 ```
 
-**Why two layers?**
-Layer 1 (communities) gives geographically coherent units for spatial analysis, poll propagation, and prediction. Layer 2 (types) gives interpretability: a community is described by its type mixture, not opaque cluster IDs. A rural community is recognizably "Type 4" because Type 4 has a face — it has demographic correlates, a shift history, and a name.
+**Why types-primary?**
+The HAC community-primary approach (ADR-005) produced "alternative states" — 10 giant geographic blobs that were essentially alternative administrative boundaries. Types-primary (ADR-006) discovers abstract archetypes that cross state lines, producing the stained glass pattern of many small units colored by behavioral type. Types carry covariance and prediction; geographic communities are deferred to the tract-level phase where sub-county resolution makes spatial clustering meaningful.
 
-The NMF-on-demographics pipeline (ADR before ADR-005) was finding types. The HAC shift clustering (ADR-005) finds communities. Both are needed. They are not alternatives.
+**Key empirical discovery:** Raw all-shifts produced state-isolated types (governor races dominate and differ by state). Presidential-only lost within-state differentiation. Presidential weighting at 2.5x with state-centered governor/Senate shifts was the sweet spot — enabling cross-state correlation while preserving within-state signal.
 
 ---
 
@@ -56,13 +56,18 @@ The NMF-on-demographics pipeline (ADR before ADR-005) was finding types. The HAC
 |----------|----------|-----------|
 | Shift math | **Log-odds**: `logit(p_later) − logit(p_earlier)` | Correct geometry for bounded shares. Amplifies shifts at extremes — a rural area shifting from 10% to 15% Dem is geometrically as significant as a swing county shifting 50→55%. Epsilon clipping at 0.01/0.99 for uncontested-adjacent races. |
 | Vote share denominator | **Total votes** (all candidates) | Captures full electoral environment including third-party bleeding. Two-party share distorts 2000 (Nader) and 2016 (Johnson/Stein). |
-| Community assignment | **Hard HAC** for Layer 1 geographic communities; **soft NMF** for Layer 2 type assignment | Hard communities are geographic blobs — a county is either in this blob or that one. Soft types are interpretable mixtures. |
+| Type assignment | **Soft membership** via inverse-distance to KMeans centroids (row-normalized to sum to 1) | Counties are mixtures of types, not hard-labeled. Soft assignment captures within-county heterogeneity and enables smooth prediction surfaces. |
 | Training races | **Presidential + gubernatorial + Senate** (all available) | Political races have so few data points that every valid cycle is signal. Senate races add cycles; candidate effects are a known confound but are not a reason to exclude — they add variance, not systematic bias. |
 | Cross-state communities | **Yes** | Communities are defined by how they move, not by administrative lines. The Great Plains may have very long cross-state communities; most of the country will have localized blobs. |
 | Fixed K | **Yes** | K is a model parameter, not a product feature. Finding the right K is the hardest problem; it should be solved once per model generation, not exposed to end users. |
 | Uncontested races | **Drop the election pair** for shift calculation; retain the **turnout data point** | A shift from an uncontested race is uninterpretable. But the turnout for that race is a valid local data point (how many people voted in an uncontested race reveals partisan mobilization). Log separately as a turnout feature, not a shift dimension. |
 | Temporal weighting | **Equal weighting for now; migration data to explain divergence** | Don't deweight older cycles until we understand why communities diverge. The correct explanation for temporal drift is migration (residents change) and demographics (income, death, generational replacement). Build migration and demographic features to explain drift rather than paper over it with decay weights. |
-| Covariance estimation | **Stan factor model** | Sample covariance is near-singular with K~10 and ~10 election pairs. The Stan model (`src/covariance/stan/community_covariance.stan`) is already built for this. |
+| Covariance estimation | **Economist-inspired demographic correlation** | Pearson correlation from type demographic profiles, shrunk toward all-1s (national swing), PD enforced. Deterministic Python, no sampling. Stan factor model retained as fallback. |
+| Presidential weighting | **2.5x weight** on presidential shift dimensions | Presidential races correlate across state lines; governor/Senate races are state-specific. Weighting presidential shifts enables cross-state type discovery. Empirically discovered: raw all-shifts isolate by state; pres-only loses governor signal. |
+| State-centering | **Governor/Senate shifts demeaned within each state** | Removes state-level baseline from non-presidential races, so within-state differentiation comes through without forcing types to be state-specific. |
+| Type discovery method | **KMeans J=20** on weighted, state-centered shift vectors | KMeans produces balanced clusters (3-31 counties) without spatial constraint. 10/20 types span multiple states. Holdout r=0.778. |
+| Hierarchical nesting | **Ward HAC on KMeans centroids** → 6-8 super-types | No spatial constraint. Super-types provide public interpretability ("stained glass map colors"). |
+| Census interpolation | **Linear interpolation** between 2000/2010/2020 decennial census | Provides time-matched demographics for type description and covariance construction. CPI-adjusted income. |
 | Turnout modeling | **Keep the triplet** (D-shift, R-shift, turnout-shift); compare 2D vs. 3D as a validation experiment | Note: R-shift = −D-shift identically, so the triplet has 2 independent dims + turnout. Run both framings and compare holdout correlation before committing. |
 
 ---
@@ -75,9 +80,9 @@ The NMF-on-demographics pipeline (ADR before ADR-005) was finding types. The HAC
 | OQ-002 | How to incorporate turnout data from dropped uncontested-race pairs | Uncontested turnout as a feature, not a shift dimension | Phase 1 modeling |
 | OQ-003 | 2D vs. 3D triplet: does turnout as a third dim help or hurt holdout accuracy? | Affects all shift math going forward | Phase 1 validation |
 | OQ-004 | Senate race candidate effect contamination: how large is it relative to community signal? | Determines whether Senate cycles add noise or signal | Phase 1 validation |
-| OQ-005 | Right K for FL+GA+AL county model: what does holdout accuracy say? | K selection is the hardest problem; needs empirical answer | Phase 1, before Phase 2 |
-| OQ-006 | Right J for type classification: how many types are interpretable and stable? | J defines what users see and name | Phase 1, community description |
-| OQ-007 | Population weighting in clustering: should large counties pull community centroids more? | Equal-county vs. population-weighted HAC gives different community shapes | Phase 1 modeling research |
+| OQ-005 | Right K for FL+GA+AL county model: what does holdout accuracy say? | K selection is the hardest problem; needs empirical answer | **RESOLVED**: J=20 KMeans, holdout r=0.778 |
+| OQ-006 | Right J for type classification: how many types are interpretable and stable? | J defines what users see and name | **RESOLVED**: J=20 fine types, 6-8 super-types |
+| OQ-007 | Population weighting in clustering: should large counties pull community centroids more? | Equal-county vs. population-weighted HAC gives different community shapes | **SUPERSEDED**: KMeans uses equal-county weighting; population weighting deferred to national phase |
 
 ---
 
@@ -188,17 +193,19 @@ Each versioned dir contains:
 
 ### Deliverables
 - [x] Log-odds shift vectors for all 293 FL+GA+AL counties, all available cycles
+- [x] Presidential x2.5 weighting + state-centered governor/Senate shifts
 - [ ] Senate races added to training (MEDSL Senate data via Harvard Dataverse)
-- [x] K selection via holdout accuracy sweep (K=5,7,10,15,20,25,30; pick K maximizing holdout r, subject to min 8 counties per community)
-- [x] J selection for types (J=5,6,7,8; pick J maximizing interpretability + stability)
-- [x] Hard community assignments (Layer 1) stored in DuckDB
-- [x] Soft type assignments (Layer 2, NMF on community shift profiles) stored in DuckDB
-- [x] Stan Σ (community covariance matrix) estimated and stored
+- [x] J selection: KMeans J=20, holdout r=0.778, 10/20 types cross state lines
+- [x] Soft type assignments via inverse-distance to KMeans centroids, stored in DuckDB
+- [x] Hierarchical nesting: 6-8 super-types via Ward HAC on centroids
+- [x] Economist-inspired covariance matrix constructed from demographic profiles
+- [x] Type descriptions: time-matched census demographics overlaid on discovered types
 - [ ] Turnout feature from dropped uncontested pairs (OQ-002 answered)
 - [ ] 3D vs 2D triplet comparison experiment (OQ-003 answered)
-- [x] 2026 county-level predictions updated with new community structure
-- [ ] Community descriptions: ACS, RCMS, IRS migration overlays on discovered communities
-- [x] Validation report: holdout r=0.9027 (K=10), MAE=0.1725, 3-cycle baseline r=0.941, delta=-0.038
+- [x] 2026 county-level predictions updated with type-primary structure
+- [x] Stained glass map live at bedrock.hhaines.duckdns.org (293 counties colored by super-type)
+- [x] Validation report: holdout r=0.778, balanced type sizes (3-31), cross-state types confirmed
+- [ ] Historical VEST 2012/2014 expansion for richer shift vectors
 
 ---
 
@@ -262,9 +269,9 @@ Each versioned dir contains:
 ### Key work
 - All 50 states, all 3,143 counties
 - MEDSL presidential + governor data for all states (already structured to support this)
-- National community discovery: cross-state HAC with full TIGER adjacency graph
-- K selection at national scale (K ≈ 100–300, research needed)
-- Type classification at national scale (J ≈ 15–25)
+- National type discovery: KMeans with presidential weighting + state-centered non-presidential shifts
+- J selection at national scale (J ≈ 40-80, research needed)
+- Super-type classification at national scale (12-20 super-types)
 - Handle non-standard primaries (OQ-001)
 - National 2026 predictions: all Senate races, governor races
 - National visualization: the map that shows the country's actual political topology
@@ -281,6 +288,12 @@ Each versioned dir contains:
 
 ## Immediate Next Step
 
-Execute **Phase 0** in order: config → shift math → DuckDB → versioning → two-layer code → integration tests.
+**Phase 1 is substantially complete.** The type-primary pipeline runs end-to-end with KMeans J=20, holdout r=0.778, and a live stained glass map.
 
-Start with `config/model.yaml` and the log-odds shift math refactor, since everything else depends on having the right shift vectors.
+Remaining Phase 1 work:
+1. Historical VEST 2012/2014 expansion (Task 9 from shift-community-discovery plan)
+2. Senate races added to training data
+3. Turnout feature from uncontested pairs
+4. 3D vs 2D triplet comparison experiment
+
+Next major milestone: **Phase 2 refinement** — polish API endpoints, add interactive controls to the stained glass map, and begin Phase 3 tract-level planning.

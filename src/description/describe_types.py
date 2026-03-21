@@ -160,8 +160,15 @@ def describe_types(
     profiles = pd.DataFrame(records)
 
     # Consistent column ordering
-    col_order = ["type_id", "n_counties", "pop_total"] + demo_cols + rcms_cols_used
-    profiles = profiles[[c for c in col_order if c in profiles.columns]]
+    col_order_raw = ["type_id", "n_counties", "pop_total"] + demo_cols + rcms_cols_used
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    col_order: list[str] = []
+    for c in col_order_raw:
+        if c not in seen and c in profiles.columns:
+            col_order.append(c)
+            seen.add(c)
+    profiles = profiles[col_order]
     return profiles.reset_index(drop=True)
 
 

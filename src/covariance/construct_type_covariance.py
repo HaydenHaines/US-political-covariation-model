@@ -253,21 +253,22 @@ def _load_type_profiles() -> tuple[pd.DataFrame, list[str]]:
 def _load_type_scores_and_shifts() -> tuple[np.ndarray, np.ndarray, list[list[int]]]:
     """Load type scores and shift matrix for validation."""
     # Type scores: county × type soft-membership matrix
-    assignments_path = COMMUNITIES_DIR / "county_type_assignments_stub.parquet"
-    if not assignments_path.exists():
-        # Fall back to full assignments
-        assignments_path = COMMUNITIES_DIR / "county_type_assignments.parquet"
-    if not assignments_path.exists():
+    # Try multiple naming conventions for the type assignments file
+    for name in ["type_assignments.parquet", "county_type_assignments.parquet"]:
+        assignments_path = COMMUNITIES_DIR / name
+        if assignments_path.exists():
+            break
+    else:
         raise FileNotFoundError(
-            f"County type assignments not found at {assignments_path}. "
+            f"County type assignments not found in {COMMUNITIES_DIR}. "
             "Run `python -m src.discovery.run_type_discovery` first."
         )
 
     assignments = pd.read_parquet(assignments_path)
-    # Score columns are those not named county_fips / type_id / community_id etc.
+    # Score columns: type_X_score pattern (from run_type_discovery.py)
     score_cols = [
         c for c in assignments.columns
-        if c.startswith("type_score_") or c.startswith("score_")
+        if c.endswith("_score") and c.startswith("type_")
     ]
     if not score_cols:
         # Assume all float columns except fips are scores

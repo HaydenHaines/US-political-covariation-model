@@ -234,16 +234,17 @@ def run() -> None:
     # Load polls
     log.info("Loading polls from %s", polls_path)
     polls = pd.read_csv(polls_path)
-    if "state" not in polls.columns and "geography" in polls.columns:
+    # Normalize column name
+    if "geography" in polls.columns and "state" not in polls.columns:
         polls = polls.rename(columns={"geography": "state"})
 
-    # Aggregate polls by (race, geography)
+    # Aggregate polls by (race, state)
     poll_agg = (
         polls.groupby(["race", "geo_level"])
         .agg(
             dem_share=("dem_share", "mean"),
             n_sample=("n_sample", "sum"),
-            geography=("geography", "first"),
+            state=("state", "first"),
         )
         .reset_index()
     )
@@ -253,7 +254,7 @@ def run() -> None:
         race = poll_row["race"]
         poll_dem = float(poll_row["dem_share"])
         poll_n = int(poll_row["n_sample"])
-        geo = poll_row["geography"]
+        geo = poll_row["state"]
 
         result = predict_race(
             race=race,

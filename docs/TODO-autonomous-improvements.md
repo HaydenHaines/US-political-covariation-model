@@ -4,92 +4,134 @@ These tasks can be picked up independently by autonomous sessions to incremental
 
 ---
 
-## Immediate Fixes (Blocking stained glass map)
+## Immediate Fixes
 
-- [ ] **Fix DuckDB county_type_assignments wiring** — The DB builder looks for `county_type_assignments.parquet` but type discovery saves to `type_assignments.parquet`. Either rename the output or update `build_database.py` to check both names. Once fixed, the `/api/v1/counties` endpoint will return `super_type` and the map will render stained glass colors. Also need to generate `type_covariance_long.parquet` (long-format type_i, type_j, correlation, covariance) for the `type_covariance` DuckDB table.
+- [x] **Fix DuckDB county_type_assignments wiring** — DONE. Parquet files aligned, all tables populated.
+- [x] **Fix super_types table** — DONE. Generated from nesting result.
+- [x] **Fix stained glass map rendering** — DONE. Map shows 293 counties in 8 super-type colors.
+- [ ] **Name the types** — Currently "Super-Type 0", "Type 1", etc. Use demographic profiles to auto-generate descriptive names (e.g., "Black Belt Rural", "Atlanta Professional", "FL Retirement Coast", "Hispanic Urban"). Write a `name_types()` function. Priority: high (user-facing).
+- [ ] **Compute real type priors** — All priors default to 0.45 Dem. Compute from 2024 actual results per type. Biggest single prediction quality improvement.
 
-- [ ] **Fix super_types table** — Generate `super_types.parquet` from the nesting result (super_type_id, display_name, member_type_ids). The `nest_types.py` CLI doesn't currently save this as a separate file.
+---
 
-- [ ] **Name the types** — Currently types are "Type 0", "Type 1", etc. Use the demographic profiles to generate descriptive names (e.g., "Black Belt Rural", "Hispanic Urban", "Educated Suburban", "Rural White Working Class"). Write a `name_types()` function or add to `describe_types.py`.
+## Iterative Model Improvement (Autonomous Research + Experiment Loop)
+
+**This is the core autonomous workflow.** Each session should:
+1. Research a specific improvement hypothesis (web search for papers, methods, datasets)
+2. Implement the experiment on a feature branch
+3. Run validation and compare to baseline (holdout r=0.778, coherence=0.673)
+4. If better: merge. If worse: document why and discard.
+5. Update this TODO with findings.
+
+**Baseline model (2026-03-21):**
+- Algorithm: KMeans J=20
+- Features: Presidential×2.5 + state-centered gov/Senate (33 dims, 2008+)
+- Holdout r: 0.778
+- Coherence: 0.673
+- Covariance validation: 0.449
+
+### How we got here (the pattern to replicate)
+
+This session discovered the optimal approach through empirical iteration:
+
+| Attempt | Algorithm | Data | Holdout r | Issue |
+|---------|-----------|------|-----------|-------|
+| 1 | SVD+varimax (spec'd) | All 54 dims | 0.35 | Degenerate — 2 giant types |
+| 2 | NMF (offset) | All 33 dims | 0.16-0.22 | Worse than SVD |
+| 3 | KMeans | All 33 dims (2008+) | 0.77 | State-isolated types |
+| 4 | HAC (no spatial) | All 33 dims | 0.76 | Same state isolation |
+| 5 | KMeans | Presidential only (15 dims) | 0.70 | Cross-state but lost signal |
+| 6 | State-centered KMeans | All 33 dims | 0.72 | Still mostly single-state |
+| 7 | **Presidential×2.5 + state-centered** | **33 dims** | **0.778** | **Sweet spot** |
+
+**Key insight:** Governor/Senate shifts are state-specific races. Using them raw creates state blocs. State-centering removes the state-level mean, keeping only within-state differentiation. Presidential weighting at 2.5× ensures cross-state signal dominates type discovery while governor/Senate adds local detail.
+
+**This pattern of hypothesis → experiment → validation → iterate is what autonomous sessions should do.**
+
+### Research-Driven Experiments (pick one per session)
+
+Each of these should start with web research (search for recent papers, blog posts, 538/Economist methodology updates) to inform the experiment design.
+
+- [ ] **Presidential weight sweep** — Current: 2.5×. Test 1.5, 2.0, 3.0, 3.5, 4.0. Plot holdout r vs cross-state type count. Find the Pareto frontier. Research: how do other models weight different race types?
+
+- [ ] **J sweep with formal CV** — Current J=20 was empirically good but not CV-selected with the new feature weighting. Run leave-one-pair-out CV across J=12..30. Research: how do geodemographic classification systems (OAC, PRIZM) select segment count?
+
+- [ ] **Population-weighted KMeans** — Large counties (Miami-Dade: 2.7M, Fulton: 1M) are equally weighted with rural counties (5K). Test `sample_weight=county_population` in KMeans. Research: does the Census use population weighting in their geodemographic classifications?
+
+- [ ] **Temporal weighting** — Weight 2016→2020 shifts at 2× and 2012→2016 at 1.5× to emphasize recent patterns. Research: do the Economist or 538 models use temporal decay? What decay functions work best?
+
+- [ ] **MiniBatch KMeans for stability** — Standard KMeans can be sensitive to initialization. Test MiniBatchKMeans with 100 random starts, measure centroid stability via bootstrap. Research: what's the state of the art for assessing cluster stability?
+
+- [ ] **Spectral clustering** — KMeans assumes spherical clusters. Spectral clustering can find non-convex communities. Test with k-nearest-neighbors affinity. Research: has spectral clustering been applied to electoral geography?
+
+- [ ] **Gaussian Mixture Models** — GMM gives proper probabilistic soft membership (vs our inverse-distance hack). Test with full/diagonal covariance. Compare soft scores. Research: GMM vs KMeans for geodemographic classification.
+
+- [ ] **HDBSCAN with auto-J** — Discovers J automatically from data density. Counties in sparse regions become "noise" (genuinely heterogeneous). Research: HDBSCAN applications in political science / geography.
+
+- [ ] **Add turnout as a separate clustering dimension** — Currently D-shift and R-shift are in the feature space. Turnout-shift is too but it's =1-(D+R), so it's redundant with 2-party data. Test: separate turnout clustering → merge with partisan types. Research: does turnout clustering add predictive value for midterm elections?
+
+- [ ] **Negative correlation preservation** — Currently flooring negatives to zero in covariance. Test with floor_negatives=False. Rural evangelical vs urban progressive may genuinely inverse-correlate. Research: does the Economist floor negatives? Do other models?
+
+- [ ] **Shrinkage lambda tuning** — Current lambda=0.75 from Economist. Their types are 51 states; ours are 20 county types — different granularity. Sweep lambda=0.3..0.95. Research: what's the theoretical basis for the shrinkage parameter?
+
+- [ ] **Urbanicity feature (Economist-style)** — Compute `avg_log_pop_within_5_miles` per county. Much better than raw density for distinguishing suburban from exurban. Use as type profile feature. Research: how did the Economist compute this? What data source?
+
+- [ ] **Add FEC donor density to type profiles** — Microdonation rate (donors/population) as a type discriminator. Post-2012 only. Research: what threshold defines "microdonation"? Is there academic literature on donation rates as political engagement proxy?
+
+### Data Source Research (web search → evaluate → integrate)
+
+- [ ] **Search for county-level presidential returns pre-2000** — Need to extend to 1948+ for parity with Economist model. Sources to investigate: ICPSR, Dave Leip (license restrictions?), OpenElections project, Wikipedia county results tables. Don't pay for data.
+
+- [ ] **Evaluate VEST 2012/2014 precinct data quality** — Already planned as Task 9 in original shift-community plan. Check VEST GitHub for FL/GA/AL coverage and data quality notes.
+
+- [ ] **Research voter file availability** — FL and GA have public voter files. Could validate type assignments against actual registered party affiliation (where available). Research: what's available, what format, any academic papers using FL voter file for ecological inference?
+
+- [ ] **Search for free sub-county demographic data** — ACS provides tract-level but only back to 2009. For 2000, need Census 2000 tract data. Check if API works at tract level for SF1/SF3. Research: NHGIS tract-level extracts.
 
 ---
 
 ## Data Source Expansion
 
-- [ ] **Integrate NYTimes 2020 precinct data** — MIT license, FL+GA full coverage (AL unusable). Download from `TheUpshot/presidential-precinct-map-2020`. Store in `data/raw/nyt_precinct_2020/`. This is the foundation for tract-level expansion.
-
-- [ ] **Integrate NYTimes 2024 precinct data** — C-UDA license (non-commercial, attribution required). Download from `nytimes/presidential-precinct-map-2024`. All three states have full coverage including AL.
-
-- [ ] **Extend governor shift data pre-2000** — Algara & Amlani has governor data back to 1865. Currently using 2002-2018. Add 1994, 1998 (and possibly earlier) governor pairs. These add training dims cheaply from already-downloaded data.
-
-- [ ] **FEC donor density feature** — Extend `fetch_fec_contributions.py` to compute unique donors per county per cycle (not dollar amounts). Compute donor density (donors/population) and partisan ratio (ActBlue/total). Use as type profile feature for covariance construction. Signal reliable post-2012 only.
-
-- [ ] **CES/CCES survey data** — Individual-level validated vote with county geography. ~60K respondents per wave. Download from Harvard Dataverse. Use for validating type assignments: do individuals within the same type-dominant county actually vote similarly?
-
-- [ ] **BEA Local Area Personal Income** — Per-capita income composition (wages vs transfers vs investments). Differentiates types beyond total income. A county dominated by transfer income behaves differently from wage income even at the same total.
-
-- [ ] **Facebook Social Connectedness Index** — Validate that counties of the same type are socially connected. Download from Meta's data portal. Not for type discovery, but for propagation validation.
-
----
-
-## Model Improvements
-
-- [ ] **J sweep on recent data (KMeans)** — The current J=20 was empirically good but not formally selected with the leave-one-pair-out CV on recent (2008+) data. Run `select_j.py` with the recent-data filter and compare J=15,18,20,22,25.
-
-- [ ] **Population-weighted KMeans** — Currently all counties are equally weighted. Large urban counties (Miami-Dade, Fulton) should pull centroids more than rural counties with 5K people. Test `sample_weight` parameter in KMeans.
-
-- [ ] **Type prior computation from historical data** — Currently all type priors default to 0.45 Dem share. Compute actual type-level priors from the most recent election (2024 presidential) by averaging county Dem shares within each type. This is the biggest single improvement for prediction quality.
-
-- [ ] **Shrinkage lambda tuning** — Currently lambda=0.75 (from Economist). Sweep lambda=0.5..0.9 and evaluate which produces the best covariance validation r. Our types are more granular than states, so the optimal lambda may differ.
-
-- [ ] **Test negative correlation preservation** — OQ-N1: currently flooring negative correlations to zero. Test with `floor_negatives=False` — rural evangelical vs urban progressive types may have genuinely inverse correlations. Compare holdout r with and without flooring.
-
-- [ ] **Urbanicity feature** — Compute `avg_log_pop_within_5_miles` per county (Economist's measure). Much better than simple population density. Use Census population data + county centroids.
-
-- [ ] **Temporal weighting experiment** — Weight recent elections higher in KMeans (e.g., 2016-2020 at 2x). Test whether this improves holdout accuracy on 2020→2024.
+- [x] **NYTimes 2020 precinct data** — DOWNLOADED. 264MB at `data/raw/nyt_precinct/precincts_2020_national.geojson.gz`. MIT license.
+- [x] **NYTimes 2024 precinct data** — DOWNLOADED. CSV (2.1MB) + TopoJSON (183MB) at `data/raw/nyt_precinct/`. C-UDA license (non-commercial, attribution required).
+- [ ] **Extend governor shift data pre-2000** — Algara & Amlani has data back to 1865. Currently using 2002-2018. Add 1994, 1998. Low effort (data already downloaded).
+- [ ] **FEC donor density feature** — Extend `fetch_fec_contributions.py`. Count unique donors per county per cycle. Reliable signal 2012+.
+- [ ] **CES/CCES survey data** — Individual-level validated vote + county geography. ~60K respondents/wave. Harvard Dataverse. For type validation.
+- [ ] **BEA Local Area Personal Income** — Income composition (wages vs transfers vs investments). Free API.
+- [ ] **Facebook Social Connectedness Index** — For propagation validation, not discovery.
 
 ---
 
 ## Validation & Analysis
 
-- [ ] **Write ADR-006** — Document the type-primary architecture decision formally. Include: motivation (HAC blobs), alternatives evaluated (SVD+varimax, NMF, KMeans, HAC-no-spatial), empirical results, and the decision to use KMeans on recent data.
-
-- [ ] **Type stability analysis with recent data only** — The 89.7° stability angle was computed on full data (2000-2024). Re-run on two recent sub-windows (2008-2016 vs 2016-2024) to see if types are more stable within the modern era.
-
-- [ ] **County-level prediction spot checks** — Manually verify predictions for known bellwether counties (e.g., Pinellas FL, Cobb GA). Do the predicted Dem shares match recent trends?
-
-- [ ] **Calibration analysis** — Are 90% confidence intervals actually covering 90% of historical outcomes? Run calibration on 2020 and 2024 actual results.
+- [ ] **Write ADR-006** — Document the type-primary pivot formally. Include the empirical iteration table from this session.
+- [ ] **Type stability on recent sub-windows** — Compare 2008-2016 vs 2016-2024 types. Expected to be more stable than full 2000-2024.
+- [ ] **County prediction spot checks** — Pinellas FL, Cobb GA, DeKalb GA, Miami-Dade FL. Do predictions match known trends?
+- [ ] **Calibration analysis** — 90% CI coverage on 2020 and 2024 actuals.
+- [ ] **Variation partitioning** — How much holdout variance do types explain vs demographics alone vs overlap?
 
 ---
 
 ## Visualization & Frontend
 
-- [ ] **Fix stained glass map rendering** — Depends on DuckDB wiring fix above. Once county type data flows to the API, the map should show 293 counties in 6 super-type colors.
-
-- [ ] **Type-aware tooltips** — On county hover: show county name, dominant type name, Dem share prediction, key demographics.
-
-- [ ] **Shift Explorer view** — Scatter plot of counties colored by type, x/y axes selectable from shift dimensions. Shows type clustering visually.
-
-- [ ] **Type comparison table** — Side-by-side demographic profiles of all 20 types. Sortable by any column.
+- [ ] **Type-aware tooltips** — County hover: name, type name, Dem share, key demographics.
+- [ ] **Shift Explorer view** — Scatter plot of counties, colored by type, x/y selectable.
+- [ ] **Type comparison table** — Side-by-side demographic profiles. Sortable.
+- [ ] **Type naming in legend** — Replace "Super-Type N" with descriptive names.
 
 ---
 
 ## Infrastructure
 
-- [ ] **Real 2026 poll data** — Replace placeholder `polls_2026.csv` with actual polls as the cycle advances. Set up a recurring scrape from 538/RCP/FiveThirtyEight.
-
-- [ ] **Model versioning for type-primary** — Tag current KMeans J=20 model as `type_primary_v1` in the versioning scheme. Freeze as baseline for comparison.
-
-- [ ] **CI/CD for model validation** — Add a GitHub Action that runs `validate_types` on every push to the feature branch. Fail if any metric drops below threshold.
+- [ ] **Real 2026 poll data** — Replace placeholder polls_2026.csv. Scrape from 538/RCP.
+- [ ] **Model versioning** — Tag current model as `type_primary_v1`. Freeze as baseline.
+- [ ] **CI/CD validation** — GitHub Action runs validate_types on push. Fail below thresholds.
 
 ---
 
 ## Documentation
 
-- [ ] **Update README.md** — Currently describes the NMF community-primary approach. Update to reflect KMeans type-primary with validation results.
-
-- [ ] **Update ARCHITECTURE.md** — Full technical architecture doc needs to reflect the pivot.
-
-- [ ] **Update ROADMAP.md** — Phase 1 is substantially complete. Update status and adjust Phase 2-4 for the new architecture.
-
-- [ ] **Update ASSUMPTIONS_LOG.md** — Mark assumptions invalidated/validated by the pivot. Add new assumptions (KMeans stability, recent-data sufficiency, demographic covariance proxy).
+- [x] **Update README.md** — In progress (dispatched agent).
+- [x] **Update ARCHITECTURE.md** — In progress.
+- [x] **Update ROADMAP.md** — In progress.
+- [x] **Update ASSUMPTIONS_LOG.md** — In progress.

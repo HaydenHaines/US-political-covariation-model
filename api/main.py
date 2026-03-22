@@ -143,6 +143,22 @@ async def lifespan(app: FastAPI):
     else:
         log.info("Type data not found — will use HAC pipeline for forecasts")
 
+    # ── Contract check ─────────────────────────────────────────────────────────
+    contract_ok = True
+    for table_name in ["super_types", "types", "county_type_assignments"]:
+        try:
+            result = app.state.db.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+                [table_name],
+            ).fetchone()
+            if not result or result[0] == 0:
+                log.warning("CONTRACT: missing table %s — frontend will show degraded state", table_name)
+                contract_ok = False
+        except Exception:
+            contract_ok = False
+    app.state.contract_ok = contract_ok
+    log.info("Contract status: %s", "ok" if contract_ok else "degraded")
+
     yield
 
     app.state.db.close()

@@ -238,8 +238,37 @@ def client():
     test_app.state.mu_prior = state["mu_prior"]
     test_app.state.state_weights = state["state_weights"]
     test_app.state.county_weights = state["county_weights"]
+    test_app.state.contract_ok = True
 
     with TestClient(test_app, raise_server_exceptions=True) as c:
         yield c
 
     test_db.close()
+
+
+@pytest.fixture
+def client_no_types():
+    """TestClient with a DB that has no type-primary tables."""
+    con = duckdb.connect(":memory:")
+    con.execute("CREATE TABLE counties (county_fips VARCHAR PRIMARY KEY, state_abbr VARCHAR, state_fips VARCHAR, county_name VARCHAR)")
+    con.execute("INSERT INTO counties VALUES ('12001', 'FL', '12', 'Alachua')")
+    con.execute("CREATE TABLE model_versions (version_id VARCHAR PRIMARY KEY, role VARCHAR, k INTEGER, j INTEGER, shift_type VARCHAR, vote_share_type VARCHAR, n_training_dims INTEGER, n_holdout_dims INTEGER, holdout_r VARCHAR, geography VARCHAR, description VARCHAR, created_at TIMESTAMP)")
+    con.execute("INSERT INTO model_versions VALUES ('test_v1', 'current', 3, 7, 'logodds', 'total', 30, 3, '0.90', 'test', 'test', '2026-01-01')")
+    con.execute("CREATE TABLE community_assignments (county_fips VARCHAR, community_id INTEGER, k INTEGER, version_id VARCHAR, PRIMARY KEY(county_fips, k, version_id))")
+    con.execute("INSERT INTO community_assignments VALUES ('12001', 0, 3, 'test_v1')")
+    con.execute("CREATE TABLE community_sigma (community_id_row INTEGER, community_id_col INTEGER, sigma_value DOUBLE, version_id VARCHAR)")
+    con.execute("INSERT INTO community_sigma VALUES (0, 0, 0.01, 'test_v1')")
+
+    test_app = create_app(lifespan_override=_noop_lifespan)
+    test_app.state.db = con
+    test_app.state.version_id = "test_v1"
+    test_app.state.K = 3
+    test_app.state.sigma = np.eye(3) * 0.01
+    test_app.state.mu_prior = np.full(3, 0.42)
+    test_app.state.state_weights = pd.DataFrame()
+    test_app.state.county_weights = pd.DataFrame()
+    test_app.state.contract_ok = False
+
+    with TestClient(test_app, raise_server_exceptions=True) as c:
+        yield c
+    con.close()

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 class HealthResponse(BaseModel):
     status: str
     db: str
+    contract: str = "ok"
 
 
 class ModelVersionResponse(BaseModel):

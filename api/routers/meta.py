@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import duckdb
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from api.db import get_db
 from api.models import HealthResponse, ModelVersionResponse
@@ -11,13 +11,14 @@ router = APIRouter(tags=["meta"])
 
 
 @router.get("/health", response_model=HealthResponse)
-def health(db: duckdb.DuckDBPyConnection = Depends(get_db)):
+def health(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)):
     try:
         db.execute("SELECT 1")
         db_status = "connected"
     except Exception:
         db_status = "error"
-    return HealthResponse(status="ok", db=db_status)
+    contract = "ok" if getattr(request.app.state, "contract_ok", True) else "degraded"
+    return HealthResponse(status="ok", db=db_status, contract=contract)
 
 
 @router.get("/model/version", response_model=ModelVersionResponse)

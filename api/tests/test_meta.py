@@ -1,10 +1,19 @@
 # api/tests/test_meta.py
-def test_health_returns_ok(client):
+def test_health_ok(client):
     resp = client.get("/api/v1/health")
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
     assert data["db"] == "connected"
+    assert data["contract"] == "ok"
+
+
+def test_health_reports_degraded_without_types(client_no_types):
+    """Health endpoint reports degraded when contract tables are missing."""
+    resp = client_no_types.get("/api/v1/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["contract"] == "degraded"
 
 
 def test_model_version_returns_fields(client):

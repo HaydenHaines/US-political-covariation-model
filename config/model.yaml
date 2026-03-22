@@ -106,7 +106,7 @@ types:
   legacy_algorithm: nmf
   legacy_j: 7
   # Type-primary config (active)
-  algorithm: svd_varimax
+  algorithm: kmeans
   fallback_algorithms:
   - archetypal_analysis
   - semi_nmf

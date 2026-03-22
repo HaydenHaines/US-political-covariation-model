@@ -86,8 +86,8 @@ export function ForecastView() {
       .finally(() => setLoading(false));
   }, [selectedRace]);
 
-  const selectedState = selectedRace.split(" ")[1] ?? "";
-  const stateRows = displayRows.filter((r) => r.state_abbr === selectedState);
+  const stateRows = displayRows.filter((r) => r.race === selectedRace);
+  const selectedState = stateRows.length > 0 ? stateRows[0].state_abbr : "";
   const statePred =
     stateRows.length > 0
       ? stateRows.reduce((sum, r) => sum + (r.pred_dem_share ?? 0), 0) / stateRows.length
@@ -106,7 +106,7 @@ export function ForecastView() {
           onChange={(e) => setSelectedRace(e.target.value)}
           style={{ padding: "6px 10px", border: "1px solid var(--color-border)", borderRadius: "3px", fontSize: "14px", fontFamily: "var(--font-serif)", background: "white" }}
         >
-          {races.map((r) => <option key={r} value={r}>{r.replace("_", " ")}</option>)}
+          {races.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
       </div>
 

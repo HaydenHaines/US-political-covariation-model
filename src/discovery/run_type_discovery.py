@@ -73,10 +73,53 @@ def varimax(
     return Phi @ R, R
 
 
+def temperature_soft_membership(dists: np.ndarray, T: float) -> np.ndarray:
+    """Compute temperature-sharpened soft membership from centroid distances.
+
+    Formula: weight_j = (1 / (dist_j + eps))^T, then row-normalize.
+
+    Numerically stable: operates in log-space to avoid overflow at large T.
+    For T >= 500 falls back to hard (argmax) assignment directly.
+
+    Parameters
+    ----------
+    dists : ndarray of shape (N, J)
+        Euclidean distances to centroids (non-negative).
+    T : float
+        Temperature exponent.  T=1.0 = original inverse-distance baseline.
+        T=10.0 = production default (reduces calibration MAE by ~37%).
+        T→∞ approaches hard assignment.
+
+    Returns
+    -------
+    scores : ndarray of shape (N, J)
+        Non-negative soft membership weights, each row sums to 1.
+    """
+    N, J_ = dists.shape
+    eps = 1e-10
+
+    if T >= 500.0:
+        scores = np.zeros((N, J_))
+        nearest = np.argmin(dists, axis=1)
+        scores[np.arange(N), nearest] = 1.0
+        return scores
+
+    # Log-space: log(weight_j) = T * log(1/(dist_j + eps)) = -T * log(dist_j + eps)
+    log_weights = -T * np.log(dists + eps)  # (N, J)
+
+    # Numerically stable softmax: subtract row max before exponentiating
+    log_weights -= log_weights.max(axis=1, keepdims=True)
+    powered = np.exp(log_weights)
+    row_sums = powered.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums == 0, 1.0, row_sums)
+    return powered / row_sums
+
+
 def discover_types(
     shift_matrix: np.ndarray,
     j: int,
     random_state: int = 42,
+    temperature: float = 10.0,
 ) -> TypeDiscoveryResult:
     """KMeans clustering on county shift vectors.
 
@@ -88,23 +131,28 @@ def discover_types(
         Number of types to discover.
     random_state : int
         Random seed for KMeans initialization.
+    temperature : float
+        Temperature exponent for soft membership sharpening.
+        T=1.0 = original inverse-distance baseline.
+        T=10.0 = production default, reduces calibration MAE by ~37%.
+        See scripts/experiment_soft_membership.py for derivation.
 
     Returns
     -------
     TypeDiscoveryResult
-        Soft scores (inverse-distance), centroids, dominant type assignments,
-        type size fractions, and identity rotation matrix.
+        Soft scores (temperature-scaled inverse-distance), centroids,
+        dominant type assignments, type size fractions, and identity
+        rotation matrix.
     """
     km = KMeans(n_clusters=j, random_state=random_state, n_init=10)
     labels = km.fit_predict(shift_matrix)
     centroids = km.cluster_centers_  # (J, D)
 
-    # Soft membership: inverse distance to each centroid, row-normalized
+    # Soft membership: temperature-scaled inverse distance to each centroid
     dists = np.zeros((len(shift_matrix), j))
     for t in range(j):
         dists[:, t] = np.linalg.norm(shift_matrix - centroids[t], axis=1)
-    inv_dists = 1.0 / (dists + 1e-10)
-    soft_scores = inv_dists / inv_dists.sum(axis=1, keepdims=True)
+    soft_scores = temperature_soft_membership(dists, T=temperature)
 
     # Type size fractions as "explained variance" analog
     _, counts = np.unique(labels, return_counts=True)
@@ -156,6 +204,8 @@ def main() -> None:
                 "No J specified: set types.j in config, use --j, or run select_j first"
             )
 
+    temperature = float(config["types"].get("temperature", 10.0))
+
     # Load shift matrix
     shifts_path = PROJECT_ROOT / "data" / "shifts" / "county_shifts_multiyear.parquet"
     df = pd.read_parquet(shifts_path)
@@ -178,9 +228,9 @@ def main() -> None:
     shift_matrix = df[shift_cols].values
 
     print(f"Shift matrix: {shift_matrix.shape[0]} counties x {shift_matrix.shape[1]} dims (min_year={args.min_year})")
-    print(f"Discovering J={j} types via KMeans...")
+    print(f"Discovering J={j} types via KMeans (temperature={temperature})...")
 
-    result = discover_types(shift_matrix, j=j)
+    result = discover_types(shift_matrix, j=j, temperature=temperature)
 
     unique, counts = np.unique(result.dominant_types, return_counts=True)
     print(f"Type sizes: {sorted(counts.tolist(), reverse=True)}")

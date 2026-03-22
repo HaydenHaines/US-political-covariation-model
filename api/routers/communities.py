@@ -307,7 +307,7 @@ def get_type(
         try:
             shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
             shift_col_names = [
-                c for c in shift_cols_row.columns if c != "county_fips"
+                c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
             ]
             if shift_col_names:
                 placeholders = ", ".join("?" * len(counties))

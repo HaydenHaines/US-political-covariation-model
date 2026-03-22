@@ -135,9 +135,9 @@ def predict_race(
     # Dominant type per county
     dominant_type = np.argmax(np.abs(type_scores), axis=1)
 
-    # Super-type placeholder (type // 4 as simple grouping; real pipeline
-    # reads from hierarchical nesting output)
-    super_type = dominant_type // 4
+    # Super-type: set to -1 here; the calling code should join against
+    # type_assignments.parquet (which has the authoritative super_type from nest_types).
+    super_type = np.full(N, -1, dtype=int)
 
     result = pd.DataFrame({
         "county_fips": county_fips,

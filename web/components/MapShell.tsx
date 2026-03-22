@@ -21,16 +21,13 @@ export const SUPER_TYPE_COLORS: [number, number, number][] = [
   [23, 190, 207],    // 9: teal
 ];
 
-// County-level super-type names (8 super-types)
+// County-level super-type names (5 super-types — J=43 KMeans, S=5 Ward HAC nesting)
 export const COUNTY_SUPER_TYPE_NAMES: Record<number, string> = {
-  0: "Rural White Conservative",    // 31 counties, 82% white, AL+FL panhandle
-  1: "Small-Town Mixed",            // 76 counties, GA-FL-AL rural crossroads
-  2: "Suburban Professional",        // 35 counties, FL coastal + AL urban
-  3: "Black Belt & Diverse",         // 82 counties, GA+AL Black Belt
-  4: "Hispanic South Florida",       // 3 counties, Miami-Dade area, 51% Hispanic
-  5: "North Georgia Exurban",        // 25 counties, N. GA white exurban
-  6: "Deep Rural Georgia",           // 19 counties, N. GA white working class
-  7: "Metro Atlanta Professional",   // 22 counties, Atlanta metro, $78K, 40% BA+
+  0: "Southern Rural Conservative",
+  1: "Rural & Small-Town Mixed",
+  2: "Suburban Professional",
+  3: "Black Belt & Diverse",
+  4: "Florida Coastal & Hispanic",
 };
 
 // Tract-level super-type names (10 super-types, different nesting)

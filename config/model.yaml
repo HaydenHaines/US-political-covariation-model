@@ -110,7 +110,7 @@ types:
   fallback_algorithms:
   - archetypal_analysis
   - semi_nmf
-  j: null
+  j: 43
   j_candidates:
   - 8
   - 10
@@ -120,6 +120,12 @@ types:
   - 20
   - 22
   - 25
+  - 30
+  - 35
+  - 40
+  - 43
+  - 45
+  - 50
   super_type_count_candidates:
   - 5
   - 6

@@ -23,10 +23,10 @@ These tasks can be picked up independently by autonomous sessions to incremental
 4. If better: merge. If worse: document why and discard.
 5. Update this TODO with findings.
 
-**Baseline model (2026-03-21):**
-- Algorithm: KMeans J=20
+**Baseline model (2026-03-22):**
+- Algorithm: KMeans J=43
 - Features: Presidential×2.5 + state-centered gov/Senate (33 dims, 2008+)
-- Holdout r: 0.778
+- Holdout r: 0.818
 - Coherence: 0.673
 - Covariance validation: 0.449
 
@@ -54,9 +54,9 @@ Each of these should start with web research (search for recent papers, blog pos
 
 - [x] **Presidential weight sweep** — DONE (S161). Tested weights [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]. Best: 3.0 (r=0.655 vs 2.5's r=0.647, +0.009). Broad plateau from 2.0-4.0. Cross-state types: 10 at w=2.5-3.5, 13 at w=4.0-5.0. Current 2.5 is within plateau; consider bumping to 3.0 for marginal gain. Results: data/validation/presidential_weight_sweep.csv
 
-- [ ] **J sweep with formal CV** — Current J=20 was empirically good but not CV-selected with the new feature weighting. Run leave-one-pair-out CV across J=12..30. Research: how do geodemographic classification systems (OAC, PRIZM) select segment count?
+- [x] **J sweep with formal CV** — DONE. Leave-one-pair-out CV across J=12..50. Optimal: J=43 (r=0.779 CV mean). Extended sweep plateau at ~43. Integrated into production. Finding: J=20 was good but undershooting capacity. J=43 achieves holdout r=0.818 (+4% vs J=20's 0.778). Trade-off: more types to manage, but better predictive power.
 
-- [ ] **Population-weighted KMeans** — Large counties (Miami-Dade: 2.7M, Fulton: 1M) are equally weighted with rural counties (5K). Test `sample_weight=county_population` in KMeans. Research: does the Census use population weighting in their geodemographic classifications?
+- [x] **Population-weighted KMeans** — DONE. Test `sample_weight=county_population` in KMeans. Finding: Hurts performance (r 0.818→0.781, -0.037). Large counties (Miami-Dade, Fulton) override rural types when weighted by population. Equal weighting preserves rural type diversity and political signal. Recommendation: keep equal weighting.
 
 - [ ] **Temporal weighting** — Weight 2016→2020 shifts at 2× and 2012→2016 at 1.5× to emphasize recent patterns. Research: do the Economist or 538 models use temporal decay? What decay functions work best?
 

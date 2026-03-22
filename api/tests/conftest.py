@@ -171,6 +171,15 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
         con.execute("INSERT INTO types VALUES (?, ?, ?, ?)", list(td))
 
     con.execute("""
+        CREATE TABLE super_types (
+            super_type_id INTEGER PRIMARY KEY,
+            display_name VARCHAR
+        )
+    """)
+    con.execute("INSERT INTO super_types VALUES (0, 'Rural & Conservative')")
+    con.execute("INSERT INTO super_types VALUES (1, 'Suburban & Moderate')")
+
+    con.execute("""
         CREATE TABLE county_type_assignments (
             county_fips VARCHAR NOT NULL,
             dominant_type INTEGER NOT NULL,

@@ -73,6 +73,47 @@ function DemographicRow({ label, value, fmt }: { label: string; value: number | 
   );
 }
 
+const DEMO_DISPLAY: Record<string, { label: string; fmt: "pct" | "dollar" | "num" }> = {
+  median_hh_income: { label: "Median income", fmt: "dollar" },
+  median_age: { label: "Median age", fmt: "num" },
+  pct_white_nh: { label: "White (non-Hispanic)", fmt: "pct" },
+  pct_black: { label: "Black", fmt: "pct" },
+  pct_hispanic: { label: "Hispanic", fmt: "pct" },
+  pct_asian: { label: "Asian", fmt: "pct" },
+  pct_bachelors_plus: { label: "Bachelor's+", fmt: "pct" },
+  pct_owner_occupied: { label: "Owner-occupied", fmt: "pct" },
+  pct_wfh: { label: "Work from home", fmt: "pct" },
+  pct_transit: { label: "Transit commuters", fmt: "pct" },
+  pct_car: { label: "Car commuters", fmt: "pct" },
+  evangelical_share: { label: "Evangelical", fmt: "pct" },
+  mainline_share: { label: "Mainline Protestant", fmt: "pct" },
+  catholic_share: { label: "Catholic", fmt: "pct" },
+  black_protestant_share: { label: "Black Protestant", fmt: "pct" },
+  congregations_per_1000: { label: "Congregations/1K", fmt: "num" },
+  religious_adherence_rate: { label: "Religious adherence", fmt: "num" },
+};
+
+const DEMO_SKIP = new Set([
+  "pop_total", "pop_white_nh", "pop_black", "pop_asian", "pop_hispanic",
+  "housing_total", "housing_owner", "educ_total", "educ_bachelors_plus",
+  "commute_total", "commute_car", "commute_transit", "commute_wfh",
+  "n_counties",
+]);
+
+function prettifyKey(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\bpct\b/g, "%")
+    .replace(/\bhh\b/g, "household")
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+function inferFormat(key: string): "pct" | "dollar" | "num" {
+  if (key.startsWith("pct_") || key.endsWith("_share")) return "pct";
+  if (key.includes("income")) return "dollar";
+  return "num";
+}
+
 export function TypePanel({ typeId, superTypeMap, onClose }: Props) {
   const [detail, setDetail] = useState<TypeDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,13 +201,19 @@ export function TypePanel({ typeId, superTypeMap, onClose }: Props) {
               <p style={{ margin: "0 0 6px", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--color-text-muted)" }}>
                 Demographics
               </p>
-              <DemographicRow label="Median income" value={detail.demographics.median_hh_income} fmt="dollar" />
-              <DemographicRow label="Median age" value={detail.demographics.median_age} fmt="num" />
-              <DemographicRow label="White (non-Hispanic)" value={detail.demographics.pct_white_nh} fmt="pct" />
-              <DemographicRow label="Black" value={detail.demographics.pct_black} fmt="pct" />
-              <DemographicRow label="Hispanic" value={detail.demographics.pct_hispanic} fmt="pct" />
-              <DemographicRow label="Asian" value={detail.demographics.pct_asian} fmt="pct" />
-              <DemographicRow label="Bachelor's+" value={detail.demographics.pct_bachelors_plus} fmt="pct" />
+              {Object.entries(detail.demographics)
+                .filter(([key]) => !DEMO_SKIP.has(key))
+                .map(([key, value]) => {
+                  const display = DEMO_DISPLAY[key];
+                  return (
+                    <DemographicRow
+                      key={key}
+                      label={display?.label ?? prettifyKey(key)}
+                      value={value}
+                      fmt={display?.fmt ?? inferFormat(key)}
+                    />
+                  );
+                })}
             </div>
           )}
 

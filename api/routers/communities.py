@@ -129,8 +129,8 @@ def get_community(
         member_fips = county_rows["county_fips"].tolist()
         placeholders = ", ".join("?" * len(member_fips))
         shift_rows = db.execute(
-            f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders}) AND version_id = ?",
-            member_fips + [version_id],
+            f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders})",
+            member_fips,
         ).fetchdf()
         for col in shift_col_names:
             if col in shift_rows.columns:
@@ -283,23 +283,23 @@ def get_type(
 
     counties = county_rows["county_fips"].tolist() if not county_rows.empty else []
 
-    # Demographic profile: average demographics of member counties
+    # Demographic profile from the types table itself (which contains all profile data)
     demographics: dict[str, float] = {}
-    if counties and _has_table(db, "type_profiles"):
-        try:
-            demo_row = db.execute(
-                "SELECT * FROM type_profiles WHERE type_id = ? LIMIT 1",
-                [type_id],
-            ).fetchdf()
-            if not demo_row.empty:
-                r = demo_row.iloc[0]
-                for col in demo_row.columns:
-                    if col not in ("type_id", "version_id", "display_name", "super_type_id"):
-                        val = r[col]
-                        if not pd.isna(val):
-                            demographics[col] = float(val)
-        except Exception:
-            pass
+    try:
+        demo_row = db.execute(
+            "SELECT * FROM types WHERE type_id = ? LIMIT 1",
+            [type_id],
+        ).fetchdf()
+        if not demo_row.empty:
+            r = demo_row.iloc[0]
+            skip_cols = {"type_id", "super_type_id", "display_name", "n_counties"}
+            for col in demo_row.columns:
+                if col not in skip_cols:
+                    val = r[col]
+                    if not pd.isna(val):
+                        demographics[col] = float(val)
+    except Exception:
+        pass
 
     # Shift profile: mean shifts across member counties
     shift_profile: dict[str, float] | None = None
@@ -307,13 +307,13 @@ def get_type(
         try:
             shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
             shift_col_names = [
-                c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
+                c for c in shift_cols_row.columns if c != "county_fips"
             ]
             if shift_col_names:
                 placeholders = ", ".join("?" * len(counties))
                 shift_rows = db.execute(
-                    f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders}) AND version_id = ?",
-                    counties + [version_id],
+                    f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders})",
+                    counties,
                 ).fetchdf()
                 shift_profile = {}
                 for col in shift_col_names:

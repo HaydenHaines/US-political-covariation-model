@@ -86,7 +86,7 @@ export function ForecastView() {
       .finally(() => setLoading(false));
   }, [selectedRace]);
 
-  const selectedState = selectedRace.split("_")[0];
+  const selectedState = selectedRace.split(" ")[1] ?? "";
   const stateRows = displayRows.filter((r) => r.state_abbr === selectedState);
   const statePred =
     stateRows.length > 0

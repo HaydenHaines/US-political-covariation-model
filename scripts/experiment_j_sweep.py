@@ -18,6 +18,7 @@ Usage:
     cd /home/hayden/projects/US-political-covariation-model
     uv run python scripts/experiment_j_sweep.py
     uv run python scripts/experiment_j_sweep.py --j-min 12 --j-max 30
+    uv run python scripts/experiment_j_sweep.py --j-min 31 --j-max 50 --append
 """
 from __future__ import annotations
 
@@ -586,10 +587,29 @@ def print_results(results: pd.DataFrame, best_j: int) -> None:
     print()
 
 
-def save_results(results: pd.DataFrame, output_dir: Path = OUTPUT_DIR) -> Path:
-    """Save results DataFrame to CSV."""
+def save_results(results: pd.DataFrame, output_dir: Path = OUTPUT_DIR, append: bool = False) -> Path:
+    """Save results DataFrame to CSV.
+
+    Parameters
+    ----------
+    results : DataFrame
+        New results to save.
+    output_dir : Path
+        Directory to write to.
+    append : bool
+        If True and the CSV already exists, merge new rows (by j) with existing
+        rows, replacing any duplicate J values with the new data.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
     out_path = output_dir / "j_sweep_results.csv"
+    if append and out_path.exists():
+        existing = pd.read_csv(out_path)
+        # Drop any J values that are being re-run (new data wins)
+        existing = existing[~existing["j"].isin(results["j"])]
+        combined = pd.concat([existing, results], ignore_index=True)
+        combined = combined.sort_values("j").reset_index(drop=True)
+        combined.to_csv(out_path, index=False)
+        return out_path
     results.to_csv(out_path, index=False)
     return out_path
 
@@ -605,6 +625,7 @@ def main() -> None:
     parser.add_argument("--j-max", type=int, default=30, help="Maximum J to test (default: 30)")
     parser.add_argument("--min-year", type=int, default=MIN_YEAR, help=f"Min start year for election pairs (default: {MIN_YEAR})")
     parser.add_argument("--temperature", type=float, default=TEMPERATURE, help=f"Soft membership temperature (default: {TEMPERATURE})")
+    parser.add_argument("--append", action="store_true", help="Append new results to existing CSV instead of overwriting (default: False)")
     args = parser.parse_args()
 
     j_range = range(args.j_min, args.j_max + 1)
@@ -628,7 +649,7 @@ def main() -> None:
 
     print_results(results, best_j)
 
-    out_path = save_results(results)
+    out_path = save_results(results, append=args.append)
     print(f"Results saved to {out_path}")
 
     print()

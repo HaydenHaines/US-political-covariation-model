@@ -105,10 +105,11 @@ Each of these should start with web research (search for recent papers, blog pos
 ## Validation & Analysis
 
 - [x] **Write ADR-006** — DONE (S161). docs/adr/006-type-primary-kmeans-architecture.md
-- [ ] **Fix validate_types to use training dims only** — S161 finding: validation uses all 54 dims but model trained on 33 (2008+). Stability test uses full 54-dim split → 89.7° max angle (fails). Holdout r=0.647 vs model's 0.778. Covariance val r=0.176 vs expected 0.449. Fix: filter training_matrix to min_year=2008 before running validations. Also fix stability to split recent-only windows.
+- [x] **Fix validate_types to use training dims only** — DONE (S161). Added --min-year flag (default 2008). Training dims now correctly 33, not 54. Stability still fails (89.8°) — genuine finding: types from 2008-2016 vs 2016-2024 are quite different.
 - [ ] **Type stability on recent sub-windows** — Compare 2008-2016 vs 2016-2024 types. Expected to be more stable than full 2000-2024.
 - [ ] **County prediction spot checks** — Pinellas FL, Cobb GA, DeKalb GA, Miami-Dade FL. Do predictions match known trends?
-- [ ] **Calibration analysis** — 90% CI coverage on 2020 and 2024 actuals. (S161: calibration script in progress)
+- [x] **Calibration analysis** — DONE (S161). scripts/calibration_analysis.py + 30 tests. 2024: MAE=0.117, r=0.787, bias=+0.025 Dem. Rural types +15pp, urban -9pp. Worst: Clayton GA (pred 0.386, actual 0.843). 2020 LOO: MAE=0.165, r=0.741. Key insight: inverse-distance weighting too smooth — predictions compressed to 0.32-0.45 range.
+- [ ] **Sharpen soft membership** — S161 experiment in progress. Test temperature-scaled inverse distance to reduce cross-type averaging. Expected to reduce MAE significantly.
 - [ ] **Variation partitioning** — How much holdout variance do types explain vs demographics alone vs overlap?
 
 ---

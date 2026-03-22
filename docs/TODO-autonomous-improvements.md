@@ -9,8 +9,8 @@ These tasks can be picked up independently by autonomous sessions to incremental
 - [x] **Fix DuckDB county_type_assignments wiring** — DONE. Parquet files aligned, all tables populated.
 - [x] **Fix super_types table** — DONE. Generated from nesting result.
 - [x] **Fix stained glass map rendering** — DONE. Map shows 293 counties in 8 super-type colors.
-- [ ] **Name the types** — Currently "Super-Type 0", "Type 1", etc. Use demographic profiles to auto-generate descriptive names (e.g., "Black Belt Rural", "Atlanta Professional", "FL Retirement Coast", "Hispanic Urban"). Write a `name_types()` function. Priority: high (user-facing).
-- [ ] **Compute real type priors** — All priors default to 0.45 Dem. Compute from 2024 actual results per type. Biggest single prediction quality improvement.
+- [x] **Name the types** — DONE (S160). All 20 types + 8 super-types have descriptive names (e.g., "Black Belt Rural (GA)", "Atlanta Metro Professional"). Stored in DuckDB types + super_types tables.
+- [x] **Compute real type priors** — DONE (S160). Priors computed from 2024 actuals. Range: 0.113 (Rural White AL Panhandle) to 0.637 (Deep Black Belt AL). Stored in data/communities/type_priors.parquet.
 
 ---
 
@@ -52,7 +52,7 @@ This session discovered the optimal approach through empirical iteration:
 
 Each of these should start with web research (search for recent papers, blog posts, 538/Economist methodology updates) to inform the experiment design.
 
-- [ ] **Presidential weight sweep** — Current: 2.5×. Test 1.5, 2.0, 3.0, 3.5, 4.0. Plot holdout r vs cross-state type count. Find the Pareto frontier. Research: how do other models weight different race types?
+- [x] **Presidential weight sweep** — DONE (S161). Tested weights [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 5.0]. Best: 3.0 (r=0.655 vs 2.5's r=0.647, +0.009). Broad plateau from 2.0-4.0. Cross-state types: 10 at w=2.5-3.5, 13 at w=4.0-5.0. Current 2.5 is within plateau; consider bumping to 3.0 for marginal gain. Results: data/validation/presidential_weight_sweep.csv
 
 - [ ] **J sweep with formal CV** — Current J=20 was empirically good but not CV-selected with the new feature weighting. Run leave-one-pair-out CV across J=12..30. Research: how do geodemographic classification systems (OAC, PRIZM) select segment count?
 
@@ -104,7 +104,7 @@ Each of these should start with web research (search for recent papers, blog pos
 
 ## Validation & Analysis
 
-- [ ] **Write ADR-006** — Document the type-primary pivot formally. Include the empirical iteration table from this session.
+- [x] **Write ADR-006** — DONE (S161). docs/adr/006-type-primary-kmeans-architecture.md
 - [ ] **Type stability on recent sub-windows** — Compare 2008-2016 vs 2016-2024 types. Expected to be more stable than full 2000-2024.
 - [ ] **County prediction spot checks** — Pinellas FL, Cobb GA, DeKalb GA, Miami-Dade FL. Do predictions match known trends?
 - [ ] **Calibration analysis** — 90% CI coverage on 2020 and 2024 actuals.

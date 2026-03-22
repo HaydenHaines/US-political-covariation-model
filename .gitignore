@@ -75,3 +75,5 @@ data/raw/nyt_precinct/
 data/raw/nyt_precinct/
 *.png
 research/fekrazad-method/
+__pycache__/
+*.egg-info/

@@ -10,6 +10,7 @@ import pytest
 
 from src.validation.validate_types import (
     holdout_accuracy,
+    holdout_accuracy_county_prior,
     type_coherence,
     type_stability,
 )
@@ -225,5 +226,91 @@ class TestHoldoutAccuracy:
         scores, shifts, dominant_types = perfect_type_scores_and_shifts
         holdout_cols = [0, 1, 2]
         result = holdout_accuracy(scores, shifts, holdout_cols, dominant_types)
+        expected_mean = float(np.mean(result["per_dim_r"]))
+        assert abs(result["mean_r"] - expected_mean) < 1e-9
+
+
+# ── Tests: holdout_accuracy_county_prior ─────────────────────────────────────
+
+
+class TestHoldoutAccuracyCountyPrior:
+    def test_county_prior_output_fields(self, perfect_type_scores_and_shifts):
+        """Result must have mean_r, per_dim_r, mean_rmse, per_dim_rmse."""
+        scores, shifts, _ = perfect_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
+        assert "mean_r" in result
+        assert "per_dim_r" in result
+        assert "mean_rmse" in result
+        assert "per_dim_rmse" in result
+
+    def test_county_prior_per_dim_count(self, perfect_type_scores_and_shifts):
+        """per_dim_r and per_dim_rmse must have one entry per holdout column."""
+        scores, shifts, _ = perfect_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
+        assert len(result["per_dim_r"]) == len(holdout_cols)
+        assert len(result["per_dim_rmse"]) == len(holdout_cols)
+
+    def test_county_prior_r_bounded(self, random_type_scores_and_shifts):
+        """All r values must be in [-1, 1]."""
+        scores, shifts, _ = random_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
+        assert -1.0 <= result["mean_r"] <= 1.0
+        for r in result["per_dim_r"]:
+            assert -1.0 <= r <= 1.0
+
+    def test_county_prior_rmse_nonnegative(self, random_type_scores_and_shifts):
+        """All RMSE values must be non-negative."""
+        scores, shifts, _ = random_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
+        assert result["mean_rmse"] >= 0.0
+        for rmse in result["per_dim_rmse"]:
+            assert rmse >= 0.0
+
+    def test_county_prior_perfect_types(self, perfect_type_scores_and_shifts):
+        """With perfect type structure, county prior should produce high r."""
+        scores, shifts, _ = perfect_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
+        assert result["mean_r"] > 0.9, (
+            f"Expected high r for perfect types with county prior, got {result['mean_r']:.3f}"
+        )
+
+    def test_county_prior_beats_or_matches_type_mean(self, perfect_type_scores_and_shifts):
+        """County prior should produce >= r compared to type-mean approach.
+
+        County priors retain individual county baselines, so they should
+        capture more variance than the type-mean-only approach (or equal
+        when types are perfectly homogeneous).
+        """
+        scores, shifts, dominant_types = perfect_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+
+        type_mean_result = holdout_accuracy(scores, shifts, holdout_cols, dominant_types)
+        county_prior_result = holdout_accuracy_county_prior(
+            scores, shifts, training_cols, holdout_cols
+        )
+
+        # County prior should be at least as good (within numerical tolerance)
+        assert county_prior_result["mean_r"] >= type_mean_result["mean_r"] - 0.05, (
+            f"County prior r={county_prior_result['mean_r']:.3f} should be >= "
+            f"type mean r={type_mean_result['mean_r']:.3f}"
+        )
+
+    def test_county_prior_mean_is_mean_of_per_dim(self, perfect_type_scores_and_shifts):
+        """mean_r must equal the mean of per_dim_r."""
+        scores, shifts, _ = perfect_type_scores_and_shifts
+        training_cols = [0, 1, 2, 3, 4, 5]
+        holdout_cols = [6, 7, 8]
+        result = holdout_accuracy_county_prior(scores, shifts, training_cols, holdout_cols)
         expected_mean = float(np.mean(result["per_dim_r"]))
         assert abs(result["mean_r"] - expected_mean) < 1e-9

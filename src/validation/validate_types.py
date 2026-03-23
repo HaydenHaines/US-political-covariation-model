@@ -228,6 +228,99 @@ def holdout_accuracy(
     return {"mean_r": mean_r, "per_dim_r": per_dim_r}
 
 
+def holdout_accuracy_county_prior(
+    scores: np.ndarray,
+    shift_matrix: np.ndarray,
+    training_cols: list[int],
+    holdout_cols: list[int],
+) -> dict:
+    """Holdout accuracy using county-level priors + type covariance adjustment.
+
+    This mirrors the production prediction pipeline where:
+    - Each county's prior = its own historical mean shift (from training cols)
+    - Types determine only the comovement adjustment
+
+    For each holdout column:
+    1. Compute each county's historical mean shift from training columns.
+    2. Compute type-level mean shift for training columns.
+    3. Compute type-level mean shift for holdout column.
+    4. Type adjustment = holdout type mean - training type mean (per type).
+    5. County prediction = county training mean + score-weighted type adjustment.
+    6. Compute Pearson r and RMSE between predicted and actual.
+
+    Parameters
+    ----------
+    scores : ndarray of shape (N, J)
+        County type scores (soft membership).
+    shift_matrix : ndarray of shape (N, D)
+        Full shift matrix (training + holdout columns).
+    training_cols : list[int]
+        Column indices of training dimensions.
+    holdout_cols : list[int]
+        Column indices of holdout dimensions.
+
+    Returns
+    -------
+    dict with keys:
+        "mean_r"    -- float, mean Pearson r across holdout dims
+        "per_dim_r" -- list[float], one r per holdout dim
+        "mean_rmse" -- float, mean RMSE across holdout dims
+        "per_dim_rmse" -- list[float], one RMSE per holdout dim
+    """
+    n, j = scores.shape
+
+    # Normalize absolute scores to weights summing to 1 per county
+    abs_scores = np.abs(scores)
+    row_sums = abs_scores.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums == 0, 1.0, row_sums)
+    weights = abs_scores / row_sums  # N x J
+
+    weight_sums_per_type = weights.sum(axis=0)  # J
+    weight_sums_per_type = np.where(weight_sums_per_type == 0, 1.0, weight_sums_per_type)
+
+    # County-level training mean (each county's own historical baseline)
+    training_data = shift_matrix[:, training_cols]
+    county_training_means = training_data.mean(axis=1)  # N
+
+    # Type-level training mean
+    type_training_means = (weights.T @ county_training_means) / weight_sums_per_type  # J
+
+    per_dim_r: list[float] = []
+    per_dim_rmse: list[float] = []
+
+    for col in holdout_cols:
+        actual = shift_matrix[:, col]
+
+        # Type-level holdout mean
+        type_holdout_means = (weights.T @ actual) / weight_sums_per_type  # J
+
+        # Type adjustment: how much each type shifted from training to holdout
+        type_adjustment = type_holdout_means - type_training_means  # J
+
+        # County prediction = own baseline + score-weighted type adjustment
+        county_adjustment = (weights * type_adjustment[None, :]).sum(axis=1)  # N
+        predicted = county_training_means + county_adjustment
+
+        if np.std(actual) < 1e-10 or np.std(predicted) < 1e-10:
+            per_dim_r.append(0.0)
+        else:
+            r, _ = pearsonr(actual, predicted)
+            per_dim_r.append(float(np.clip(r, -1.0, 1.0)))
+
+        rmse = float(np.sqrt(np.mean((actual - predicted) ** 2)))
+        per_dim_rmse.append(rmse)
+
+    mean_r = float(np.mean(per_dim_r)) if per_dim_r else 0.0
+    mean_rmse = float(np.mean(per_dim_rmse)) if per_dim_rmse else 0.0
+
+    return {
+        "mean_r": mean_r,
+        "per_dim_r": per_dim_r,
+        "mean_rmse": mean_rmse,
+        "per_dim_rmse": per_dim_rmse,
+    }
+
+
 # ── Report generator ──────────────────────────────────────────────────────────
 
 
@@ -324,8 +417,14 @@ def generate_type_validation_report(
     log.info("Running type_stability...")
     stability = type_stability(training_matrix, window_a_cols, window_b_cols, j=j)
 
-    log.info("Running holdout_accuracy...")
+    log.info("Running holdout_accuracy (type-mean prior)...")
     accuracy = holdout_accuracy(scores, full_matrix, holdout_indices, dominant_types)
+
+    log.info("Running holdout_accuracy (county-level prior)...")
+    training_indices = [used_cols.index(c) for c in training_col_names]
+    accuracy_county_prior = holdout_accuracy_county_prior(
+        scores, full_matrix, training_indices, holdout_indices,
+    )
 
     # --- Covariance validation (if data available) ---
     cov_path = resolve(type_covariance_path)
@@ -366,6 +465,7 @@ def generate_type_validation_report(
         "coherence": coherence,
         "stability": stability,
         "holdout_accuracy": accuracy,
+        "holdout_accuracy_county_prior": accuracy_county_prior,
         "covariance_validation_r": cov_validation_r,
         "j": j,
         "n_counties": int(full_matrix.shape[0]),
@@ -386,7 +486,10 @@ def generate_type_validation_report(
     print()
     print(f"  Coherence (mean ratio): {coherence['mean_ratio']:.3f}  (> 0.5 = strong)")
     print(f"  Stability (max angle):  {stability['max_angle_degrees']:.1f} deg  (< 30 = stable)")
-    print(f"  Holdout accuracy (r):   {accuracy['mean_r']:.3f}  (> 0.5 = good)")
+    print(f"  Holdout accuracy (r):   {accuracy['mean_r']:.3f}  (> 0.5 = good, type-mean prior)")
+    print(f"  Holdout accuracy (r):   {accuracy_county_prior['mean_r']:.3f}  (county-level prior)")
+    if "mean_rmse" in accuracy_county_prior:
+        print(f"  Holdout RMSE:           {accuracy_county_prior['mean_rmse']:.4f}  (county-level prior)")
     if cov_validation_r is not None:
         print(f"  Covariance val r:       {cov_validation_r:.3f}  (> 0.4 = acceptable)")
     print("=" * 65)

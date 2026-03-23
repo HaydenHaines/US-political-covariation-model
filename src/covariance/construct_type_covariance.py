@@ -162,6 +162,121 @@ def _rank_reduce(C: np.ndarray, k: int) -> np.ndarray:
     return C_reduced
 
 
+def _compute_type_shifts(
+    type_scores: np.ndarray,       # N × J county type scores
+    shift_matrix: np.ndarray,      # N × D shift matrix
+    election_col_groups: list[list[int]],  # column indices grouped by election
+) -> np.ndarray:
+    """Compute type-level shift for each election group.
+
+    Returns
+    -------
+    np.ndarray
+        Shape (T, J) — one J-vector per election.
+    """
+    J = type_scores.shape[1]
+    T = len(election_col_groups)
+    weights = np.abs(type_scores)  # (N, J)
+    w_sum = weights.sum(axis=0) + 1e-12  # (J,)
+
+    type_shifts = np.zeros((T, J))
+    for t, col_indices in enumerate(election_col_groups):
+        election_shift = shift_matrix[:, col_indices].mean(axis=1)  # (N,)
+        type_shifts[t] = (weights * election_shift[:, None]).sum(axis=0) / w_sum
+
+    return type_shifts
+
+
+def compute_observed_correlation(
+    type_scores: np.ndarray,
+    shift_matrix: np.ndarray,
+    election_col_groups: list[list[int]],
+    shrinkage: float | None = None,
+) -> np.ndarray:
+    """Compute observed type correlation from election-level shifts.
+
+    With T elections and J types where T < J, the sample covariance is
+    rank-deficient (rank ≤ T-1).  Ledoit-Wolf shrinkage toward the identity
+    regularises it into a well-conditioned, full-rank correlation matrix.
+
+    Parameters
+    ----------
+    shrinkage:
+        Shrinkage intensity toward identity, in [0, 1].
+        None → use Ledoit-Wolf analytical optimal shrinkage.
+        0 → pure sample correlation (rank-deficient if T < J).
+        1 → pure identity (no information).
+    """
+    J = type_scores.shape[1]
+    type_shifts = _compute_type_shifts(type_scores, shift_matrix, election_col_groups)
+    T = type_shifts.shape[0]
+
+    if T < 2:
+        log.warning("compute_observed_correlation: need >= 2 elections, got %d", T)
+        return np.eye(J)
+
+    # Sample covariance → correlation
+    obs_cov = np.cov(type_shifts.T)  # (J, J)
+    obs_std = np.sqrt(np.diag(obs_cov))
+    obs_std[obs_std == 0] = 1.0
+    obs_corr = obs_cov / np.outer(obs_std, obs_std)
+    np.fill_diagonal(obs_corr, 1.0)
+    obs_corr = np.where(np.isnan(obs_corr), 0.0, obs_corr)
+
+    # Ledoit-Wolf shrinkage toward identity
+    if shrinkage is None:
+        shrinkage = _ledoit_wolf_shrinkage(type_shifts, obs_cov)
+    shrinkage = float(np.clip(shrinkage, 0.0, 1.0))
+
+    if shrinkage > 0:
+        obs_corr = (1 - shrinkage) * obs_corr + shrinkage * np.eye(J)
+        log.info("Observed correlation: Ledoit-Wolf shrinkage = %.3f", shrinkage)
+
+    # Ensure PD
+    obs_corr = _enforce_pd(obs_corr)
+    np.fill_diagonal(obs_corr, 1.0)
+
+    return obs_corr
+
+
+def _ledoit_wolf_shrinkage(X: np.ndarray, S: np.ndarray) -> float:
+    """Analytical Ledoit-Wolf optimal shrinkage intensity.
+
+    Parameters
+    ----------
+    X : (T, J) centred data matrix (type shifts per election)
+    S : (J, J) sample covariance matrix
+
+    Returns
+    -------
+    float in [0, 1]
+    """
+    T, J = X.shape
+    X_centered = X - X.mean(axis=0)
+
+    # Target: identity scaled by average variance
+    mu = np.trace(S) / J
+
+    # Sum of squared deviations from target
+    delta = S - mu * np.eye(J)
+    delta_sq_sum = np.sum(delta ** 2)
+
+    # Estimate numerator: sum of Var(S_ij) across all (i,j)
+    # Using the Ledoit-Wolf formula
+    b_bar = 0.0
+    for k in range(T):
+        xk = X_centered[k:k+1, :]  # (1, J)
+        Mk = xk.T @ xk - S  # (J, J)
+        b_bar += np.sum(Mk ** 2)
+    b_bar /= T ** 2
+
+    # Clamp shrinkage to [0, 1]
+    if delta_sq_sum == 0:
+        return 1.0
+    alpha = min(b_bar / delta_sq_sum, 1.0)
+    return max(alpha, 0.0)
+
+
 def validate_covariance(
     constructed: CovarianceResult,
     type_scores: np.ndarray,       # N × J county type scores
@@ -184,20 +299,12 @@ def validate_covariance(
         in [-1, 1].  Returns NaN when fewer than two elections are available.
     """
     J = type_scores.shape[1]
-    T = len(election_col_groups)
+    type_shifts = _compute_type_shifts(type_scores, shift_matrix, election_col_groups)
+    T = type_shifts.shape[0]
 
     if T < 2:
         log.warning("validate_covariance: need >= 2 elections, got %d — returning NaN", T)
         return float("nan")
-
-    # Compute type-level shift for each election: (T, J)
-    type_shifts = np.zeros((T, J))
-    for t, col_indices in enumerate(election_col_groups):
-        election_shift = shift_matrix[:, col_indices].mean(axis=1)  # (N,)
-        # Weighted mean: weight each county by its type score magnitude
-        weights = np.abs(type_scores)  # (N, J)
-        w_sum = weights.sum(axis=0) + 1e-12  # (J,)
-        type_shifts[t] = (weights * election_shift[:, None]).sum(axis=0) / w_sum
 
     # Sample covariance of type-level shifts across elections: (J, J)
     obs_cov = np.cov(type_shifts.T)  # (J, J)
@@ -371,8 +478,14 @@ def main() -> None:
         validation_r = validate_covariance(result, type_scores, shift_matrix, election_col_groups)
         log.info("Validation r = %.3f (threshold = %.2f)", validation_r, threshold)
 
-        # Observed covariance for hybrid fallback (normalised to correlation scale)
-        result = apply_hybrid_fallback(result, np.eye(J), validation_r, threshold)
+        # Compute observed correlation with Ledoit-Wolf shrinkage
+        obs_corr = compute_observed_correlation(
+            type_scores, shift_matrix, election_col_groups,
+        )
+        log.info("Observed correlation computed (LW-regularised, PD)")
+
+        # Hybrid fallback: blend constructed + observed when validation_r < threshold
+        result = apply_hybrid_fallback(result, obs_corr, validation_r, threshold)
     except FileNotFoundError as e:
         log.warning("Skipping validation (data missing): %s", e)
         result.validation_r = float("nan")

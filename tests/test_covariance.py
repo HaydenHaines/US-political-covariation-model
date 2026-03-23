@@ -25,6 +25,14 @@ from src.covariance.run_covariance_model import (
     K,
     compute_community_stats,
 )
+from src.covariance.construct_type_covariance import (
+    compute_observed_correlation,
+    _compute_type_shifts,
+    _ledoit_wolf_shrinkage,
+    construct_type_covariance,
+    validate_covariance,
+    CovarianceResult,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -235,3 +243,132 @@ def test_inverse_of_psd_matrix_exists():
     assert np.allclose(Sigma @ Sigma_inv, np.eye(K), atol=1e-10), (
         "Sigma @ Sigma_inv is not close to identity"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for observed covariance (construct_type_covariance.py)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def synthetic_type_data():
+    """Generate synthetic type scores, shifts, and election groups."""
+    rng = np.random.default_rng(42)
+    N, J, T = 50, 10, 5  # 50 counties, 10 types, 5 elections
+    D = T * 3  # 3 dims per election
+
+    # Type scores: softmax-like (positive, rows don't need to sum to 1)
+    type_scores = rng.dirichlet(np.ones(J), size=N)
+
+    # Shift matrix: random shifts with correlation structure
+    shift_matrix = rng.standard_normal((N, D)) * 0.05
+
+    # Election groups: 3 columns each
+    election_col_groups = [list(range(i, i + 3)) for i in range(0, D, 3)]
+
+    return type_scores, shift_matrix, election_col_groups
+
+
+class TestComputeTypeShifts:
+    def test_output_shape(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        result = _compute_type_shifts(type_scores, shift_matrix, groups)
+        assert result.shape == (len(groups), type_scores.shape[1])
+
+    def test_values_are_finite(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        result = _compute_type_shifts(type_scores, shift_matrix, groups)
+        assert np.all(np.isfinite(result))
+
+    def test_deterministic(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        r1 = _compute_type_shifts(type_scores, shift_matrix, groups)
+        r2 = _compute_type_shifts(type_scores, shift_matrix, groups)
+        assert np.allclose(r1, r2)
+
+
+class TestComputeObservedCorrelation:
+    def test_output_is_square(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        J = type_scores.shape[1]
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups)
+        assert corr.shape == (J, J)
+
+    def test_diagonal_is_one(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups)
+        assert np.allclose(np.diag(corr), 1.0, atol=1e-6)
+
+    def test_is_symmetric(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups)
+        assert np.allclose(corr, corr.T, atol=1e-10)
+
+    def test_is_positive_definite(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups)
+        eigvals = np.linalg.eigvalsh(corr)
+        assert (eigvals > 0).all(), f"Min eigenvalue: {eigvals.min()}"
+
+    def test_off_diagonal_bounded(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups)
+        assert (corr >= -1 - 1e-6).all() and (corr <= 1 + 1e-6).all()
+
+    def test_no_shrinkage_is_rank_deficient_when_T_lt_J(self):
+        """With T < J and shrinkage=0, the sample correlation is rank-deficient."""
+        rng = np.random.default_rng(7)
+        N, J, T = 30, 20, 4
+        type_scores = rng.dirichlet(np.ones(J), size=N)
+        shift_matrix = rng.standard_normal((N, T * 3)) * 0.05
+        groups = [list(range(i, i + 3)) for i in range(0, T * 3, 3)]
+
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups, shrinkage=0.0)
+        eigvals = np.linalg.eigvalsh(corr)
+        # With PD enforcement, all eigenvalues are > 0, but many should be near floor
+        n_near_floor = (eigvals < 1e-4).sum()
+        assert n_near_floor > 0, "Expected some near-zero eigenvalues with T < J and no shrinkage"
+
+    def test_full_shrinkage_is_identity(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        J = type_scores.shape[1]
+        corr = compute_observed_correlation(type_scores, shift_matrix, groups, shrinkage=1.0)
+        # After PD enforcement the diagonal is renormalised to 1.0
+        assert np.allclose(corr, np.eye(J), atol=1e-4)
+
+    def test_ledoit_wolf_shrinkage_in_range(self, synthetic_type_data):
+        """Ledoit-Wolf automatic shrinkage should return a value in [0, 1]."""
+        type_scores, shift_matrix, groups = synthetic_type_data
+        type_shifts = _compute_type_shifts(type_scores, shift_matrix, groups)
+        obs_cov = np.cov(type_shifts.T)
+        alpha = _ledoit_wolf_shrinkage(type_shifts, obs_cov)
+        assert 0.0 <= alpha <= 1.0, f"LW shrinkage {alpha} out of [0, 1]"
+
+
+class TestValidateCovariance:
+    def test_returns_float(self, synthetic_type_data):
+        type_scores, shift_matrix, groups = synthetic_type_data
+        J = type_scores.shape[1]
+        profiles = pd.DataFrame({
+            "type_id": range(J),
+            **{f"f{i}": np.random.default_rng(i).standard_normal(J) for i in range(5)},
+        })
+        result = construct_type_covariance(profiles, [f"f{i}" for i in range(5)])
+        r = validate_covariance(result, type_scores, shift_matrix, groups)
+        assert isinstance(r, float)
+        assert -1.0 <= r <= 1.0
+
+    def test_returns_nan_with_single_election(self):
+        """With only 1 election, validation should return NaN."""
+        rng = np.random.default_rng(99)
+        N, J = 20, 5
+        type_scores = rng.dirichlet(np.ones(J), size=N)
+        shift_matrix = rng.standard_normal((N, 3))
+        groups = [list(range(3))]
+        profiles = pd.DataFrame({
+            "type_id": range(J),
+            **{f"f{i}": rng.standard_normal(J) for i in range(3)},
+        })
+        result = construct_type_covariance(profiles, [f"f{i}" for i in range(3)])
+        r = validate_covariance(result, type_scores, shift_matrix, groups)
+        assert np.isnan(r)

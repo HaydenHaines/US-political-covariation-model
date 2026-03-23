@@ -2,14 +2,14 @@
 
 These tasks can be picked up independently by autonomous sessions. **Work them in priority order.** Each task should be a single session's work, with tests and a commit on `feat/type-primary-architecture`.
 
-**Baseline model (2026-03-22):**
+**Baseline model (2026-03-22 S164 updated):**
 - Algorithm: KMeans J=43
 - Features: Presidential×2.5 + state-centered gov/Senate (33 dims, 2008+)
-- Holdout r: 0.818
+- Holdout r: 0.828 (county-level prior), 0.818 (type-mean prior)
 - Calibration MAE: 0.061 (T=10 soft membership)
-- Covariance validation r: 0.216
-- County RMSE (2024): 8.66pp
-- Feature count: 41 numeric (rank-deficient for J=43)
+- Covariance validation r: 0.210 (3-dimensional observed structure)
+- County RMSE (2024): **2.67pp** (county-prior), 9.00pp (type-mean prior)
+- Feature count: 42 numeric (including migration features)
 
 **Validation command:** `uv run python -m src.validation.validate_types`
 **Test command:** `uv run pytest tests/ -q --tb=short`
@@ -21,11 +21,11 @@ These tasks can be picked up independently by autonomous sessions. **Work them i
 
 These are the highest-impact improvements. The prediction pipeline has known structural problems.
 
-- [ ] **P1.1: County-level priors instead of type means** — Current prediction uses type-mean Dem share as the prior for every county in that type. This is wrong — a 70% Dem county and a 45% Dem county in the same type get the same prior. County's own historical baseline (e.g., average of last 3 presidential results) should be the prior; types only determine *comovement* (how much a county moves when its type moves). This is the single biggest error source. RMSE=8.66pp, 8/10 worst errors are Black Belt counties assigned to mixed-race types where the type mean is 20pp off from the county's actual level. **No external deps. Unblocked.**
+- [x] **P1.1: County-level priors instead of type means** — DONE S164. County RMSE: 9.00pp → 2.67pp (70% improvement). Black Belt RMSE: 12.73pp → 3.13pp. See docs/spot-check-county-priors-S164.md.
 
-- [ ] **P1.2: Covariance rank reduction via PCA** — Observed covariance has rank ~18 (from 19 elections). Constructed covariance has rank 37+. The model hallucinates more structure than the data supports. Compress constructed covariance to rank ~18 via PCA before shrinkage. Should improve covariance validation r from 0.216. **No external deps. Unblocked.**
+- [x] **P1.2: Covariance rank reduction via PCA** — DONE S164. Code added (`_rank_reduce`, `max_rank` param) but inactive. Experiment showed validation r is flat across ALL parameter combos. Root cause: demographic similarity ≠ electoral comovement. Observed structure is 3-dimensional. See docs/covariance-experiment-S164.md.
 
-- [ ] **P1.3: Negative correlation preservation** — Currently flooring negative correlations to zero in covariance construction. Rural evangelical vs urban progressive types may genuinely inverse-correlate, and zeroing this out loses signal. Test with `floor_negatives=False`. Research: does the Economist floor negatives? **No external deps. Unblocked.**
+- [x] **P1.3: Negative correlation preservation** — DONE S164. floor_negatives=False makes no difference (0.205 vs 0.202). Dead end — confirmed in same experiment.
 
 ---
 
@@ -41,7 +41,7 @@ These are the highest-impact improvements. The prediction pipeline has known str
 
 - [ ] **P2.4: BEA income composition** — Requires BEA_API_KEY (free from apps.bea.gov/API/signup/). Fetcher exists at `src/assembly/fetch_bea_income.py` (38 tests). Income from wages vs transfers vs investments. **BLOCKED on API key — ask Hayden via Telegram if not set.**
 
-- [ ] **P2.5: IRS migration features** — Code exists at `src/assembly/build_irs_migration_features.py`. Net migration rate, income diversity, flow concentration per county. Data already fetched. Needs integration into describe_types.
+- [x] **P2.5: IRS migration features** — DONE (pre-S164). 4 features integrated into type profiles. 39 tests.
 
 After completing P2 tasks, re-run shrinkage lambda tuning — the rank deficiency was the reason lambda had no effect (S162). With ≥43 features it may matter.
 
@@ -51,7 +51,7 @@ After completing P2 tasks, re-run shrinkage lambda tuning — the rank deficienc
 
 KMeans at J=43 with r=0.818 is solid. These experiments may find marginal gains but are lower priority than fixing prediction and covariance. **Run one per session. If it doesn't beat baseline, document why and move on.**
 
-- [ ] **P3.1: Gaussian Mixture Models** — GMM gives proper probabilistic soft membership (vs inverse-distance hack at T=10). Test with full and diagonal covariance. Compare soft scores and holdout r. Most likely to improve on KMeans because it addresses a known weakness (our soft membership is a post-hoc approximation).
+- [x] **P3.1: Gaussian Mixture Models** — DONE S164. GMM diagonal beats KMeans at J=43 (0.847 vs 0.832 holdout_r, +1.5%) but KMeans wins at J=50. Marginal gains. Recommendation: keep KMeans. See docs/gmm-experiment-S164.md.
 
 - [ ] **P3.2: MiniBatch KMeans stability** — Test centroid stability via bootstrap (100 random starts). Measure how often counties switch types across runs. If unstable, consider ensemble averaging. Lower priority — current model seems stable in practice.
 

@@ -24,6 +24,8 @@ election:
   - 2020
   - 2024
   governor_years:
+  - 1994
+  - 1998
   - 2002
   - 2006
   - 2010
@@ -70,6 +72,10 @@ election:
   - - 2016
     - 2020
   governor_pairs:
+  - - 1994
+    - 1998
+  - - 1998
+    - 2002
   - - 2002
     - 2006
   - - 2006
@@ -177,6 +183,8 @@ data:
     '20': medsl_county_presidential_2020.parquet
     '24': medsl_county_presidential_2024.parquet
   governor_files:
+    '94': algara_county_governor_1994.parquet
+    '98': algara_county_governor_1998.parquet
     '02': algara_county_governor_2002.parquet
     '06': algara_county_governor_2006.parquet
     '10': algara_county_governor_2010.parquet

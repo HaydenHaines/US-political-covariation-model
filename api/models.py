@@ -106,8 +106,14 @@ class TypeSummary(BaseModel):
     mean_pred_dem_share: float | None = None
 
 
+class TypeCounty(BaseModel):
+    county_fips: str
+    county_name: str | None
+    state_abbr: str
+
+
 class TypeDetail(TypeSummary):
-    counties: list[str]  # FIPS codes
+    counties: list[TypeCounty]  # resolved county names
     demographics: dict[str, float]  # demographic profile
     shift_profile: dict[str, float] | None = None
 

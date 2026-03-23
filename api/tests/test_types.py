@@ -39,12 +39,15 @@ class TestGetType:
         assert len(data["counties"]) > 0
         assert "demographics" in data
 
-    def test_type_detail_counties_are_fips(self, client):
+    def test_type_detail_counties_have_names(self, client):
         resp = client.get("/api/v1/types/0")
         data = resp.json()
-        for fips in data["counties"]:
-            assert isinstance(fips, str)
-            assert len(fips) == 5
+        for county in data["counties"]:
+            assert isinstance(county, dict)
+            assert "county_fips" in county
+            assert "county_name" in county
+            assert "state_abbr" in county
+            assert len(county["county_fips"]) == 5
 
     def test_type_detail_has_shift_profile(self, client):
         resp = client.get("/api/v1/types/0")

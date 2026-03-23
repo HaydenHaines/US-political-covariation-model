@@ -11,6 +11,7 @@ from api.models import (
     CommunitySummary,
     CountyInCommunity,
     SuperTypeSummary,
+    TypeCounty,
     TypeDetail,
     TypeSummary,
 )
@@ -271,17 +272,29 @@ def get_type(
 
     tid, super_type_id, display_name = type_row
 
-    # Counties assigned to this type (dominant)
+    # Counties assigned to this type (dominant), joined with names
     county_rows = db.execute(
         """
-        SELECT county_fips FROM county_type_assignments
-        WHERE dominant_type = ?
-        ORDER BY county_fips
+        SELECT cta.county_fips, c.county_name, c.state_abbr
+        FROM county_type_assignments cta
+        LEFT JOIN counties c ON cta.county_fips = c.county_fips
+        WHERE cta.dominant_type = ?
+        ORDER BY c.state_abbr, cta.county_fips
         """,
         [type_id],
     ).fetchdf()
 
-    counties = county_rows["county_fips"].tolist() if not county_rows.empty else []
+    counties: list[TypeCounty] = [
+        TypeCounty(
+            county_fips=row["county_fips"],
+            county_name=row["county_name"] if row["county_name"] else None,
+            state_abbr=row["state_abbr"],
+        )
+        for _, row in county_rows.iterrows()
+    ] if not county_rows.empty else []
+
+    # Keep bare FIPS list for shift profile lookup
+    county_fips_list = [c.county_fips for c in counties]
 
     # Demographic profile from the types table itself (which contains all profile data)
     demographics: dict[str, float] = {}
@@ -303,17 +316,17 @@ def get_type(
 
     # Shift profile: mean shifts across member counties
     shift_profile: dict[str, float] | None = None
-    if counties:
+    if county_fips_list:
         try:
             shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
             shift_col_names = [
                 c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
             ]
             if shift_col_names:
-                placeholders = ", ".join("?" * len(counties))
+                placeholders = ", ".join("?" * len(county_fips_list))
                 shift_rows = db.execute(
                     f"SELECT * FROM county_shifts WHERE county_fips IN ({placeholders})",
-                    counties,
+                    county_fips_list,
                 ).fetchdf()
                 shift_profile = {}
                 for col in shift_col_names:
@@ -332,6 +345,7 @@ def get_type(
         demographics=demographics,
         shift_profile=shift_profile,
     )
+
 
 
 @router.get("/super-types", response_model=list[SuperTypeSummary])

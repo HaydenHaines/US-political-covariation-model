@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import DeckGL from "@deck.gl/react";
 import { GeoJsonLayer } from "@deck.gl/layers";
-import { fetchCounties, fetchSuperTypes, type CountyRow } from "@/lib/api";
+import { fetchCounties, fetchSuperTypes, fetchTypes, type CountyRow, type TypeSummary } from "@/lib/api";
 import { useMapContext } from "@/components/MapContext";
 import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
@@ -57,6 +57,7 @@ export default function MapShell() {
   const [tractGeojson, setTractGeojson] = useState<any>(null);
   const [countyMap, setCountyMap] = useState<Record<string, CountyRow>>({});
   const [superTypeMap, setSuperTypeMap] = useState<Map<number, SuperTypeInfo>>(new Map());
+  const [typeNameMap, setTypeNameMap] = useState<Map<number, string>>(new Map());
   const [hasTypeData, setHasTypeData] = useState(false);
   const [showTracts, setShowTracts] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -68,7 +69,8 @@ export default function MapShell() {
       fetchCounties(),
       fetchSuperTypes().catch(() => []),
       fetch("/tract-communities.geojson").then((r) => r.json()).catch(() => null),
-    ]).then(([geo, counties, superTypes, tractGeo]) => {
+      fetchTypes().catch(() => []),
+    ]).then(([geo, counties, superTypes, tractGeo, types]) => {
       if (tractGeo) setTractGeojson(tractGeo);
 
       // Build super-type map from API
@@ -80,6 +82,13 @@ export default function MapShell() {
         });
       });
       setSuperTypeMap(stMap);
+
+      // Build fine type name map from API
+      const tnMap = new Map<number, string>();
+      (types as TypeSummary[]).forEach((t) => {
+        tnMap.set(t.type_id, t.display_name);
+      });
+      setTypeNameMap(tnMap);
 
       // Build county map
       const map: Record<string, CountyRow> = {};
@@ -183,7 +192,8 @@ export default function MapShell() {
                   const st = object.properties?.super_type;
                   const dt = object.properties?.dominant_type;
                   const stName = getSuperTypeName(st, object);
-                  setTooltip({ x, y, text: `${name}\n${stName} (Type ${dt})` });
+                  const typeName = typeNameMap.get(dt) ?? `Type ${dt}`;
+                  setTooltip({ x, y, text: `${name}\n${typeName}\n${stName}` });
                 } else {
                   const cid = object.properties?.community_id;
                   setTooltip({ x, y, text: `${name}\nCommunity ${cid}` });

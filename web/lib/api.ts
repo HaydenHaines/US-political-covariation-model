@@ -103,8 +103,14 @@ export interface TypeSummary {
   mean_pred_dem_share: number | null;
 }
 
+export interface TypeCounty {
+  county_fips: string;
+  county_name: string | null;
+  state_abbr: string;
+}
+
 export interface TypeDetail extends TypeSummary {
-  counties: string[];
+  counties: TypeCounty[];
   demographics: Record<string, number>;
   shift_profile: Record<string, number> | null;
 }

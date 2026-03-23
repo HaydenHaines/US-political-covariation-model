@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import * as Plot from "@observablehq/plot";
-import { fetchTypeDetail, type TypeDetail } from "@/lib/api";
+import { fetchTypeDetail, type TypeDetail, type TypeCounty } from "@/lib/api";
 import { getColorForSuperType, type SuperTypeInfo, type TractContext } from "@/components/MapShell";
 
 interface Props {
@@ -239,13 +239,15 @@ export function TypePanel({ typeId, superTypeMap, tractContext, onClose }: Props
             <p style={{ margin: "0 0 8px", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--color-text-muted)" }}>
               Counties ({detail.n_counties})
             </p>
-            {detail.counties.map((fips) => (
-              <div key={fips} style={{
+            {detail.counties.map((county: TypeCounty) => (
+              <div key={county.county_fips} style={{
                 padding: "5px 0",
                 borderBottom: "1px solid var(--color-border)",
                 fontSize: "13px",
               }}>
-                {fips}
+                {county.county_name
+                  ? `${county.county_name}, ${county.state_abbr}`
+                  : `${county.county_fips} (${county.state_abbr})`}
               </div>
             ))}
           </div>

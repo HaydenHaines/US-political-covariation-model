@@ -99,20 +99,22 @@ _VOCAB: list[tuple[str, float, str, str]] = [
     # 1. Evangelical Z_HIGH: identifies the dominant rural Protestant bloc
     # 2. Catholic Z_HIGH: coastal/Hispanic types
     # 3. Mainline Z_HIGH: identifies specific mainline-dominant communities
-    # 4. religious_adherence_rate: "Secular" (very low adherence) fires early so
-    #    secular rural types are NOT all labeled "Evangelical"
-    # 5. religious_adherence_rate Z_MOD: Devout/Unchurched
+    # 4. religious_adherence_rate: "Devout" (very high adherence) fires early;
+    #    negative = "Low-Church" (NOT "Secular" — avoids contradiction with
+    #    "Evangelical" since a community can be ethnically evangelical but
+    #    have lower formal church participation).
+    # 5. religious_adherence_rate Z_MOD: Churched/Unchurched
     # 6. black_protestant_share: placed AFTER adherence so that within-the-
-    #    evangelical-blob types get "Secular"/"Unchurched" first, leaving
-    #    "Bk-Protestant" as a 4th token for further disambiguation.
+    #    evangelical-blob types get "Low-Church"/"Unchurched" first, leaving
+    #    "Black-Church" as a 4th token for further disambiguation.
     ("evangelical_share",       Z_HIGH, "Evangelical",  ""),
     ("catholic_share",          Z_HIGH, "Catholic",     ""),
     ("mainline_share",          Z_HIGH, "Mainline",     ""),
-    ("religious_adherence_rate", Z_HIGH, "Devout",      "Secular"),
-    ("evangelical_share",       Z_MOD,  "Evangelical",  "Secular"),
+    ("religious_adherence_rate", Z_HIGH, "Devout",      ""),
+    ("evangelical_share",       Z_MOD,  "Evangelical",  ""),
     ("catholic_share",          Z_MOD,  "Catholic",     ""),
     ("religious_adherence_rate", Z_MOD,  "Churched",    "Unchurched"),
-    ("black_protestant_share",  Z_HIGH, "Bk-Protestant", ""),
+    ("black_protestant_share",  Z_HIGH, "Black-Church", ""),
 
     # Age — retirement communities and young growth areas.
     # Before income so that rural types like "Deep-Rural Evangelical Retiree"
@@ -446,10 +448,12 @@ def name_types(
     def _try_promote_group(tids_in: list[int], current_names: dict[int, str]) -> None:
         """Recursively promote tokens to resolve a single duplicate group.
 
-        Prefers a position that makes ALL types in the group unique (no
-        sub-group ties) over one that merely splits the group into 2+ buckets.
-        Falls back to the first partially-differentiating position if no
-        fully-unique split exists.
+        Strategy:
+        1. Prefer a position that makes ALL types in the group unique (full split).
+        2. If no full split exists within the 4-word budget, use the first
+           partial split and recurse on remaining sub-groups.
+        3. For sub-groups already at 4 words, try REPLACING the last token
+           with a more differentiating token that creates full uniqueness.
         """
         # Group the types by their current name
         by_name: dict[str, list[int]] = defaultdict(list)
@@ -460,16 +464,34 @@ def name_types(
             if len(group_tids) < 2:
                 continue
             n_words = len(name.split())
-            if n_words >= 4:
-                continue  # word budget exhausted
-
-            # Tokens already in name (minus STATE):
             name_parts = name.split()[1:]  # strip STATE word
             start_pos = len(name_parts)    # next token index to try
 
             max_pos = max(len(_ext_tokens.get(t, [])) for t in group_tids)
 
-            # Scan for the best position: prefer fully unique over partially unique
+            if n_words >= 4:
+                # Can't append — try replacing the last token instead.
+                # Find the first position >= start_pos-1 (within extended tokens)
+                # that yields fully unique tokens for the group.
+                name_prefix = " ".join(name.split()[:-1])  # drop last word
+                replace_start = start_pos - 1  # re-try last position
+                for pos in range(replace_start, max_pos):
+                    candidate = {
+                        tid: (_ext_tokens[tid][pos] if len(_ext_tokens[tid]) > pos else "")
+                        for tid in group_tids
+                    }
+                    non_empty = [v for v in candidate.values() if v]
+                    if len(set(non_empty)) == len(group_tids):
+                        # Replace last token with a differentiating one
+                        for tid in group_tids:
+                            tok = candidate[tid]
+                            if tok:
+                                current_names[tid] = f"{name_prefix} {tok}"
+                        return
+                continue  # no replacement found; leave for DISAMBIG
+
+            # Budget available: scan for best position
+            # Prefer fully-unique over partially-unique splits
             first_partial_pos: int | None = None
             for pos in range(start_pos, max_pos):
                 candidate = {
@@ -552,10 +574,10 @@ _DISAMBIG_VOCAB: list[tuple[str, float, str, str]] = [
     ("net_migration_rate",      Z_LOW,  "Growing",      "Shrinking"),
     ("inflow_outflow_ratio",    Z_LOW,  "Inflow",       "Outflow"),
     # Religion: evangelical intensity splits Deep-Rural types cleanly
-    ("evangelical_share",       Z_LOW,  "Evangelical",  "Secular"),
+    ("evangelical_share",       Z_LOW,  "Evangelical",  ""),
     ("catholic_share",          Z_LOW,  "Catholic",     ""),
     ("mainline_share",          Z_LOW,  "Mainline",     ""),
-    ("black_protestant_share",  Z_LOW,  "Bk-Protestant", ""),
+    ("black_protestant_share",  Z_LOW,  "Black-Church", ""),
     ("religious_adherence_rate", Z_LOW, "Devout",       "Unchurched"),
     # Income inflow: wealth magnet vs not
     ("avg_inflow_income",       Z_LOW,  "Wealth-Magnet", ""),
@@ -733,7 +755,7 @@ def _disambiguate(
 
     final: dict[int, str] = dict(raw_names)
 
-    # Pass 1 — iteratively split duplicate groups.
+    # Pass 1a — iteratively split duplicate groups by APPENDING tokens.
     # Run up to 6 passes so that splits of large groups cascade into sub-group
     # splits in subsequent iterations (e.g., a 9-way tie may need 4 passes).
     for _pass in range(6):
@@ -761,6 +783,123 @@ def _disambiguate(
         parts = final[tid].split()
         if len(parts) > 4:
             final[tid] = " ".join(parts[:4])
+
+    # Pass 1b — for 4-word duplicate groups, try REPLACING the last token
+    # with a more differentiating one.  Run in a loop so that the replacements
+    # from one group don't create new collisions with other groups.
+    for _pass1b in range(4):
+        dupes_4 = {n: t for n, t in _get_dupes(final).items() if len(n.split()) == 4}
+        if not dupes_4:
+            break
+        any_changed = False
+        for name, tids in dupes_4.items():
+            name_prefix = " ".join(name.split()[:3])  # 3-word prefix (STATE + 2 tokens)
+            existing_tokens = set(name_prefix.split())
+
+            best_labels: dict[int, str] = {}
+            best_var = -1.0
+
+            for feat, _thresh, pos, neg in _DISAMBIG_VOCAB:
+                if not pos and not neg:
+                    continue
+                z_vals: dict[int, float] = {}
+                for tid in tids:
+                    z = _get_z(tid, feat)
+                    if z is not None:
+                        z_vals[tid] = z
+                if len(z_vals) < len(tids):
+                    continue
+
+                vals_arr = np.array(list(z_vals.values()))
+                var = float(np.var(vals_arr))
+                if var <= best_var:
+                    continue
+
+                median_z = float(np.median(vals_arr))
+                labels: dict[int, str] = {}
+                for tid in tids:
+                    z = z_vals[tid]
+                    if z > median_z and pos and pos not in existing_tokens:
+                        labels[tid] = pos
+                    elif z < median_z and neg and neg not in existing_tokens:
+                        labels[tid] = neg
+                    elif pos and pos not in existing_tokens:
+                        labels[tid] = pos
+                    elif neg and neg not in existing_tokens:
+                        labels[tid] = neg
+                    else:
+                        labels[tid] = ""
+
+                non_empty = [lbl for lbl in labels.values() if lbl]
+                if len(set(non_empty)) >= 2:
+                    best_var = var
+                    best_labels = labels
+
+            if best_labels:
+                # Check that proposed replacements don't collide with existing names.
+                # If a collision is detected, keep scanning DISAMBIG_VOCAB for a
+                # collision-free feature that still differentiates the group.
+                all_current_names = set(final.values()) - set(final[t] for t in tids)
+
+                def _try_collision_free() -> bool:
+                    """Try every DISAMBIG feature in variance order; return True if applied."""
+                    # Collect all candidate splits sorted by variance (desc)
+                    candidates: list[tuple[float, dict[int, str]]] = []
+                    for feat2, _t2, pos2, neg2 in _DISAMBIG_VOCAB:
+                        if not pos2 and not neg2:
+                            continue
+                        z_vals2: dict[int, float] = {}
+                        for tid in tids:
+                            z = _get_z(tid, feat2)
+                            if z is not None:
+                                z_vals2[tid] = z
+                        if len(z_vals2) < len(tids):
+                            continue
+                        vals2 = np.array(list(z_vals2.values()))
+                        var2 = float(np.var(vals2))
+                        med2 = float(np.median(vals2))
+                        lbls: dict[int, str] = {}
+                        for tid in tids:
+                            z = z_vals2[tid]
+                            if z > med2 and pos2 and pos2 not in existing_tokens:
+                                lbls[tid] = pos2
+                            elif z < med2 and neg2 and neg2 not in existing_tokens:
+                                lbls[tid] = neg2
+                            elif pos2 and pos2 not in existing_tokens:
+                                lbls[tid] = pos2
+                            elif neg2 and neg2 not in existing_tokens:
+                                lbls[tid] = neg2
+                            else:
+                                lbls[tid] = ""
+                        non_emp = [l for l in lbls.values() if l]
+                        if len(set(non_emp)) >= 2:
+                            candidates.append((var2, lbls))
+                    # Try highest-variance first; skip any that cause collisions
+                    for _, lbls in sorted(candidates, key=lambda x: -x[0]):
+                        proposed2: dict[int, str] = {}
+                        ok = True
+                        proposed_names: set[str] = set()
+                        for tid in tids:
+                            lbl = lbls.get(tid, "")
+                            if lbl:
+                                nn = f"{name_prefix} {lbl}"
+                                if nn in all_current_names or nn in proposed_names:
+                                    ok = False
+                                    break
+                                proposed2[tid] = nn
+                                proposed_names.add(nn)
+                        if ok and proposed2:
+                            for tid, nn in proposed2.items():
+                                if nn != final[tid]:
+                                    final[tid] = nn
+                                    nonlocal any_changed  # type: ignore[misc]
+                                    any_changed = True
+                            return True
+                    return False
+
+                _try_collision_free()
+        if not any_changed:
+            break
 
     # Pass 2 — political lean disambiguation (last-resort before ordinals)
     # Types defined by electoral behavior can legitimately be distinguished

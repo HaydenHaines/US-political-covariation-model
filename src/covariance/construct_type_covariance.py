@@ -49,6 +49,7 @@ def construct_type_covariance(
     lambda_shrinkage: float = 0.75,
     sigma_base: float = 0.07,
     floor_negatives: bool = True,
+    max_rank: int | None = None,
 ) -> CovarianceResult:
     """Construct type covariance matrix from demographic profiles.
 
@@ -66,6 +67,11 @@ def construct_type_covariance(
         Base logit-scale standard deviation; covariance = sigma_base^2 * C.
     floor_negatives:
         If True, floor raw Pearson correlations at 0 before shrinkage.
+    max_rank:
+        If set, reduce the effective rank of the correlation matrix to this
+        value via eigendecomposition (keep top-k eigencomponents).  Matches
+        the observed dimensionality of electoral comovement (~18 from 19
+        elections) rather than the full demographic feature count.
     """
     J = len(type_profiles)
 
@@ -94,8 +100,12 @@ def construct_type_covariance(
     C_ones = np.ones((J, J))
     C_final = lambda_shrinkage * C + (1 - lambda_shrinkage) * C_ones
 
-    # 6. Ensure positive definiteness (spectral truncation)
-    C_final = _enforce_pd(C_final)
+    # 6. Rank reduction or PD enforcement
+    if max_rank is not None and max_rank < J:
+        C_final = _rank_reduce(C_final, max_rank)
+        log.info("Rank-reduced correlation matrix to effective rank %d (J=%d)", max_rank, J)
+    else:
+        C_final = _enforce_pd(C_final)
 
     # 7. Create covariance (uniform sigma, modulated by correlation)
     Sigma = sigma_base**2 * C_final
@@ -118,6 +128,38 @@ def _enforce_pd(C: np.ndarray, floor: float = 1e-6) -> np.ndarray:
     C_pd = eigvecs @ np.diag(eigvals) @ eigvecs.T
     # Re-symmetrise after reconstruction
     return (C_pd + C_pd.T) / 2.0
+
+
+def _rank_reduce(C: np.ndarray, k: int) -> np.ndarray:
+    """Reduce effective rank of correlation matrix to k via eigendecomposition.
+
+    Keeps the top-k eigenvalues and reconstructs.  Remaining eigenvalues are
+    set to a small floor (1e-6) to maintain strict positive definiteness.
+    Diagonal is re-normalised to 1.0 so the result remains a correlation matrix.
+    """
+    C = (C + C.T) / 2.0
+    eigvals, eigvecs = np.linalg.eigh(C)
+
+    # eigh returns ascending order; reverse to descending
+    idx = np.argsort(eigvals)[::-1]
+    eigvals = eigvals[idx]
+    eigvecs = eigvecs[:, idx]
+
+    # Keep top-k, floor the rest
+    floor = 1e-6
+    eigvals_reduced = np.where(np.arange(len(eigvals)) < k, eigvals, floor)
+    # Also floor any negative eigenvalues in top-k
+    eigvals_reduced = np.maximum(eigvals_reduced, floor)
+
+    C_reduced = eigvecs @ np.diag(eigvals_reduced) @ eigvecs.T
+    C_reduced = (C_reduced + C_reduced.T) / 2.0
+
+    # Re-normalise diagonal to 1.0 (correlation matrix convention)
+    d = np.sqrt(np.diag(C_reduced))
+    d[d == 0] = 1.0
+    C_reduced = C_reduced / np.outer(d, d)
+
+    return C_reduced
 
 
 def validate_covariance(
@@ -307,8 +349,10 @@ def main() -> None:
     lambda_shrinkage = float(types_cfg.get("lambda_shrinkage", 0.75))
     threshold = float(types_cfg.get("covariance_acceptance_threshold", 0.4))
     sigma_base = 0.07  # logit-scale base sigma
+    max_rank_raw = types_cfg.get("covariance_max_rank", None)
+    max_rank = int(max_rank_raw) if max_rank_raw is not None else None
 
-    log.info("lambda_shrinkage=%.2f  threshold=%.2f", lambda_shrinkage, threshold)
+    log.info("lambda_shrinkage=%.2f  threshold=%.2f  max_rank=%s", lambda_shrinkage, threshold, max_rank)
 
     type_profiles, feature_cols = _load_type_profiles()
     J = len(type_profiles)
@@ -319,6 +363,7 @@ def main() -> None:
         feature_cols,
         lambda_shrinkage=lambda_shrinkage,
         sigma_base=sigma_base,
+        max_rank=max_rank,
     )
 
     try:

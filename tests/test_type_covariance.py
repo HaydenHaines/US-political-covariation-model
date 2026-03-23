@@ -9,6 +9,7 @@ import pytest
 
 from src.covariance.construct_type_covariance import (
     CovarianceResult,
+    _rank_reduce,
     apply_hybrid_fallback,
     construct_type_covariance,
     validate_covariance,
@@ -300,3 +301,111 @@ def test_initial_validation_r_is_nan(default_result):
 def test_used_hybrid_false_by_default(default_result):
     """construct_type_covariance must set used_hybrid=False initially."""
     assert default_result.used_hybrid is False
+
+
+# ---------------------------------------------------------------------------
+# Rank reduction
+# ---------------------------------------------------------------------------
+
+
+def test_rank_reduce_preserves_shape():
+    """_rank_reduce must return same J×J shape."""
+    C = np.eye(5) + 0.3 * np.ones((5, 5))
+    C_reduced = _rank_reduce(C, k=3)
+    assert C_reduced.shape == (5, 5)
+
+
+def test_rank_reduce_diagonal_ones():
+    """After rank reduction, diagonal should be ~1.0 (correlation convention)."""
+    C = np.eye(5) + 0.3 * np.ones((5, 5))
+    C_reduced = _rank_reduce(C, k=3)
+    np.testing.assert_allclose(np.diag(C_reduced), np.ones(5), atol=1e-8)
+
+
+def test_rank_reduce_symmetric():
+    """Result must be symmetric."""
+    C = np.eye(5) + 0.3 * np.ones((5, 5))
+    C_reduced = _rank_reduce(C, k=3)
+    np.testing.assert_allclose(C_reduced, C_reduced.T, atol=1e-10)
+
+
+def test_rank_reduce_positive_definite():
+    """Result must be positive definite."""
+    C = np.eye(5) + 0.3 * np.ones((5, 5))
+    C_reduced = _rank_reduce(C, k=3)
+    eigvals = np.linalg.eigvalsh(C_reduced)
+    assert np.all(eigvals > 0)
+
+
+def test_rank_reduce_effective_rank():
+    """Top-k eigenvalues should dominate; the rest should be near-zero."""
+    J = 10
+    rng = np.random.default_rng(99)
+    # Build a full-rank correlation-like matrix
+    A = rng.standard_normal((J, J))
+    C = A @ A.T
+    d = np.sqrt(np.diag(C))
+    C = C / np.outer(d, d)
+
+    k = 3
+    C_reduced = _rank_reduce(C, k=k)
+    eigvals = np.linalg.eigvalsh(C_reduced)
+    eigvals_sorted = np.sort(eigvals)[::-1]
+
+    # Top-k should carry almost all the variance
+    total = eigvals_sorted.sum()
+    top_k_share = eigvals_sorted[:k].sum() / total
+    assert top_k_share > 0.95, f"Top-{k} share = {top_k_share:.3f}, expected > 0.95"
+
+
+def test_rank_reduce_k_equals_j_is_identity():
+    """max_rank=J should return nearly the same matrix (no reduction)."""
+    J = 5
+    rng = np.random.default_rng(42)
+    A = rng.standard_normal((J, J))
+    C = A @ A.T
+    d = np.sqrt(np.diag(C))
+    C = C / np.outer(d, d)
+
+    C_reduced = _rank_reduce(C, k=J)
+    np.testing.assert_allclose(C_reduced, C, atol=1e-5)
+
+
+def test_construct_with_max_rank(type_profiles, feature_columns):
+    """construct_type_covariance with max_rank should produce valid result."""
+    result = construct_type_covariance(
+        type_profiles, feature_columns, lambda_shrinkage=0.75, max_rank=3
+    )
+    assert result.correlation_matrix.shape == (J, J)
+    assert result.covariance_matrix.shape == (J, J)
+    # PD
+    eigvals = np.linalg.eigvalsh(result.covariance_matrix)
+    assert np.all(eigvals > 0)
+    # Diagonal ~1 on correlation
+    np.testing.assert_allclose(np.diag(result.correlation_matrix), np.ones(J), atol=1e-8)
+
+
+def test_construct_max_rank_reduces_effective_rank(type_profiles, feature_columns):
+    """With max_rank, top-k eigenvalues should dominate."""
+    k = 2
+    result = construct_type_covariance(
+        type_profiles, feature_columns, lambda_shrinkage=0.75, max_rank=k
+    )
+    eigvals = np.linalg.eigvalsh(result.correlation_matrix)
+    eigvals_sorted = np.sort(eigvals)[::-1]
+    total = eigvals_sorted.sum()
+    top_k_share = eigvals_sorted[:k].sum() / total
+    assert top_k_share > 0.90
+
+
+def test_construct_max_rank_none_same_as_no_reduction(type_profiles, feature_columns):
+    """max_rank=None should produce same result as before."""
+    result_none = construct_type_covariance(
+        type_profiles, feature_columns, lambda_shrinkage=0.75, max_rank=None
+    )
+    result_default = construct_type_covariance(
+        type_profiles, feature_columns, lambda_shrinkage=0.75
+    )
+    np.testing.assert_allclose(
+        result_none.correlation_matrix, result_default.correlation_matrix, atol=1e-12
+    )

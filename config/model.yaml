@@ -132,6 +132,7 @@ types:
   - 7
   - 8
   lambda_shrinkage: 0.75
+  # covariance_max_rank: 18  # Available but inactive — observed comovement is ~3-dimensional (not 18), and shrinkage already reduces effective rank to ~2. Activate after adding features that genuinely predict electoral comovement.
   covariance_acceptance_threshold: 0.4
   holdout_r_minimum: 0.85
   holdout_r_target: 0.90

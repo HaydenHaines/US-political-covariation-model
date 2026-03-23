@@ -16,15 +16,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <MapProvider>
-          <div style={{
+          <div className="app-shell" style={{
             display: "flex",
             height: "100vh",
             overflow: "hidden",
           }}>
-            <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+            <div className="map-pane" style={{ flex: 1, position: "relative", minWidth: 0 }}>
               <MapShell />
             </div>
-            <div style={{
+            <div className="panel-pane" style={{
               width: "var(--color-panel-width)",
               display: "flex",
               flexDirection: "column",
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               overflow: "hidden",
             }}>
               <TabBar />
-              <div style={{ flex: 1, overflow: "auto" }}>
+              <div className="panel-scroll" style={{ flex: 1, overflow: "auto" }}>
                 {children}
               </div>
             </div>

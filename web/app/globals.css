@@ -22,3 +22,39 @@ body {
 }
 
 h1, h2, h3 { font-family: var(--font-serif); }
+
+/* ── Mobile layout (< 768px) ───────────────────────────────────── */
+@media (max-width: 767px) {
+  body {
+    overflow: auto;
+  }
+
+  .app-shell {
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 100vh;
+    overflow: visible !important;
+  }
+
+  .map-pane {
+    flex: none !important;
+    width: 100% !important;
+    height: 40vh !important;
+    min-height: 200px;
+  }
+
+  .panel-pane {
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--color-border);
+    overflow: visible !important;
+    /* Allow panel to grow to fit content */
+    flex: 1 1 auto !important;
+  }
+
+  .panel-scroll {
+    overflow: auto !important;
+    /* Let it be as tall as its content — page scrolls */
+    max-height: none !important;
+  }
+}

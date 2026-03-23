@@ -113,6 +113,7 @@ export interface TypeDetail extends TypeSummary {
   counties: TypeCounty[];
   demographics: Record<string, number>;
   shift_profile: Record<string, number> | null;
+  narrative: string | null;
 }
 
 export interface SuperTypeSummary {

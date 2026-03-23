@@ -202,6 +202,20 @@ export function TypePanel({ typeId, superTypeMap, tractContext, onClose }: Props
 
       {detail && !loading && (
         <div style={{ flex: 1, overflow: "auto", padding: "12px 16px" }}>
+          {/* Narrative description */}
+          {detail.narrative && (
+            <div style={{ marginBottom: "16px" }}>
+              <p style={{
+                margin: 0,
+                fontSize: "13px",
+                lineHeight: "1.5",
+                color: "var(--color-text)",
+              }}>
+                {detail.narrative}
+              </p>
+            </div>
+          )}
+
           {/* Shift sparkline */}
           {detail.shift_profile && Object.keys(detail.shift_profile).length > 0 && (
             <div style={{ marginBottom: "16px" }}>

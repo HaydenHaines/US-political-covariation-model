@@ -262,15 +262,32 @@ def get_type(
     if not _has_table(db, "types"):
         raise HTTPException(status_code=404, detail="Type data not available")
 
-    # Get type metadata
-    type_row = db.execute(
-        "SELECT type_id, super_type_id, display_name FROM types WHERE type_id = ? LIMIT 1",
-        [type_id],
-    ).fetchone()
-    if not type_row:
-        raise HTTPException(status_code=404, detail=f"Type {type_id} not found")
+    # Detect whether the narrative column exists (may be absent in test DBs)
+    _has_narrative = bool(
+        db.execute(
+            "SELECT COUNT(*) FROM information_schema.columns "
+            "WHERE table_name='types' AND column_name='narrative'",
+        ).fetchone()[0]
+    )
 
-    tid, super_type_id, display_name = type_row
+    # Get type metadata
+    if _has_narrative:
+        type_row = db.execute(
+            "SELECT type_id, super_type_id, display_name, narrative FROM types WHERE type_id = ? LIMIT 1",
+            [type_id],
+        ).fetchone()
+        if not type_row:
+            raise HTTPException(status_code=404, detail=f"Type {type_id} not found")
+        tid, super_type_id, display_name, narrative = type_row
+    else:
+        type_row = db.execute(
+            "SELECT type_id, super_type_id, display_name FROM types WHERE type_id = ? LIMIT 1",
+            [type_id],
+        ).fetchone()
+        if not type_row:
+            raise HTTPException(status_code=404, detail=f"Type {type_id} not found")
+        tid, super_type_id, display_name = type_row
+        narrative = None
 
     # Counties assigned to this type (dominant), joined with names
     county_rows = db.execute(
@@ -344,6 +361,7 @@ def get_type(
         counties=counties,
         demographics=demographics,
         shift_profile=shift_profile,
+        narrative=str(narrative) if narrative is not None else None,
     )
 
 

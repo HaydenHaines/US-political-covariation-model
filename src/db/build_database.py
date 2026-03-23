@@ -49,6 +49,8 @@ COUNTY_ACS_FEATURES_PATH = PROJECT_ROOT / "data" / "assembled" / "county_acs_fea
 
 # Type-primary pipeline paths
 TYPE_PROFILES_PATH = PROJECT_ROOT / "data" / "communities" / "type_profiles.parquet"
+# Narrative generator (template-based, no LLM)
+from src.description.generate_narratives import generate_all_narratives  # noqa: E402
 COUNTY_TYPE_ASSIGNMENTS_PATH = PROJECT_ROOT / "data" / "communities" / "county_type_assignments_full.parquet"
 SUPER_TYPES_PATH = PROJECT_ROOT / "data" / "communities" / "super_types.parquet"
 TYPE_COVARIANCE_LONG_PATH = PROJECT_ROOT / "data" / "covariance" / "type_covariance_long.parquet"
@@ -551,6 +553,14 @@ def build(db_path: Path, reset: bool = False) -> None:
         # Add display_name if missing (generic names until proper naming pipeline)
         if "display_name" not in tp_df.columns:
             tp_df["display_name"] = tp_df["type_id"].apply(lambda x: f"Type {x}")
+        # ── Generate and attach narratives ────────────────────────────────────
+        log.info("Generating type narratives from demographic z-scores")
+        try:
+            narratives = generate_all_narratives(str(TYPE_PROFILES_PATH))
+            tp_df["narrative"] = tp_df["type_id"].map(narratives)
+            log.info("Attached narratives to %d types", tp_df["narrative"].notna().sum())
+        except Exception as exc:
+            log.warning("Narrative generation failed (%s); types table will lack narrative column", exc)
         con.execute("DROP TABLE IF EXISTS types")
         con.execute("CREATE TABLE types AS SELECT * FROM tp_df")
         log.info("Ingested types: %d rows", len(tp_df))

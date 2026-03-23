@@ -131,6 +131,7 @@ class TypeDetail(TypeSummary):
     counties: list[TypeCounty]  # resolved county names
     demographics: dict[str, float]  # demographic profile
     shift_profile: dict[str, float] | None = None
+    narrative: str | None = None  # auto-generated description
 
 
 class SuperTypeSummary(BaseModel):

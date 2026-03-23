@@ -6,7 +6,7 @@ import duckdb
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.db import get_db
-from api.models import ForecastRow, PollInput
+from api.models import ForecastRow, MultiPollInput, MultiPollResponse, PollInput
 
 router = APIRouter(tags=["forecast"])
 
@@ -231,3 +231,92 @@ def _forecast_poll_hac(
         )
 
     return results
+
+
+@router.post("/forecast/polls", response_model=MultiPollResponse)
+def update_forecast_with_multi_polls(
+    body: MultiPollInput,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+):
+    """Feed multiple polls from a historical cycle through time-decayed,
+    quality-weighted Bayesian update. Returns county-level predictions.
+    """
+    from src.propagation.poll_weighting import (
+        aggregate_polls,
+        apply_all_weights,
+        election_day_for_cycle,
+        load_polls_with_notes,
+    )
+
+    # Load polls + notes from CSV
+    try:
+        polls, notes = load_polls_with_notes(
+            body.cycle, race=body.race, geography=body.state
+        )
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No poll data found for cycle {body.cycle}",
+        )
+
+    if not polls:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No matching polls for cycle={body.cycle}, state={body.state}, race={body.race}",
+        )
+
+    # Apply weighting
+    ref_date = election_day_for_cycle(body.cycle)
+    weighted = apply_all_weights(
+        polls,
+        reference_date=ref_date,
+        half_life_days=body.half_life_days,
+        poll_notes=notes if body.apply_quality else None,
+        apply_quality=body.apply_quality,
+    )
+
+    # Build metadata
+    dates = sorted(p.date for p in polls if p.date)
+    date_range = f"{dates[0]} to {dates[-1]}" if dates else "unknown"
+    effective_n_total = sum(p.n_sample for p in weighted)
+
+    # Aggregate to a single effective poll
+    combined_share, combined_n = aggregate_polls(weighted)
+
+    # Route through the type-based or HAC pipeline via PollInput
+    race_label = body.race or polls[0].race
+    poll_state = body.state
+
+    single_poll = PollInput(
+        state=poll_state,
+        race=race_label,
+        dem_share=combined_share,
+        n=combined_n,
+    )
+
+    # Use the existing single-poll endpoint logic
+    type_scores = getattr(request.app.state, "type_scores", None)
+    type_covariance = getattr(request.app.state, "type_covariance", None)
+    type_priors = getattr(request.app.state, "type_priors", None)
+    type_county_fips = getattr(request.app.state, "type_county_fips", None)
+
+    if (
+        type_scores is not None
+        and type_covariance is not None
+        and type_priors is not None
+        and type_county_fips is not None
+    ):
+        county_results = _forecast_poll_types(
+            single_poll, request, db,
+            type_scores, type_covariance, type_priors, type_county_fips,
+        )
+    else:
+        county_results = _forecast_poll_hac(single_poll, request, db)
+
+    return MultiPollResponse(
+        counties=county_results,
+        polls_used=len(polls),
+        date_range=date_range,
+        effective_n_total=effective_n_total,
+    )

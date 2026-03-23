@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import * as Plot from "@observablehq/plot";
 import { fetchForecast, type ForecastRow } from "@/lib/api";
 import { FeedAPoll } from "@/components/FeedAPoll";
+import { FeedHistoricalPolls } from "@/components/FeedHistoricalPolls";
 
 const LEAN_LABELS = [
   { threshold: 0.55, label: "Solid D", color: "var(--color-dem)" },
@@ -131,6 +132,16 @@ export function ForecastView() {
       {/* Feed-a-Poll */}
       {selectedRace && (
         <FeedAPoll
+          state={selectedState}
+          race={selectedRace}
+          onUpdate={setDisplayRows}
+          onReset={() => setDisplayRows(baselineRows)}
+        />
+      )}
+
+      {/* Feed historical polls */}
+      {selectedRace && (
+        <FeedHistoricalPolls
           state={selectedState}
           race={selectedRace}
           onUpdate={setDisplayRows}

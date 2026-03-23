@@ -151,3 +151,26 @@ export async function feedPoll(body: {
   if (!res.ok) throw new Error(`/forecast/poll failed: ${res.status}`);
   return res.json();
 }
+
+export interface MultiPollResponse {
+  counties: ForecastRow[];
+  polls_used: number;
+  date_range: string;
+  effective_n_total: number;
+}
+
+export async function feedMultiplePolls(body: {
+  cycle: string;
+  state: string;
+  race?: string;
+  half_life_days?: number;
+  apply_quality?: boolean;
+}): Promise<MultiPollResponse> {
+  const res = await fetch(`${API_BASE}/forecast/polls`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`/forecast/polls failed: ${res.status}`);
+  return res.json();
+}

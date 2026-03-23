@@ -96,6 +96,21 @@ class PollInput(BaseModel):
     n: int = 600        # poll sample size
 
 
+class MultiPollInput(BaseModel):
+    cycle: str              # e.g. "2020", "2022"
+    state: str              # e.g. "FL"
+    race: str | None = None  # optional filter (e.g. "President", "Senate")
+    half_life_days: float = 30.0
+    apply_quality: bool = True
+
+
+class MultiPollResponse(BaseModel):
+    counties: list[ForecastRow]
+    polls_used: int
+    date_range: str         # "2020-01-15 to 2020-11-02"
+    effective_n_total: int  # sum of adjusted sample sizes
+
+
 # ── Type-primary models ─────────────────────────────────────────────────────
 
 class TypeSummary(BaseModel):

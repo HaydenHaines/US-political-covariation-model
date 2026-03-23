@@ -541,6 +541,16 @@ def build(db_path: Path, reset: bool = False) -> None:
     # ── Ingest type profiles (types table) ────────────────────────────────────
     if TYPE_PROFILES_PATH.exists():
         tp_df = pd.read_parquet(TYPE_PROFILES_PATH)
+        # Add super_type_id from county_type_assignments if available
+        if COUNTY_TYPE_ASSIGNMENTS_PATH.exists() and "super_type_id" not in tp_df.columns:
+            cta_tmp = pd.read_parquet(COUNTY_TYPE_ASSIGNMENTS_PATH)
+            if "super_type" in cta_tmp.columns and "dominant_type" in cta_tmp.columns:
+                type_to_super = cta_tmp.groupby("dominant_type")["super_type"].first()
+                tp_df["super_type_id"] = tp_df["type_id"].map(type_to_super)
+                log.info("Added super_type_id to types table from county_type_assignments")
+        # Add display_name if missing (generic names until proper naming pipeline)
+        if "display_name" not in tp_df.columns:
+            tp_df["display_name"] = tp_df["type_id"].apply(lambda x: f"Type {x}")
         con.execute("DROP TABLE IF EXISTS types")
         con.execute("CREATE TABLE types AS SELECT * FROM tp_df")
         log.info("Ingested types: %d rows", len(tp_df))

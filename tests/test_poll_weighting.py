@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.propagation.propagate_polls import PollObservation
 from src.propagation.poll_weighting import (
+    _SB_MAX_MULTIPLIER,
+    _SB_MIN_MULTIPLIER,
+    _sb_score_to_multiplier,
     aggregate_polls,
     apply_all_weights,
     apply_pollster_quality,
@@ -16,6 +21,7 @@ from src.propagation.poll_weighting import (
     extract_grade_from_notes,
     grade_to_multiplier,
     load_polls_with_notes,
+    reset_sb_cache,
 )
 
 
@@ -111,29 +117,37 @@ class TestTimeDecay:
 
 
 class TestPollsterQuality:
+    """Tests for 538-grade-based pollster quality (Silver Bulletin disabled)."""
+
     def test_a_plus_boost(self):
         """A+ grade should boost n_sample."""
         poll = _make_poll(n_sample=1000)
-        result = apply_pollster_quality([poll], poll_notes=["grade=3.0"])
+        result = apply_pollster_quality(
+            [poll], poll_notes=["grade=3.0"], use_silver_bulletin=False
+        )
         assert result[0].n_sample > 1000  # 1.2x
         assert result[0].n_sample == 1200
 
     def test_d_grade_reduction(self):
         """D grade should reduce n to ~30%."""
         poll = _make_poll(n_sample=1000)
-        result = apply_pollster_quality([poll], poll_notes=["grade=0.2"])
+        result = apply_pollster_quality(
+            [poll], poll_notes=["grade=0.2"], use_silver_bulletin=False
+        )
         assert result[0].n_sample == 300
 
     def test_no_grade_default(self):
         """No grade in notes -> 0.8x."""
         poll = _make_poll(n_sample=1000)
-        result = apply_pollster_quality([poll], poll_notes=["method=Live Phone"])
+        result = apply_pollster_quality(
+            [poll], poll_notes=["method=Live Phone"], use_silver_bulletin=False
+        )
         assert result[0].n_sample == 800
 
     def test_no_notes_default(self):
         """No notes at all -> 0.8x."""
         poll = _make_poll(n_sample=1000)
-        result = apply_pollster_quality([poll], poll_notes=None)
+        result = apply_pollster_quality([poll], poll_notes=None, use_silver_bulletin=False)
         assert result[0].n_sample == 800
 
     def test_extracts_grade_from_notes(self):
@@ -145,7 +159,9 @@ class TestPollsterQuality:
     def test_b_grade_multiplier(self):
         """B grade (numeric ~1.5-1.9) -> 0.9x."""
         poll = _make_poll(n_sample=1000)
-        result = apply_pollster_quality([poll], poll_notes=["grade=1.5"])
+        result = apply_pollster_quality(
+            [poll], poll_notes=["grade=1.5"], use_silver_bulletin=False
+        )
         assert result[0].n_sample == 900
 
     def test_custom_multipliers(self):
@@ -153,7 +169,10 @@ class TestPollsterQuality:
         poll = _make_poll(n_sample=1000)
         custom = {"A": 2.0}
         result = apply_pollster_quality(
-            [poll], poll_notes=["grade=2.5"], grade_multipliers=custom
+            [poll],
+            poll_notes=["grade=2.5"],
+            grade_multipliers=custom,
+            use_silver_bulletin=False,
         )
         assert result[0].n_sample == 2000
 
@@ -167,6 +186,7 @@ class TestApplyAllWeights:
     def test_combines_both(self):
         """apply_all_weights should apply both time decay and quality."""
         # Poll 30 days old (half_life=30 -> 0.5 decay), grade A (1.1x multiplier)
+        # Silver Bulletin disabled so 538 grade from notes drives quality.
         poll = _make_poll(date="2020-10-04", n_sample=1000)
         result = apply_all_weights(
             [poll],
@@ -174,6 +194,7 @@ class TestApplyAllWeights:
             half_life_days=30.0,
             poll_notes=["grade=2.5"],
             apply_quality=True,
+            use_silver_bulletin=False,
         )
         # Time decay: 1000 * 0.5 = 500
         # Quality (A = 1.1): 500 * 1.1 = 550 -> but quality runs on decayed n
@@ -280,3 +301,172 @@ class TestElectionDay:
 
     def test_unknown_cycle_default(self):
         assert election_day_for_cycle("2030") == "2030-11-03"
+
+
+# ---------------------------------------------------------------------------
+# Silver Bulletin integration
+# ---------------------------------------------------------------------------
+
+
+class TestSbScoreToMultiplier:
+    """Unit tests for the score→multiplier rescaling helper."""
+
+    def test_score_zero_gives_min(self):
+        assert _sb_score_to_multiplier(0.0) == pytest.approx(_SB_MIN_MULTIPLIER)
+
+    def test_score_one_gives_max(self):
+        assert _sb_score_to_multiplier(1.0) == pytest.approx(_SB_MAX_MULTIPLIER)
+
+    def test_midpoint(self):
+        expected = (_SB_MIN_MULTIPLIER + _SB_MAX_MULTIPLIER) / 2
+        assert _sb_score_to_multiplier(0.5) == pytest.approx(expected)
+
+    def test_monotone_increasing(self):
+        assert _sb_score_to_multiplier(0.3) < _sb_score_to_multiplier(0.7)
+
+
+class TestSilverBulletinUsed:
+    """apply_pollster_quality should use Silver Bulletin when XLSX is present."""
+
+    def setup_method(self):
+        reset_sb_cache()
+
+    def teardown_method(self):
+        reset_sb_cache()
+
+    def test_sb_quality_used_when_available(self):
+        """When Silver Bulletin returns a quality score, it drives the multiplier."""
+        poll = _make_poll(n_sample=1000, pollster="Emerson College")
+
+        # Patch get_pollster_quality to return a known score (A = 0.93)
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=_sb_score_to_multiplier(0.93),
+        ):
+            result = apply_pollster_quality([poll], use_silver_bulletin=True)
+
+        expected_multiplier = _sb_score_to_multiplier(0.93)
+        expected_n = int(max(1, round(1000 * expected_multiplier)))
+        assert result[0].n_sample == expected_n
+
+    def test_sb_high_quality_boosts_n(self):
+        """A+ pollster (score=1.0) should produce n_sample > original."""
+        poll = _make_poll(n_sample=1000, pollster="NYT/Siena")
+
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=_sb_score_to_multiplier(1.0),
+        ):
+            result = apply_pollster_quality([poll], use_silver_bulletin=True)
+
+        assert result[0].n_sample > 1000
+
+    def test_sb_banned_pollster_low_weight(self):
+        """Banned pollster (score=0.0) should produce minimum weight."""
+        poll = _make_poll(n_sample=1000, pollster="Research America (banned)")
+
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=_sb_score_to_multiplier(0.0),
+        ):
+            result = apply_pollster_quality([poll], use_silver_bulletin=True)
+
+        expected_n = int(max(1, round(1000 * _SB_MIN_MULTIPLIER)))
+        assert result[0].n_sample == expected_n
+
+    def test_sb_unknown_pollster_neutral(self):
+        """Unknown pollster (score=0.5) should give a mid-range multiplier."""
+        poll = _make_poll(n_sample=1000, pollster="Unknown Outfit")
+        neutral_multiplier = _sb_score_to_multiplier(0.5)
+
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=neutral_multiplier,
+        ):
+            result = apply_pollster_quality([poll], use_silver_bulletin=True)
+
+        expected_n = int(max(1, round(1000 * neutral_multiplier)))
+        assert result[0].n_sample == expected_n
+
+
+class TestSilverBulletinFallback:
+    """When Silver Bulletin XLSX is missing, fall back to 538 grade from notes."""
+
+    def setup_method(self):
+        reset_sb_cache()
+
+    def teardown_method(self):
+        reset_sb_cache()
+
+    def test_fallback_to_538_when_sb_unavailable(self):
+        """FileNotFoundError from SB loader → fall back to notes-based 538 grade."""
+        poll = _make_poll(n_sample=1000, pollster="SomePollster")
+
+        # Silver Bulletin raises FileNotFoundError → None returned by _get_sb_quality
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=None,
+        ):
+            # notes carry a 538 A-grade (numeric 2.5 → "A" → 1.1x)
+            result = apply_pollster_quality(
+                [poll],
+                poll_notes=["grade=2.5"],
+                use_silver_bulletin=True,
+            )
+
+        # 538 A grade = 1.1x
+        assert result[0].n_sample == 1100
+
+    def test_sb_disabled_uses_538_grade(self):
+        """use_silver_bulletin=False should bypass SB entirely and use 538 grades."""
+        poll = _make_poll(n_sample=1000, pollster="TestPollster")
+        result = apply_pollster_quality(
+            [poll],
+            poll_notes=["grade=2.5"],  # A grade → 1.1x
+            use_silver_bulletin=False,
+        )
+        assert result[0].n_sample == 1100
+
+    def test_fallback_no_grade_in_notes_uses_default(self):
+        """No SB, no grade in notes → 0.8x default."""
+        poll = _make_poll(n_sample=1000, pollster="TestPollster")
+
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=None,
+        ):
+            result = apply_pollster_quality(
+                [poll],
+                poll_notes=["method=IVR"],
+                use_silver_bulletin=True,
+            )
+
+        assert result[0].n_sample == 800
+
+    def test_apply_all_weights_sb_disabled_uses_notes(self):
+        """apply_all_weights with use_silver_bulletin=False uses 538 grade."""
+        poll = _make_poll(date="2020-11-03", n_sample=1000)
+        result = apply_all_weights(
+            [poll],
+            reference_date="2020-11-03",
+            poll_notes=["grade=3.0"],  # A+ → 1.2x; no time decay (same day)
+            apply_quality=True,
+            use_silver_bulletin=False,
+        )
+        assert result[0].n_sample == 1200
+
+    def test_apply_all_weights_sb_enabled_uses_sb(self):
+        """apply_all_weights propagates use_silver_bulletin=True to quality step."""
+        poll = _make_poll(date="2020-11-03", n_sample=1000, pollster="Emerson College")
+        # SB returns score=1.0 → multiplier = _SB_MAX_MULTIPLIER = 1.2
+        with patch(
+            "src.propagation.poll_weighting._get_sb_quality",
+            return_value=_SB_MAX_MULTIPLIER,
+        ):
+            result = apply_all_weights(
+                [poll],
+                reference_date="2020-11-03",
+                apply_quality=True,
+                use_silver_bulletin=True,
+            )
+        assert result[0].n_sample == int(max(1, round(1000 * _SB_MAX_MULTIPLIER)))

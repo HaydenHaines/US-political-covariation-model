@@ -7,6 +7,13 @@ Adjusts effective sample sizes of PollObservation objects based on:
 Then aggregates multiple weighted polls into a single effective poll via
 inverse-variance weighting for downstream Bayesian update.
 
+Pollster quality source priority:
+  1. Silver Bulletin ratings (``get_pollster_quality``) when the XLSX is present.
+     Returns a score in [0, 1] which is rescaled to a multiplier range of
+     [_SB_MIN_MULTIPLIER, _SB_MAX_MULTIPLIER] (default 0.3–1.2).
+  2. Fall back to 538 numeric grade embedded in poll notes (``grade=2.5`` key)
+     when Silver Bulletin XLSX is not downloaded.
+
 Usage:
   from src.propagation.poll_weighting import apply_all_weights, aggregate_polls
 
@@ -28,6 +35,63 @@ from src.propagation.propagate_polls import PollObservation
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parents[2]
+
+# ---------------------------------------------------------------------------
+# Silver Bulletin integration
+# ---------------------------------------------------------------------------
+
+# Multiplier range for Silver Bulletin quality scores [0, 1] -> [min, max]
+# Score 0.0 (banned) → _SB_MIN_MULTIPLIER; score 1.0 (A+) → _SB_MAX_MULTIPLIER
+_SB_MIN_MULTIPLIER: float = 0.3
+_SB_MAX_MULTIPLIER: float = 1.2
+
+# Cached flag: None = not yet checked; True = SB available; False = not available
+_SB_AVAILABLE: bool | None = None
+
+
+def _sb_score_to_multiplier(score: float) -> float:
+    """Linearly rescale a Silver Bulletin quality score [0, 1] to a multiplier."""
+    return _SB_MIN_MULTIPLIER + score * (_SB_MAX_MULTIPLIER - _SB_MIN_MULTIPLIER)
+
+
+def _get_sb_quality(pollster_name: str) -> float | None:
+    """Return Silver Bulletin quality multiplier for *pollster_name*, or None if unavailable.
+
+    Returns None when the Silver Bulletin XLSX is not present (so caller
+    can fall back to 538 grades).  The first successful load caches a
+    ``_SB_AVAILABLE=True`` flag; the first failure caches ``False`` to
+    avoid repeated FileNotFoundError checks.
+    """
+    global _SB_AVAILABLE
+    if _SB_AVAILABLE is False:
+        return None
+
+    try:
+        from src.assembly.silver_bulletin_ratings import get_pollster_quality
+        score = get_pollster_quality(pollster_name)
+        _SB_AVAILABLE = True
+        return _sb_score_to_multiplier(score)
+    except FileNotFoundError:
+        log.debug(
+            "Silver Bulletin XLSX not found; falling back to 538 grade-based weighting"
+        )
+        _SB_AVAILABLE = False
+        return None
+    except Exception as exc:  # pragma: no cover
+        log.warning("Silver Bulletin lookup failed (%s); using 538 grades", exc)
+        _SB_AVAILABLE = False
+        return None
+
+
+def reset_sb_cache() -> None:
+    """Reset the Silver Bulletin availability flag (useful in tests)."""
+    global _SB_AVAILABLE
+    _SB_AVAILABLE = None
+
+
+# ---------------------------------------------------------------------------
+# 538-grade fallback tables
+# ---------------------------------------------------------------------------
 
 # 538 numeric_grade -> quality multiplier
 # Higher numeric grade = better pollster
@@ -148,22 +212,36 @@ def apply_pollster_quality(
     polls: list[PollObservation],
     poll_notes: list[str] | None = None,
     grade_multipliers: dict[str, float] | None = None,
+    use_silver_bulletin: bool = True,
 ) -> list[PollObservation]:
-    """Adjust effective sample sizes by pollster quality grade.
+    """Adjust effective sample sizes by pollster quality.
 
-    Extracts 'grade' from poll_notes (format: "...;grade=2.5;...").
-    Applies multiplier based on letter grade derived from numeric grade.
+    Quality source priority:
+      1. Silver Bulletin ratings (when XLSX is present and ``use_silver_bulletin``
+         is True): ``get_pollster_quality(poll.pollster)`` returns a [0, 1]
+         score, which is linearly rescaled to [0.3, 1.2].
+      2. 538 numeric grade from poll_notes (format: "...;grade=2.5;...").
+         Applied when Silver Bulletin is unavailable or disabled.
 
-    If poll_notes is None, all polls get the no-grade default (0.8x).
+    If poll_notes is None and Silver Bulletin is unavailable, all polls get
+    the no-grade default (0.8x).
 
     Returns new PollObservation copies with adjusted n_sample.
     """
     result: list[PollObservation] = []
 
     for i, poll in enumerate(polls):
-        notes = poll_notes[i] if poll_notes and i < len(poll_notes) else ""
-        grade = extract_grade_from_notes(notes)
-        multiplier = grade_to_multiplier(grade, grade_multipliers)
+        multiplier: float | None = None
+
+        # --- Priority 1: Silver Bulletin ---
+        if use_silver_bulletin and poll.pollster:
+            multiplier = _get_sb_quality(poll.pollster)
+
+        # --- Priority 2: 538 grade from notes ---
+        if multiplier is None:
+            notes = poll_notes[i] if poll_notes and i < len(poll_notes) else ""
+            grade = extract_grade_from_notes(notes)
+            multiplier = grade_to_multiplier(grade, grade_multipliers)
 
         n_effective = int(max(1, round(poll.n_sample * multiplier)))
         new_poll = copy(poll)
@@ -179,15 +257,22 @@ def apply_all_weights(
     half_life_days: float = 30.0,
     poll_notes: list[str] | None = None,
     apply_quality: bool = True,
+    use_silver_bulletin: bool = True,
 ) -> list[PollObservation]:
     """Apply both time decay and pollster quality weighting.
 
     Time decay is always applied. Pollster quality is applied only if
-    apply_quality is True and poll_notes are provided.
+    apply_quality is True.
+
+    When Silver Bulletin XLSX is present and ``use_silver_bulletin`` is True,
+    pollster quality uses Silver Bulletin ratings (priority 1).  Otherwise
+    falls back to 538 grade embedded in poll_notes (priority 2).
     """
     weighted = apply_time_decay(polls, reference_date, half_life_days)
     if apply_quality:
-        weighted = apply_pollster_quality(weighted, poll_notes)
+        weighted = apply_pollster_quality(
+            weighted, poll_notes, use_silver_bulletin=use_silver_bulletin
+        )
     return weighted
 
 

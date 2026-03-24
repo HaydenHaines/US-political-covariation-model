@@ -241,6 +241,23 @@ wethervane/
 ### Dual Output
 - The model produces two estimates per community-type-county combination: **vote share** (D/R split) and **turnout** (participation rate). These are modeled jointly because they covary.
 
+## Code Quality Rule (MANDATORY)
+
+**Every touch improves the code.** When you modify a file, leave it better than you found it. This is not optional.
+
+Specifically:
+- **No hacks.** If a solution feels hacky, stop and find the right one. If there isn't time, document the debt explicitly with `# DEBT:` and a one-line explanation — but this should be rare, not routine.
+- **No copy-paste.** If you're about to duplicate logic, extract it. Three similar lines are better than a premature abstraction, but three similar *blocks* are a mandatory extraction.
+- **No magic numbers.** Every literal that isn't self-evident (0, 1, "", True, None) gets a named constant or comes from config/data files.
+- **No God objects.** If a file does more than one thing, it's a candidate for splitting. If it's over 400 lines, it almost certainly needs splitting. The only exception is data files.
+- **No hardcoded data in code.** Thresholds, hyperparameters, and lookup tables belong in config files or data files — not inline in pipeline modules.
+- **Comments explain WHY, not WHAT.** Don't comment obvious code. Do comment non-obvious modeling decisions, workarounds, and constraints. Remove dead comments.
+- **Tests test behavior, not implementation.** If a test would break when you refactor internals without changing behavior, it's testing the wrong thing.
+
+If you encounter code that violates these rules in a file you're modifying, fix it — even if it wasn't part of your task. If fixing it would be a large detour (>30 min), add a `# DEBT:` comment and create a TODO instead.
+
+The goal: every file in the active codebase should be code you'd be proud to show in a portfolio. This is a public-facing research project.
+
 ## Commands
 
 ```bash

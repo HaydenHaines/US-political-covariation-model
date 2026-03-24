@@ -105,7 +105,7 @@ These are research tasks — web search and evaluation, not code. Output should 
 
 - [ ] **P7.1: Real 2026 poll data** — Replace placeholder `polls_2026.csv`. Scrape from 538/RCP/Economist. Critical before October 2026 launch.
 
-- [ ] **P7.2: Model versioning** — Tag current model as `type_primary_v1`. Freeze baseline so experiments compare against a pinned version, not a moving target.
+- [x] **P7.2: Model versioning** — DONE S175. Tagged `type-primary-v1.0` on main. KMeans J=43, holdout r=0.828, county RMSE 2.67pp, 1511 tests.
 
 - [ ] **P7.3: CI/CD validation** — GitHub Action runs `validate_types` on push to feat/type-primary-architecture. Fail if holdout r drops below 0.80.
 

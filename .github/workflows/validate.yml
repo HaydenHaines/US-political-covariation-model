@@ -1,0 +1,44 @@
+name: Validate Model
+
+on:
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'api/**'
+      - 'config/**'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Lint
+        run: uv run ruff check src/ api/
+
+      - name: Run unit tests
+        run: uv run pytest tests/ api/tests/ -q --tb=short -x
+
+      - name: Check test count
+        run: |
+          count=$(uv run pytest tests/ api/tests/ --tb=no -q 2>&1 | tail -1 | grep -oP '\d+ passed' | grep -oP '\d+')
+          echo "Tests passed: $count"
+          if [ "$count" -lt 1400 ]; then
+            echo "FAIL: Test count $count is below minimum threshold of 1400"
+            exit 1
+          fi

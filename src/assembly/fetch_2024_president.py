@@ -94,6 +94,10 @@ def load_medsl_csv(zip_path: Path) -> pd.DataFrame:
         log.info("  Reading %s from %s", csv_files[0], zip_path.name)
         with zf.open(csv_files[0]) as f:
             df = pd.read_csv(f, low_memory=False)
+    # Coerce vote columns to numeric — some states have string values
+    for col in ("votes", "totalvotes"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
 

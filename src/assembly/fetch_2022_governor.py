@@ -90,6 +90,10 @@ def load_medsl_csv(zip_path: Path) -> pd.DataFrame:
         log.info("  Reading %s from %s", csv_files[0], zip_path.name)
         with zf.open(csv_files[0]) as f:
             df = pd.read_csv(f, low_memory=False)
+    # Coerce vote columns to numeric — some states have string values
+    for col in ("votes", "totalvotes"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
 
@@ -154,6 +158,20 @@ def extract_governor_county(df: pd.DataFrame, state_abbr: str) -> pd.DataFrame:
             .rename(columns={"votes": "gov_total_2022"})
         )
         log.warning("  %s: totalvotes column missing — using sum of all votes as total", state_abbr)
+
+    # Classify Democratic-aligned parties: MEDSL party_simplified sometimes puts
+    # state-specific Democratic affiliates (MN DFL, VT Progressive/Dem fusion)
+    # under "OTHER". Use party_detailed to catch these.
+    DEM_DETAILED_PATTERNS = {"DEMOCRAT", "DEMOCRATIC-FARMER-LABOR", "DEM/PROG", "PROG/DEM"}
+    if "party_detailed" in gov.columns:
+        is_dem = (
+            (gov["party_simplified"].str.upper() == "DEMOCRAT")
+            | (gov["party_detailed"].str.upper().isin(DEM_DETAILED_PATTERNS))
+        )
+        gov.loc[is_dem, "party_simplified"] = "DEMOCRAT"
+        reclassed = is_dem.sum() - (gov["party_simplified"].str.upper() == "DEMOCRAT").sum()
+        if reclassed > 0:
+            log.info("  %s: reclassified %d rows to DEMOCRAT via party_detailed", state_abbr, reclassed)
 
     # Aggregate D and R votes by county
     county_party = (

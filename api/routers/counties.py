@@ -22,23 +22,25 @@ def list_counties(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_
     version_id = request.app.state.version_id
 
     has_types = _has_table(db, "county_type_assignments")
+    has_communities = _has_table(db, "community_assignments")
 
     if has_types:
         rows = db.execute(
             """
-            SELECT c.county_fips, c.state_abbr, ca.community_id,
+            SELECT c.county_fips, c.state_abbr,
+                   ca.community_id,
                    cta.dominant_type, cta.super_type
             FROM counties c
-            JOIN community_assignments ca
+            JOIN county_type_assignments cta
+                ON c.county_fips = cta.county_fips
+            LEFT JOIN community_assignments ca
                 ON c.county_fips = ca.county_fips
                 AND ca.version_id = ?
-            LEFT JOIN county_type_assignments cta
-                ON c.county_fips = cta.county_fips
             ORDER BY c.county_fips
             """,
             [version_id],
         ).fetchdf()
-    else:
+    elif has_communities:
         rows = db.execute(
             """
             SELECT c.county_fips, c.state_abbr, ca.community_id
@@ -50,21 +52,33 @@ def list_counties(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_
             """,
             [version_id],
         ).fetchdf()
+    else:
+        rows = db.execute(
+            """
+            SELECT county_fips, state_abbr
+            FROM counties
+            ORDER BY county_fips
+            """,
+        ).fetchdf()
+
+    import pandas as pd
 
     results = []
     for _, row in rows.iterrows():
+        community_id = None
         dominant_type = None
         super_type = None
-        if has_types and "dominant_type" in row.index:
-            import pandas as pd
-
-            dominant_type = None if pd.isna(row["dominant_type"]) else int(row["dominant_type"])
-            super_type = None if pd.isna(row["super_type"]) else int(row["super_type"])
+        if "community_id" in row.index and not pd.isna(row["community_id"]):
+            community_id = int(row["community_id"])
+        if "dominant_type" in row.index and not pd.isna(row["dominant_type"]):
+            dominant_type = int(row["dominant_type"])
+        if "super_type" in row.index and not pd.isna(row["super_type"]):
+            super_type = int(row["super_type"])
         results.append(
             CountyRow(
                 county_fips=row["county_fips"],
                 state_abbr=row["state_abbr"],
-                community_id=int(row["community_id"]),
+                community_id=community_id,
                 dominant_type=dominant_type,
                 super_type=super_type,
             )

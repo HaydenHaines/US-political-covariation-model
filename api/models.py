@@ -71,7 +71,7 @@ class CommunityDetail(BaseModel):
 class CountyRow(BaseModel):
     county_fips: str
     state_abbr: str
-    community_id: int
+    community_id: int | None = None
     dominant_type: int | None = None
     super_type: int | None = None
 

@@ -1,8 +1,11 @@
 """
-Fetch 2024 presidential election results at county level for FL, GA, and AL.
+Fetch 2024 presidential election results at county level for all 50 states + DC.
 
 Source: MIT Election Data + Science Lab (MEDSL) 2024-elections-official GitHub repo.
   https://github.com/MEDSL/2024-elections-official/tree/main/individual_states
+
+Not all states have files in the MEDSL repo (e.g. CA, MS, NJ, OR were absent as of
+2026-03). States without a ZIP are skipped gracefully (HTTP 404 → warning + continue).
 
 Data is precinct-level CSV with county_fips attached — we aggregate to county.
 
@@ -51,13 +54,12 @@ MEDSL_BASE = (
     "https://github.com/MEDSL/2024-elections-official/raw/main/individual_states"
 )
 
-STATES = {
-    "FL": ("fl24.zip", "12"),
-    "GA": ("ga24.zip", "13"),
-    "AL": ("al24.zip", "01"),
+# Build STATES dynamically from config: abbr → (zip_filename, fips_prefix)
+# Pattern: {abbr_lower}24.zip  (e.g. fl24.zip, ca24.zip)
+STATES: dict[str, tuple[str, str]] = {
+    abbr: (f"{abbr.lower()}24.zip", fips)
+    for abbr, fips in _cfg.STATES.items()
 }
-
-STATE_FIPS = {"01": "AL", "12": "FL", "13": "GA"}
 
 
 def download_file(url: str, dest: Path, desc: str) -> None:
@@ -196,7 +198,7 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     frames = []
-    for state_abbr, (filename, fips) in STATES.items():
+    for state_abbr, (filename, _fips) in STATES.items():
         url = f"{MEDSL_BASE}/{filename}"
         dest = RAW_DIR / filename
 
@@ -239,21 +241,24 @@ def main() -> None:
         r = s["pres_rep_2024"].sum()
         print(f"  {state_abbr:<6}  {len(s):>8}  {d:>12,.0f}  {r:>12,.0f}  {d/(d+r):.1%}")
 
-    # Sanity check: total-vote dem share (includes third-party in denominator).
-    # Known values are two-party shares; total-vote share will be slightly lower
-    # (e.g. RFK Jr. drew ~1–2% nationally in 2024), so small negative diffs are expected.
+    # Sanity check (log-only): total-vote dem share vs. known two-party values for a
+    # handful of states.  Total-vote share will be slightly lower than two-party share
+    # because third-party votes (RFK Jr., etc.) are included in the denominator.
+    # Only states with known values are checked; others are silently skipped.
     ACTUAL_2024_TWOPARTY = {"FL": 0.4248, "GA": 0.4910, "AL": 0.3502}
-    print("\n── Sanity check vs. known 2024 two-party state results ─────────────")
-    print(f"  {'State':<6}  {'Total-vote share':>18}  {'Two-party known':>16}  {'Diff':>8}")
-    print("  " + "-" * 55)
-    for state_abbr in combined["state_abbr"].unique():
-        s = combined[combined["state_abbr"] == state_abbr]
-        d = s["pres_dem_2024"].sum()
-        t = s["pres_total_2024"].sum()
-        computed = d / t if t > 0 else float("nan")
-        known = ACTUAL_2024_TWOPARTY.get(state_abbr, float("nan"))
-        diff = computed - known
-        print(f"  {state_abbr:<6}  {computed:.1%}  {known:.1%}  {diff:+.1%}")
+    known_states = set(ACTUAL_2024_TWOPARTY) & set(combined["state_abbr"].unique())
+    if known_states:
+        print("\n── Sanity check vs. known 2024 two-party state results ─────────────")
+        print(f"  {'State':<6}  {'Total-vote share':>18}  {'Two-party known':>16}  {'Diff':>8}")
+        print("  " + "-" * 55)
+        for state_abbr in sorted(known_states):
+            s = combined[combined["state_abbr"] == state_abbr]
+            d = s["pres_dem_2024"].sum()
+            t = s["pres_total_2024"].sum()
+            computed = d / t if t > 0 else float("nan")
+            known = ACTUAL_2024_TWOPARTY[state_abbr]
+            diff = computed - known
+            print(f"  {state_abbr:<6}  {computed:.1%}  {known:.1%}  {diff:+.1%}")
 
 
 if __name__ == "__main__":

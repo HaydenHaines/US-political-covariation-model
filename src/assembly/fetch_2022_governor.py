@@ -1,14 +1,16 @@
 """
-Fetch 2022 gubernatorial election results at county level for FL, GA, and AL.
+Fetch 2022 gubernatorial election results at county level for all 50 states + DC.
 
 Source: MIT Election Data + Science Lab (MEDSL) 2022-elections-official GitHub repo.
   https://github.com/MEDSL/2022-elections-official/tree/main/individual_states
 
+Not every state holds a governor race in even-numbered years (many states use
+odd-year cycles, e.g. KY, LA, MS, NJ, VA). States without a ZIP file in MEDSL,
+or whose file exists but contains no GOVERNOR rows, are skipped gracefully.
+
 Data is precinct-level CSV with county_fips attached — we aggregate to county.
 No spatial join required (county-level validation only; cannot extend Stan model
 without tract-level spatial data).
-
-Alabama 2022: Ivey (R) won ~67% vs Boyd (D) ~27%. Included if available.
 
 Mode dedup: MEDSL sometimes includes both mode-specific rows (ABSENTEE, ELECTION DAY)
 and a TOTAL row. We use TOTAL rows only if present; otherwise sum all modes.
@@ -47,13 +49,12 @@ MEDSL_BASE = (
     "https://github.com/MEDSL/2022-elections-official/raw/main/individual_states"
 )
 
-STATES = {
-    "FL": ("2022-fl-local-precinct-general.zip", "12"),
-    "GA": ("2022-ga-local-precinct-general.zip", "13"),
-    "AL": ("2022-al-local-precinct-general.zip", "01"),
+# Build STATES dynamically from config: abbr → (zip_filename, fips_prefix)
+# Pattern: 2022-{abbr_lower}-local-precinct-general.zip  (e.g. 2022-fl-local-precinct-general.zip)
+STATES: dict[str, tuple[str, str]] = {
+    abbr: (f"2022-{abbr.lower()}-local-precinct-general.zip", fips)
+    for abbr, fips in _cfg.STATES.items()
 }
-
-STATE_FIPS = {"01": "AL", "12": "FL", "13": "GA"}
 
 
 def download_file(url: str, dest: Path, desc: str) -> None:
@@ -73,11 +74,19 @@ def download_file(url: str, dest: Path, desc: str) -> None:
 
 
 def load_medsl_csv(zip_path: Path) -> pd.DataFrame:
-    """Unzip and read the MEDSL precinct CSV from the zip file."""
+    """Unzip and read the MEDSL precinct CSV from the zip file.
+
+    2022 repo typically uses .csv files inside the ZIP.
+    Fall back to first non-directory entry if no .csv file found (defensive,
+    consistent with 2024 fetcher behaviour).
+    """
     with zipfile.ZipFile(zip_path) as zf:
         csv_files = [n for n in zf.namelist() if n.endswith(".csv")]
         if not csv_files:
-            raise FileNotFoundError(f"No CSV in {zip_path}")
+            # Fallback: single entry with no extension (matches 2024 repo format)
+            csv_files = [n for n in zf.namelist() if not zf.getinfo(n).is_dir()]
+        if not csv_files:
+            raise FileNotFoundError(f"No data file in {zip_path}")
         log.info("  Reading %s from %s", csv_files[0], zip_path.name)
         with zf.open(csv_files[0]) as f:
             df = pd.read_csv(f, low_memory=False)
@@ -185,7 +194,7 @@ def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     frames = []
-    for state_abbr, (filename, fips) in STATES.items():
+    for state_abbr, (filename, _fips) in STATES.items():
         url = f"{MEDSL_BASE}/{filename}"
         dest = RAW_DIR / filename
 

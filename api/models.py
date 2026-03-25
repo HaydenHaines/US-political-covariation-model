@@ -145,3 +145,13 @@ class SuperTypeSummary(BaseModel):
     display_name: str
     member_type_ids: list[int]
     n_counties: int
+
+
+class TypeScatterPoint(BaseModel):
+    """One data point per type for the Shift Explorer scatter plot."""
+    type_id: int
+    super_type_id: int
+    display_name: str
+    n_counties: int
+    demographics: dict[str, float]
+    shift_profile: dict[str, float]

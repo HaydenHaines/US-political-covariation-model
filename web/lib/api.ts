@@ -166,6 +166,21 @@ export interface MultiPollResponse {
   effective_n_total: number;
 }
 
+export interface TypeScatterPoint {
+  type_id: number;
+  super_type_id: number;
+  display_name: string;
+  n_counties: number;
+  demographics: Record<string, number>;
+  shift_profile: Record<string, number>;
+}
+
+export async function fetchTypeScatterData(): Promise<TypeScatterPoint[]> {
+  const res = await fetch(`${API_BASE}/types/scatter-data`);
+  if (!res.ok) throw new Error(`/types/scatter-data failed: ${res.status}`);
+  return res.json();
+}
+
 export async function feedMultiplePolls(body: {
   cycle: string;
   state: string;

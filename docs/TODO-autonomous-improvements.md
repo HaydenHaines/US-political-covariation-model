@@ -59,7 +59,7 @@ KMeans at J=43 with r=0.818 is solid. These experiments may find marginal gains 
 
 - [x] **P3.4: HDBSCAN with auto-J** — DONE S178. Fails decisively (r=0.53 vs KMeans 0.84). Finds state-level density, not electoral types. All clustering experiments complete except P3.5.
 
-- [ ] **P3.5: Turnout as separate dimension** — Turnout-shift is redundant with 2-party D/R shifts. Test: cluster on turnout separately, merge with partisan types. Research: does turnout structure add predictive value for midterms?
+- [x] **P3.5: Turnout as separate dimension** — DONE S186. Current x1.0 weight is optimal. Dropping turnout costs -0.021r; up-weighting trades partisan accuracy for turnout with no net gain. Turnout-only r=0.79. ALL P3.x experiments COMPLETE. See docs/turnout-dimension-experiment-S186.md.
 
 ---
 

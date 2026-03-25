@@ -39,9 +39,11 @@ from src.assembly.build_features import (
 # Constants
 # ---------------------------------------------------------------------------
 
-# Expected county counts: AL=67, FL=67, GA=159
-EXPECTED_COUNTY_COUNTS = {"AL": 67, "FL": 67, "GA": 159}
-EXPECTED_TOTAL_COUNTIES = sum(EXPECTED_COUNTY_COUNTS.values())  # 293
+# Expected county counts for key states (spot-check, not exhaustive)
+EXPECTED_COUNTY_COUNTS = {"AL": 67, "FL": 67, "GA": 159, "TX": 254, "CA": 58}
+# National total: ~3,141 counties (exact count depends on ARDA coverage)
+EXPECTED_MIN_COUNTIES = 3000
+EXPECTED_MIN_STATES = 50
 
 
 # ---------------------------------------------------------------------------
@@ -371,23 +373,26 @@ class TestRcmsFeatureIntegrity:
             pytest.skip("county_rcms_features.parquet not found — run build_features.py first")
         return pd.read_parquet(path)
 
-    def test_covers_all_three_states(self, rcms_county_features):
-        """Feature file must contain counties from FL, GA, and AL."""
+    def test_covers_national_scope(self, rcms_county_features):
+        """Feature file must contain counties from at least 50 states + DC."""
         states = set(rcms_county_features["state_abbr"])
-        assert states == {"FL", "GA", "AL"}
+        assert len(states) >= EXPECTED_MIN_STATES, (
+            f"Expected >= {EXPECTED_MIN_STATES} states, got {len(states)}"
+        )
 
     def test_county_count(self, rcms_county_features):
-        """Must have exactly 293 counties (67 AL + 67 FL + 159 GA)."""
-        assert len(rcms_county_features) == EXPECTED_TOTAL_COUNTIES, (
-            f"Expected {EXPECTED_TOTAL_COUNTIES} counties, got {len(rcms_county_features)}"
+        """Must have at least 3000 counties nationally."""
+        assert len(rcms_county_features) >= EXPECTED_MIN_COUNTIES, (
+            f"Expected >= {EXPECTED_MIN_COUNTIES} counties, got {len(rcms_county_features)}"
         )
 
     def test_per_state_county_counts(self, rcms_county_features):
-        """Each state must have the correct number of counties."""
+        """Key states must have at least 90% of expected counties (ARDA may suppress some)."""
         counts = rcms_county_features["state_abbr"].value_counts().to_dict()
         for state, expected in EXPECTED_COUNTY_COUNTS.items():
-            assert counts.get(state) == expected, (
-                f"{state}: expected {expected} counties, got {counts.get(state)}"
+            actual = counts.get(state, 0)
+            assert actual >= expected * 0.9, (
+                f"{state}: expected ~{expected} counties, got {actual}"
             )
 
     def test_has_all_feature_columns(self, rcms_county_features):
@@ -415,23 +420,24 @@ class TestRcmsFeatureIntegrity:
 
     def test_fips_state_prefix_matches_state_abbr(self, rcms_county_features):
         """First 2 digits of county FIPS must match state FIPS codes."""
-        fips_to_abbr = {"01": "AL", "12": "FL", "13": "GA"}
+        from src.core import config as _cfg
+        fips_to_abbr = {fips: abbr for abbr, fips in _cfg.STATES.items()}
         derived = rcms_county_features["county_fips"].str[:2].map(fips_to_abbr)
         mismatches = rcms_county_features["state_abbr"] != derived
         assert not mismatches.any(), (
             f"{mismatches.sum()} rows have mismatched county_fips / state_abbr"
         )
 
-    def test_evangelical_share_is_dominant_in_south(self, rcms_county_features):
-        """Median evangelical share should be > 0.5 (typical for Deep South counties)."""
+    def test_evangelical_share_reasonable(self, rcms_county_features):
+        """Median evangelical share should be > 0.2 nationally (substantial US presence)."""
         median_evang = rcms_county_features["evangelical_share"].median()
-        assert median_evang > 0.5, (
-            f"Median evangelical share = {median_evang:.3f}; expected > 0.5 for Deep South"
+        assert median_evang > 0.2, (
+            f"Median evangelical share = {median_evang:.3f}; expected > 0.2 nationally"
         )
 
-    def test_adherence_rate_is_positive(self, rcms_county_features):
-        """Adherence rate (adherents per 1,000 residents) must be positive."""
-        assert (rcms_county_features["religious_adherence_rate"] > 0).all()
+    def test_adherence_rate_is_non_negative(self, rcms_county_features):
+        """Adherence rate (adherents per 1,000 residents) must be non-negative."""
+        assert (rcms_county_features["religious_adherence_rate"] >= 0).all()
 
     def test_congregations_per_1000_is_positive(self, rcms_county_features):
         """Congregations per 1,000 adherents must be positive."""

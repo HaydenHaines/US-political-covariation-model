@@ -82,6 +82,11 @@ DEMOGRAPHIC_FEATURES = [
     "pct_wfh",
     "pct_no_vehicle",
     "pct_veteran",
+    # Religion features (county-level RCMS mapped to tracts via FIPS prefix)
+    "evangelical_share",
+    "catholic_share",
+    "black_protestant_share",
+    "religious_adherence_rate",
 ]
 
 POPULATION_MIN_VOTES = 500

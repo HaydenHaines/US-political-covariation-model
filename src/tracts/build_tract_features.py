@@ -107,7 +107,7 @@ def build_electoral_features(
                 result = result.merge(density_df, on="GEOID", how="left")
 
     # -- Presidential shifts (log-odds) ----------------------------------------
-    pres_pairs = [("2016", "2020"), ("2020", "2024")]
+    pres_pairs = [("2008", "2012"), ("2012", "2016"), ("2016", "2020"), ("2020", "2024")]
     for early_yr, late_yr in pres_pairs:
         early_key = f"president_{early_yr}"
         late_key = f"president_{late_yr}"

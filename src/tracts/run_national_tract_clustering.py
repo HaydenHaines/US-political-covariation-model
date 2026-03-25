@@ -32,17 +32,25 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # ── Feature selection ─────────────────────────────────────────────────────────
 
-# Training features: presidential shifts (2016→2020) only.
-# These have near-complete coverage (>99%) and are fully national.
-# 2020→2024 has 83% coverage and is the holdout -- excluded from training.
-# Gov shifts (18→22 state-centered) have 54% coverage -- excluded to avoid
-# massive NaN imputation bias at national scale.
+# Training features: presidential shifts across 3 cycles (2008→2012, 2012→2016, 2016→2020).
+# 2020→2024 is the holdout -- excluded from training.
+# Gov shifts excluded: 54% coverage causes massive NaN imputation bias.
+# Earlier presidential pairs (08→12, 12→16) have 97-99% coverage.
 TRAINING_FEATURES = [
+    # Presidential shifts (3 training pairs)
+    "pres_d_shift_08_12",
+    "pres_r_shift_08_12",
+    "pres_turnout_shift_08_12",
+    "pres_d_shift_12_16",
+    "pres_r_shift_12_16",
+    "pres_turnout_shift_12_16",
     "pres_d_shift_16_20",
     "pres_r_shift_16_20",
     "pres_turnout_shift_16_20",
+    # Presidential levels
     "pres_dem_share_2016",
     "pres_dem_share_2020",
+    # Turnout shift
     "turnout_shift_16_20",
 ]
 
@@ -131,14 +139,20 @@ def load_and_filter_features(
             train_df[col] = train_df[col].fillna(med)
             log.info("  %s: filled %d NaNs with median=%.4f", col, n_filled, med)
 
-    # Apply presidential weight
-    pres_cols = [c for c in train_cols if "pres_" in c]
-    train_df[pres_cols] = train_df[pres_cols] * presidential_weight
-    log.info("Applied presidential weight=%.1f to %d columns", presidential_weight, len(pres_cols))
-
-    # Standard scale
+    # Standard scale first, then apply presidential weight
+    # (Weight must be applied AFTER scaling to have any effect,
+    # since StandardScaler normalizes away pre-scaling differences.)
     scaler = StandardScaler()
     X_train = scaler.fit_transform(train_df.values)
+
+    if presidential_weight != 1.0:
+        pres_indices = [i for i, c in enumerate(train_cols) if "pres_" in c]
+        X_train[:, pres_indices] *= presidential_weight
+        log.info(
+            "Applied presidential weight=%.1f to %d columns (post-scaling)",
+            presidential_weight, len(pres_indices),
+        )
+
     log.info("Scaled training matrix: %s", X_train.shape)
 
     # Holdout matrix (raw, for validation)
@@ -323,12 +337,13 @@ def main() -> None:
     )
     super_type_labels = np.array([nesting.mapping[t] for t in labels])
 
-    # Build output DataFrame
-    out_df = pd.DataFrame({"GEOID": df_filt["GEOID"].values})
-    for i in range(best_j):
-        out_df[f"type_{i}_score"] = soft_scores[:, i]
-    out_df["dominant_type"] = labels
-    out_df["super_type"] = super_type_labels
+    # Build output DataFrame (concat all columns at once to avoid fragmentation)
+    score_cols = {f"type_{i}_score": soft_scores[:, i] for i in range(best_j)}
+    out_df = pd.concat([
+        pd.DataFrame({"GEOID": df_filt["GEOID"].values}),
+        pd.DataFrame(score_cols),
+        pd.DataFrame({"dominant_type": labels, "super_type": super_type_labels}),
+    ], axis=1)
 
     out_df.to_parquet(out_path, index=False)
     log.info("Saved %d tract assignments → %s", len(out_df), out_path)

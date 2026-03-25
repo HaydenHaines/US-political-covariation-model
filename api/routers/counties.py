@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import duckdb
 import pandas as pd
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from api.db import get_db
-from api.models import CountyRow
+from api.models import CountyDetail, CountyRow, SiblingCounty
 
 router = APIRouter(tags=["counties"])
 
@@ -111,3 +111,93 @@ def list_counties(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_
             )
         )
     return results
+
+
+@router.get("/counties/{fips}", response_model=CountyDetail)
+def get_county_detail(
+    fips: str,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+):
+    """Return detailed profile for a single county (SEO county page)."""
+    # ── Core county + type info ───────────────────────────────────────────
+    row = db.execute(
+        """
+        SELECT c.county_fips, c.county_name, c.state_abbr,
+               cta.dominant_type, cta.super_type,
+               t.display_name  AS type_display_name,
+               st.display_name AS super_type_display_name,
+               t.narrative
+        FROM counties c
+        JOIN county_type_assignments cta ON c.county_fips = cta.county_fips
+        JOIN types t ON cta.dominant_type = t.type_id
+        JOIN super_types st ON t.super_type_id = st.super_type_id
+        WHERE c.county_fips = ?
+        LIMIT 1
+        """,
+        [fips],
+    ).fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"County {fips} not found")
+
+    (
+        county_fips, county_name, state_abbr,
+        dominant_type, super_type,
+        type_display_name, super_type_display_name,
+        narrative,
+    ) = row
+
+    # ── Baseline prediction (AVG across races) ────────────────────────────
+    pred_row = db.execute(
+        "SELECT AVG(pred_dem_share) FROM predictions WHERE county_fips = ?",
+        [fips],
+    ).fetchone()
+    pred_dem_share = float(pred_row[0]) if pred_row and pred_row[0] is not None else None
+
+    # ── Demographics ──────────────────────────────────────────────────────
+    demo_row = db.execute(
+        "SELECT * FROM county_demographics WHERE county_fips = ?",
+        [fips],
+    ).fetchone()
+    demographics: dict[str, float] = {}
+    if demo_row is not None:
+        demo_cols = [
+            desc[0]
+            for desc in db.execute("DESCRIBE county_demographics").fetchall()
+        ]
+        for col, val in zip(demo_cols, demo_row):
+            if col == "county_fips":
+                continue
+            if val is not None:
+                demographics[col] = float(val)
+
+    # ── Sibling counties (same dominant_type, limit 20) ───────────────────
+    siblings = db.execute(
+        """
+        SELECT c.county_fips, c.county_name, c.state_abbr
+        FROM county_type_assignments cta
+        JOIN counties c ON cta.county_fips = c.county_fips
+        WHERE cta.dominant_type = ? AND cta.county_fips != ?
+        ORDER BY c.state_abbr, c.county_name
+        LIMIT 20
+        """,
+        [dominant_type, fips],
+    ).fetchall()
+    sibling_counties = [
+        SiblingCounty(county_fips=s[0], county_name=s[1], state_abbr=s[2])
+        for s in siblings
+    ]
+
+    return CountyDetail(
+        county_fips=county_fips,
+        county_name=county_name,
+        state_abbr=state_abbr,
+        dominant_type=int(dominant_type),
+        super_type=int(super_type),
+        type_display_name=type_display_name,
+        super_type_display_name=super_type_display_name,
+        narrative=narrative,
+        pred_dem_share=pred_dem_share,
+        demographics=demographics,
+        sibling_counties=sibling_counties,
+    )

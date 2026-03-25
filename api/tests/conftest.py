@@ -203,6 +203,39 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
             [fips, dt, st, TEST_VERSION],
         )
 
+    # ── County demographics ──────────────────────────────────────────────
+    con.execute("""
+        CREATE TABLE county_demographics (
+            county_fips VARCHAR PRIMARY KEY,
+            pop_total BIGINT,
+            pct_white_nh DOUBLE,
+            pct_black DOUBLE,
+            pct_asian DOUBLE,
+            pct_hispanic DOUBLE,
+            median_age DOUBLE,
+            median_hh_income BIGINT,
+            log_median_hh_income DOUBLE,
+            pct_bachelors_plus DOUBLE,
+            pct_graduate DOUBLE,
+            pct_owner_occupied DOUBLE,
+            pct_wfh DOUBLE,
+            pct_transit DOUBLE,
+            pct_management DOUBLE
+        )
+    """)
+    demo_data = [
+        ("12001", 280000, 0.55, 0.20, 0.06, 0.12, 32.0, 48000, 4.68, 0.42, 0.20, 0.45, 0.12, 0.03, 0.38),
+        ("12003", 28000, 0.80, 0.15, 0.01, 0.03, 41.0, 42000, 4.62, 0.12, 0.05, 0.75, 0.03, 0.00, 0.22),
+        ("13001", 18500, 0.60, 0.35, 0.01, 0.03, 40.0, 35000, 4.54, 0.14, 0.06, 0.68, 0.02, 0.00, 0.20),
+        ("13003", 8300, 0.55, 0.38, 0.01, 0.05, 38.0, 30000, 4.48, 0.10, 0.04, 0.60, 0.01, 0.00, 0.18),
+        ("01001", 58000, 0.73, 0.19, 0.01, 0.03, 39.0, 68000, 4.83, 0.30, 0.13, 0.75, 0.05, 0.01, 0.36),
+    ]
+    for d in demo_data:
+        con.execute(
+            "INSERT INTO county_demographics VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            list(d),
+        )
+
     return con
 
 

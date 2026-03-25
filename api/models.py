@@ -155,3 +155,25 @@ class TypeScatterPoint(BaseModel):
     n_counties: int
     demographics: dict[str, float]
     shift_profile: dict[str, float]
+
+
+# ── County detail (SEO page) ──────────────────────────────────────────────
+
+class SiblingCounty(BaseModel):
+    county_fips: str
+    county_name: str | None
+    state_abbr: str
+
+
+class CountyDetail(BaseModel):
+    county_fips: str
+    county_name: str | None
+    state_abbr: str
+    dominant_type: int
+    super_type: int
+    type_display_name: str
+    super_type_display_name: str
+    narrative: str | None = None
+    pred_dem_share: float | None = None
+    demographics: dict[str, float]
+    sibling_counties: list[SiblingCounty]

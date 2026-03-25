@@ -58,14 +58,17 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from src.core import config as _cfg
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parents[2]
 OUTPUT_PATH = PROJECT_ROOT / "data" / "raw" / "irs_migration.parquet"
 
-# Target states: abbreviation → FIPS prefix
-STATES = {"AL": "01", "FL": "12", "GA": "13"}
+# State list comes from config/model.yaml (all 50+DC by default).
+# IRS migration data is national; we filter to flows touching our target states.
+STATES: dict[str, str] = _cfg.STATES  # abbr → fips prefix
 
 # Set of state FIPS codes we care about (for filtering)
 TARGET_STATE_FIPS = frozenset(STATES.values())

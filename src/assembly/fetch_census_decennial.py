@@ -21,6 +21,8 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
+from src.core import config as _cfg
+
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -30,7 +32,9 @@ log = logging.getLogger(__name__)
 
 API_KEY = os.getenv("CENSUS_API_KEY")
 
-STATES = {"AL": "01", "FL": "12", "GA": "13"}
+# State list comes from config/model.yaml (all 50+DC by default).
+# fetch_year() accepts an optional states= override for targeted runs.
+STATES: dict[str, str] = _cfg.STATES  # abbr → fips prefix
 
 PROJECT_ROOT = Path(__file__).parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "data" / "assembled"

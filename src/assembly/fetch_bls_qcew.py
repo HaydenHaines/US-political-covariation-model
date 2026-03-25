@@ -92,14 +92,18 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from src.core import config as _cfg
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parents[2]
+
 RAW_OUTPUT_PATH = PROJECT_ROOT / "data" / "raw" / "qcew_county.parquet"
 
-# Target states: abbreviation → FIPS prefix
-STATES = {"AL": "01", "FL": "12", "GA": "13"}
+# State list comes from config/model.yaml (all 50+DC by default).
+# BLS QCEW API is national; we filter to our target state FIPS prefixes.
+STATES: dict[str, str] = _cfg.STATES  # abbr → fips prefix
 
 # Set of 2-digit state FIPS prefixes (for filtering)
 TARGET_STATE_FIPS = frozenset(STATES.values())

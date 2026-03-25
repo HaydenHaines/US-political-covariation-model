@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.description.name_types import compute_zscores, name_types
+from src.description.name_types import compute_zscores, name_types, name_super_types
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ class TestNameTypesStructure:
 
     def test_row_count_matches_types(self):
         """One row per type in the profiles."""
-        for n in [1, 5, 10, 43]:
+        for n in [1, 5, 10, 43, 55]:
             profiles = _make_profiles(n)
             result = name_types(profiles=profiles)
             assert len(result) == n, f"Expected {n} rows, got {len(result)}"
@@ -240,6 +240,14 @@ class TestNameTypesUniqueness:
             f"Duplicates found: {result[result['display_name'].duplicated(keep=False)][['type_id','display_name']].to_string()}"
         )
 
+    def test_all_names_unique_full_55(self):
+        """Full 55-type synthetic dataset (national model) — all names unique."""
+        profiles = _make_profiles(55, seed=42)
+        result = name_types(profiles=profiles)
+        assert result["display_name"].nunique() == 55, (
+            f"Duplicates found: {result[result['display_name'].duplicated(keep=False)][['type_id','display_name']].to_string()}"
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tests: word count (2–4 words)
@@ -258,7 +266,7 @@ class TestNameTypesWordCount:
             assert wc >= 2, f"Type {row.type_id} name too short: '{row.display_name}'"
 
     def test_names_have_at_most_4_words(self):
-        profiles = _make_profiles(43, seed=7)
+        profiles = _make_profiles(55, seed=7)
         result = name_types(profiles=profiles)
         for _, row in result.iterrows():
             wc = self._word_count(row["display_name"])
@@ -360,3 +368,66 @@ class TestNameTypesEdgeCases:
         profiles = _make_profiles(5)
         name_types(profiles=profiles)  # profiles passed directly → no disk write
         assert len(written) == 0, f"Unexpected disk writes: {written}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: name_super_types
+# ---------------------------------------------------------------------------
+
+
+def _make_super_assignments(n_types: int, n_supers: int = 5) -> pd.DataFrame:
+    """Build a county_assignments stub with super_type mapping."""
+    rng = np.random.default_rng(0)
+    n_counties = n_types * 3
+    dominant = [i % n_types for i in range(n_counties)]
+    super_t = [i % n_supers for i in range(n_counties)]
+    return pd.DataFrame(
+        {
+            "county_fips": [f"{12000 + i:05d}" for i in range(n_counties)],
+            "dominant_type": dominant,
+            "super_type": super_t,
+        }
+    )
+
+
+class TestNameSuperTypes:
+    def test_returns_dataframe(self):
+        profiles = _make_profiles(10)
+        ca = _make_super_assignments(10, n_supers=5)
+        result = name_super_types(profiles=profiles, county_assignments=ca)
+        assert isinstance(result, pd.DataFrame)
+
+    def test_has_required_columns(self):
+        profiles = _make_profiles(10)
+        ca = _make_super_assignments(10, n_supers=5)
+        result = name_super_types(profiles=profiles, county_assignments=ca)
+        assert "super_type_id" in result.columns
+        assert "display_name" in result.columns
+
+    def test_row_count_matches_n_supers(self):
+        profiles = _make_profiles(10)
+        ca = _make_super_assignments(10, n_supers=5)
+        result = name_super_types(profiles=profiles, county_assignments=ca)
+        assert len(result) == 5
+
+    def test_all_names_unique(self):
+        profiles = _make_profiles(15)
+        ca = _make_super_assignments(15, n_supers=5)
+        result = name_super_types(profiles=profiles, county_assignments=ca)
+        assert result["display_name"].nunique() == len(result), (
+            f"Duplicate super-type names: {result.to_string()}"
+        )
+
+    def test_no_null_or_empty_names(self):
+        profiles = _make_profiles(10)
+        ca = _make_super_assignments(10, n_supers=5)
+        result = name_super_types(profiles=profiles, county_assignments=ca)
+        assert result["display_name"].notna().all()
+        assert (result["display_name"].str.strip() != "").all()
+
+    def test_returns_empty_on_missing_data(self):
+        """Returns empty DataFrame when county_assignments is None."""
+        profiles = _make_profiles(5)
+        result = name_super_types(profiles=profiles, county_assignments=None)
+        assert isinstance(result, pd.DataFrame)
+        assert "super_type_id" in result.columns

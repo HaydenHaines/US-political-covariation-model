@@ -322,10 +322,9 @@ def build_religion_features(
     DataFrame with GEOID + religion feature columns.
     """
     religion_cols = [
-        "evangelical_share",
-        "catholic_share",
-        "black_protestant_share",
-        "adherence_rate",
+        c for c in ["evangelical_share", "catholic_share", "black_protestant_share",
+                    "adherence_rate", "religious_adherence_rate"]
+        if c in rcms_county.columns
     ]
 
     df = pd.DataFrame({"GEOID": tract_geoids.values})
@@ -356,13 +355,36 @@ def build_all_features() -> pd.DataFrame:
     state_fips_map = {v: k for k, v in _cfg.STATES.items()}
 
     # -- Load tract vote parquets --
+    # Supports two formats:
+    #   1. DRA stacked file: tract_votes_dra.parquet — single file with `race` and `year`
+    #      columns and `tract_geoid` as the key.
+    #   2. Per-election files: tract_votes_{state}_{year}_{race}.parquet — one file per
+    #      state/year/race combination with a `GEOID` key column.
     tract_votes: dict[str, pd.DataFrame] = {}
-    import glob as _glob
 
+    dra_path = tracts_dir / "tract_votes_dra.parquet"
+    if dra_path.exists():
+        log.info("Loading DRA stacked tract vote file from %s", dra_path)
+        dra_df = pd.read_parquet(dra_path)
+        # Normalize key column name to GEOID for downstream compatibility
+        if "tract_geoid" in dra_df.columns and "GEOID" not in dra_df.columns:
+            dra_df = dra_df.rename(columns={"tract_geoid": "GEOID"})
+        # Split into per-election DataFrames keyed by "{race}_{year}"
+        for (race, year), grp in dra_df.groupby(["race", "year"]):
+            key = f"{race}_{year}"
+            tract_votes[key] = grp.reset_index(drop=True)
+        log.info("  Loaded %d election datasets from DRA file", len(tract_votes))
+
+    # Also load any per-election parquet files (legacy / supplementary)
     for fpath in sorted(tracts_dir.glob("tract_votes_*.parquet")):
+        if fpath.name == "tract_votes_dra.parquet":
+            continue  # already handled above
         df = pd.read_parquet(fpath)
         # Filename pattern: tract_votes_{state}_{year}_{race}.parquet
         parts = fpath.stem.split("_")  # ["tract", "votes", state, year, race]
+        if len(parts) < 5:
+            log.warning("Skipping unrecognized tract vote file: %s", fpath.name)
+            continue
         year = parts[3]
         race = parts[4]
         key = f"{race}_{year}"
@@ -391,6 +413,9 @@ def build_all_features() -> pd.DataFrame:
     if acs_path.exists():
         log.info("Loading ACS tract data from %s", acs_path)
         acs_df = pd.read_parquet(acs_path)
+        # Normalize key column: ACS uses tract_geoid; feature builder expects GEOID
+        if "tract_geoid" in acs_df.columns and "GEOID" not in acs_df.columns:
+            acs_df = acs_df.rename(columns={"tract_geoid": "GEOID"})
         demographic = build_demographic_features(acs_df)
     else:
         log.warning(

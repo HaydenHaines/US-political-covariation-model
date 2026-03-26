@@ -75,8 +75,6 @@ def test_predict_produces_county_rows(synthetic_data):
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -93,8 +91,7 @@ def test_predict_dem_share_bounded(synthetic_data):
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -111,8 +108,7 @@ def test_predict_has_ci_columns(synthetic_data):
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -129,8 +125,7 @@ def test_predict_ci_ordered(synthetic_data):
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -147,8 +142,6 @@ def test_poll_shifts_predictions(synthetic_data):
     d = synthetic_data
     no_poll = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -158,8 +151,7 @@ def test_poll_shifts_predictions(synthetic_data):
     )
     with_poll = predict_race(
         race="FL Senate",
-        poll_dem_share=0.55,
-        poll_n=800,
+        polls=[(0.55, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -181,8 +173,7 @@ def test_state_filter(synthetic_data):
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -196,12 +187,10 @@ def test_state_filter(synthetic_data):
 
 
 def test_no_poll_uses_prior(synthetic_data):
-    """When poll_dem_share is None and no county_priors, predictions should reflect type priors."""
+    """When polls is None and no county_priors, predictions should reflect type priors."""
     d = synthetic_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -278,8 +267,6 @@ def test_county_prior_no_poll_preserves_baseline(county_prior_data):
     d = county_prior_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -301,8 +288,6 @@ def test_county_prior_differentiates_same_type_counties(county_prior_data):
     d = county_prior_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -320,8 +305,6 @@ def test_county_prior_type_mean_gives_identical_predictions(county_prior_data):
     d = county_prior_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -340,8 +323,6 @@ def test_county_prior_poll_shifts_all_counties(county_prior_data):
     d = county_prior_data
     no_poll = predict_race(
         race="FL Senate",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -352,8 +333,7 @@ def test_county_prior_poll_shifts_all_counties(county_prior_data):
     )
     with_poll = predict_race(
         race="FL Senate",
-        poll_dem_share=0.60,
-        poll_n=1000,
+        polls=[(0.60, 1000, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -378,8 +358,7 @@ def test_county_prior_bounded(county_prior_data):
     extreme_priors = np.array([0.99, 0.01, 0.50, 0.50])
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.90,  # extreme poll
-        poll_n=10000,
+        polls=[(0.90, 10000, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -397,8 +376,7 @@ def test_county_prior_ci_ordered(county_prior_data):
     d = county_prior_data
     result = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -426,13 +404,48 @@ def test_compute_county_priors_from_data_empty_map():
     np.testing.assert_allclose(result, [0.50, 0.50])
 
 
+def test_multi_poll_stacking(county_prior_data):
+    """Two polls from different states should produce different result than one poll alone."""
+    d = county_prior_data
+    # Single FL poll
+    single = predict_race(
+        race="FL Senate",
+        polls=[(0.60, 1000, "FL")],
+        type_scores=d["type_scores"],
+        type_covariance=d["type_covariance"],
+        type_priors=d["type_priors"],
+        county_fips=d["county_fips"],
+        states=d["states"],
+        county_names=d["county_names"],
+        county_priors=d["county_priors"],
+    )
+    # Same FL poll plus a GA poll — should produce different county predictions
+    # because the GA poll provides an additional, potentially contradictory signal
+    # that shifts type means further before mapping back to counties.
+    multi = predict_race(
+        race="FL Senate",
+        polls=[(0.60, 1000, "FL"), (0.40, 1000, "GA")],
+        type_scores=d["type_scores"],
+        type_covariance=d["type_covariance"],
+        type_priors=d["type_priors"],
+        county_fips=d["county_fips"],
+        states=d["states"],
+        county_names=d["county_names"],
+        county_priors=d["county_priors"],
+    )
+    # Adding a contradictory GA poll should change predictions
+    assert not np.allclose(
+        single["pred_dem_share"].values,
+        multi["pred_dem_share"].values,
+    )
+
+
 def test_county_prior_backward_compat(synthetic_data):
     """Without county_priors, predict_race behaves identically to legacy."""
     d = synthetic_data
     result_legacy = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],
@@ -443,8 +456,7 @@ def test_county_prior_backward_compat(synthetic_data):
     )
     result_no_arg = predict_race(
         race="FL Senate",
-        poll_dem_share=0.45,
-        poll_n=800,
+        polls=[(0.45, 800, "FL")],
         type_scores=d["type_scores"],
         type_covariance=d["type_covariance"],
         type_priors=d["type_priors"],

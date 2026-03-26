@@ -1,6 +1,7 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import DeckGL from "@deck.gl/react";
+import { WebMercatorViewport } from "@deck.gl/core";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import { fetchCounties, fetchSuperTypes, fetchTypes, type CountyRow, type TypeSummary } from "@/lib/api";
 import { useMapContext } from "@/components/MapContext";
@@ -83,8 +84,49 @@ const INITIAL_VIEW = {
   bearing: 0,
 };
 
+/** Partisan lean color scale: blue (D) → white (toss-up) → red (R). */
+function choroplethColor(demShare: number): [number, number, number, number] {
+  // Center at 0.5; map 0.3–0.7 to full color range (clip beyond that)
+  const t = Math.max(0, Math.min(1, (demShare - 0.3) / 0.4));
+  if (t >= 0.5) {
+    // 0.5→1.0: white→blue
+    const s = (t - 0.5) * 2;
+    return [
+      Math.round(255 * (1 - s * 0.75)),
+      Math.round(255 * (1 - s * 0.44)),
+      255,
+      200,
+    ];
+  }
+  // 0.0→0.5: red→white
+  const s = t * 2;
+  return [
+    255,
+    Math.round(255 * s),
+    Math.round(255 * s),
+    200,
+  ];
+}
+
+/** Extract all [lon, lat] pairs from a GeoJSON geometry. */
+function extractCoords(geometry: any): [number, number][] {
+  if (!geometry) return [];
+  const recurse = (arr: any): [number, number][] => {
+    if (!Array.isArray(arr)) return [];
+    if (typeof arr[0] === "number") return [[arr[0], arr[1]]];
+    return arr.flatMap(recurse);
+  };
+  return recurse(geometry.coordinates);
+}
+
 export default function MapShell() {
-  const { selectedCommunityId, setSelectedCommunityId, selectedTypeId, setSelectedTypeId } = useMapContext();
+  const {
+    selectedCommunityId, setSelectedCommunityId,
+    selectedTypeId, setSelectedTypeId,
+    forecastState, forecastChoropleth,
+  } = useMapContext();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [viewState, setViewState] = useState<any>(INITIAL_VIEW);
   const [geojson, setGeojson] = useState<any>(null);
   const [tractGeojson, setTractGeojson] = useState<any>(null);
   const [countyMap, setCountyMap] = useState<Record<string, CountyRow>>({});
@@ -96,6 +138,38 @@ export default function MapShell() {
   const [tractLoading, setTractLoading] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [tractContext, setTractContext] = useState<TractContext | null>(null);
+
+  // Pan to selected forecast state whenever it changes
+  useEffect(() => {
+    if (!forecastState || !geojson || Object.keys(countyMap).length === 0) return;
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    let found = false;
+    for (const feature of geojson.features) {
+      const fips = feature.properties?.county_fips;
+      if (countyMap[fips]?.state_abbr !== forecastState) continue;
+      found = true;
+      for (const [lon, lat] of extractCoords(feature.geometry)) {
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      }
+    }
+    if (!found) return;
+    const container = containerRef.current;
+    const width = container?.clientWidth ?? 800;
+    const height = container?.clientHeight ?? 600;
+    try {
+      const vp = new WebMercatorViewport({ width, height });
+      const { longitude, latitude, zoom } = vp.fitBounds(
+        [[minLon, minLat], [maxLon, maxLat]],
+        { padding: 48 }
+      );
+      setViewState((prev: any) => ({ ...prev, longitude, latitude, zoom, transitionDuration: 600 }));
+    } catch {
+      // fitBounds can throw for degenerate bounds (single-county states etc.); ignore
+    }
+  }, [forecastState, geojson, countyMap]);
 
   useEffect(() => {
     Promise.all([
@@ -168,6 +242,14 @@ export default function MapShell() {
 
   const getColor = useCallback(
     (f: any): [number, number, number, number] => {
+      // Forecast choropleth mode: color by dem_share
+      if (forecastChoropleth) {
+        const fips: string = f.properties?.county_fips ?? "";
+        const share = forecastChoropleth.get(fips);
+        if (share !== undefined) return choroplethColor(share);
+        return [200, 200, 200, 120]; // no data
+      }
+
       const st: number = f.properties?.super_type ?? -1;
       const dt: number = f.properties?.dominant_type ?? f.properties?.type_id ?? -1;
 
@@ -179,11 +261,30 @@ export default function MapShell() {
       // Fallback for legacy community data (no type data)
       return [180, 180, 180, 120] as [number, number, number, number];
     },
-    [selectedTypeId, hasTypeData, showTracts]
+    [selectedTypeId, hasTypeData, showTracts, forecastChoropleth]
+  );
+
+  const getLineColor = useCallback(
+    (f: any): [number, number, number, number] => {
+      // Highlight selected forecast state with white outline
+      if (forecastState) {
+        const fips: string = f.properties?.county_fips ?? "";
+        if (countyMap[fips]?.state_abbr === forecastState) {
+          return [255, 255, 255, 220];
+        }
+      }
+      return [80, 80, 80, 120];
+    },
+    [forecastState, countyMap]
   );
 
   const getLineWidth = useCallback(
     (f: any): number => {
+      // Forecast state highlight: thicker borders
+      if (forecastState) {
+        const fips: string = f.properties?.county_fips ?? "";
+        if (countyMap[fips]?.state_abbr === forecastState) return 600;
+      }
       if (hasTypeData) {
         const dt: number = f.properties?.dominant_type ?? -1;
         return selectedTypeId !== null && dt === selectedTypeId ? 800 : 200;
@@ -191,7 +292,7 @@ export default function MapShell() {
       const cid: number = f.properties?.community_id ?? -1;
       return selectedCommunityId !== null && cid === selectedCommunityId ? 800 : 200;
     },
-    [selectedCommunityId, selectedTypeId, hasTypeData]
+    [selectedCommunityId, selectedTypeId, hasTypeData, forecastState, countyMap]
   );
 
   const getSuperTypeName = useCallback(
@@ -219,12 +320,13 @@ export default function MapShell() {
           stroked: true,
           filled: true,
           getFillColor: getColor as any,
-          getLineColor: [80, 80, 80, 120],
+          getLineColor: getLineColor as any,
           getLineWidth,
           lineWidthUnits: "meters",
           updateTriggers: {
-            getFillColor: [selectedCommunityId, selectedTypeId, hasTypeData, showTracts],
-            getLineWidth: [selectedCommunityId, selectedTypeId, hasTypeData, showTracts],
+            getFillColor: [selectedCommunityId, selectedTypeId, hasTypeData, showTracts, forecastChoropleth],
+            getLineColor: [forecastState, countyMap],
+            getLineWidth: [selectedCommunityId, selectedTypeId, hasTypeData, showTracts, forecastState, countyMap],
           },
           onHover: ({ object, x, y }: any) => {
             if (object) {
@@ -358,9 +460,10 @@ export default function MapShell() {
     }));
 
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div ref={containerRef} style={{ position: "relative", width: "100%", height: "100%" }}>
       <DeckGL
-        initialViewState={INITIAL_VIEW}
+        viewState={viewState}
+        onViewStateChange={({ viewState: vs }: any) => setViewState(vs)}
         controller={true}
         layers={layers}
         style={{ background: "#e8ecf0" }}
@@ -438,8 +541,39 @@ export default function MapShell() {
         {tractLoading ? "Loading tracts…" : showTracts ? "Tract Communities" : "County Types"} ▾
       </button>
 
-      {/* Legend */}
-      {legendEntries.length > 0 && (
+      {/* Forecast choropleth legend — replaces super-type legend when active */}
+      {forecastChoropleth && (
+        <div
+          className="map-legend"
+          style={{
+            position: "absolute",
+            bottom: 24,
+            left: 16,
+            background: "white",
+            border: "1px solid var(--color-border)",
+            borderRadius: "4px",
+            padding: "8px 12px",
+            fontSize: "11px",
+            fontFamily: "var(--font-sans)",
+          }}
+        >
+          {[
+            { label: "Strong D (60%+)", color: choroplethColor(0.65) },
+            { label: "Lean D (50–60%)", color: choroplethColor(0.55) },
+            { label: "Toss-up (~50%)", color: choroplethColor(0.50) },
+            { label: "Lean R (40–50%)", color: choroplethColor(0.45) },
+            { label: "Strong R (<40%)", color: choroplethColor(0.35) },
+          ].map(({ label, color }) => (
+            <div key={label} className="map-legend-item" style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
+              <div style={{ width: 12, height: 12, borderRadius: 2, background: `rgba(${color[0]},${color[1]},${color[2]},${color[3] / 255})` }} />
+              <span style={{ color: "var(--color-text-muted)" }}>{label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Super-type legend — hidden when forecast choropleth is active */}
+      {!forecastChoropleth && legendEntries.length > 0 && (
         <div
           className="map-legend"
           style={{

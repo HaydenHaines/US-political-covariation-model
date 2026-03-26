@@ -123,12 +123,11 @@ def compute_county_priors_from_data(
 
 def predict_race(
     race: str,
-    poll_dem_share: float | None,
-    poll_n: int | None,
     type_scores: np.ndarray,
     type_covariance: np.ndarray,
     type_priors: np.ndarray,
     county_fips: list[str],
+    polls: list[tuple[float, int, str]] | None = None,
     states: list[str] | None = None,
     county_names: list[str] | None = None,
     state_filter: str | None = None,
@@ -147,14 +146,15 @@ def predict_race(
 
     When county_priors is None, falls back to type-mean priors (legacy).
 
+    Multiple polls are stacked into a single Bayesian update: each poll
+    contributes one row to the W matrix (n_polls × J), enabling exact
+    multi-poll inference rather than collapsing to a single effective poll.
+    This preserves geographic information when polls cover different states.
+
     Parameters
     ----------
     race : str
         Election race label (e.g. "FL Senate").
-    poll_dem_share : float or None
-        Poll Democratic share (0-1). None = use prior only.
-    poll_n : int or None
-        Poll sample size. Required if poll_dem_share is not None.
     type_scores : ndarray of shape (N, J)
         County type scores (soft membership, can be negative).
     type_covariance : ndarray of shape (J, J)
@@ -163,12 +163,20 @@ def predict_race(
         Prior Dem share per type (used for Bayesian update baseline).
     county_fips : list[str]
         FIPS codes for each county (length N).
+    polls : list of (dem_share, n, state_abbr) tuples or None
+        Poll observations. Each tuple is one poll: Democratic two-party
+        share (0-1), sample size, and the state abbreviation whose type
+        composition defines the observation equation (W row). Multiple
+        polls are stacked into a single multi-row Bayesian update.
+        None = use prior only (no poll adjustment).
     states : list[str] or None
         State abbreviation per county. Derived from FIPS if None.
     county_names : list[str] or None
         County names. Set to empty string if None.
     state_filter : str or None
-        If provided, filter output to this state abbreviation.
+        If provided, filter output rows to this state abbreviation.
+        Does NOT affect which polls are applied — poll state comes
+        from each tuple in `polls`.
     county_priors : ndarray of shape (N,) or None
         Per-county prior Dem share (historical baseline). When provided,
         predictions use county baselines + type covariance adjustments.
@@ -197,33 +205,36 @@ def predict_race(
     type_means = type_priors.copy().astype(float)
     type_cov = type_covariance.copy().astype(float)
 
-    if poll_dem_share is not None and poll_n is not None:
-        # Decompose state-level poll into type-level signal
-        # Weight vector: average type scores for counties in the polled state
-        poll_state = state_filter or _extract_state_from_race(race)
-        if poll_state:
-            state_mask = np.array([s == poll_state for s in states])
-            if state_mask.any():
-                # W = mean absolute type scores for state counties, normalized
-                state_scores = type_scores[state_mask]
-                W = np.abs(state_scores).mean(axis=0)
-                W_sum = W.sum()
-                if W_sum > 0:
-                    W = W / W_sum  # normalize to sum to 1
+    if polls:
+        # Each poll contributes one W row: the type composition of its state.
+        # Stacking all rows into a single update preserves geographic information
+        # across polls covering different states (vs. collapsing to one scalar).
+        W_rows = []
+        y_vals = []
+        sigma_vals = []
+        for dem_share, n, poll_state in polls:
+            if poll_state:
+                state_mask = np.array([s == poll_state for s in states])
+                if state_mask.any():
+                    state_scores = type_scores[state_mask]
+                    W_row = np.abs(state_scores).mean(axis=0)
+                    W_sum = W_row.sum()
+                    W_row = W_row / W_sum if W_sum > 0 else np.ones(J) / J
                 else:
-                    W = np.ones(J) / J
+                    W_row = np.ones(J) / J
+            else:
+                W_row = np.ones(J) / J
+            W_rows.append(W_row)
+            y_vals.append(dem_share)
+            sigma_vals.append(np.sqrt(dem_share * (1 - dem_share) / n))
 
-                # Gaussian Bayesian update
-                poll_sigma = np.sqrt(
-                    poll_dem_share * (1 - poll_dem_share) / poll_n
-                )
-                type_means, type_cov = _bayesian_update(
-                    mu_prior=type_means,
-                    sigma_prior=type_cov,
-                    W=W.reshape(1, -1),
-                    y=np.array([poll_dem_share]),
-                    sigma_polls=np.array([poll_sigma]),
-                )
+        type_means, type_cov = _bayesian_update(
+            mu_prior=type_means,
+            sigma_prior=type_cov,
+            W=np.array(W_rows),
+            y=np.array(y_vals),
+            sigma_polls=np.array(sigma_vals),
+        )
 
     # ── Map type estimates back to counties ─────────────────────────────────
     abs_scores = np.abs(type_scores)
@@ -299,14 +310,6 @@ def _bayesian_update(
     return mu_post, sigma_post
 
 
-def _extract_state_from_race(race: str) -> str | None:
-    """Try to extract state abbreviation from race string like 'FL Senate'."""
-    for abbr in _STATE_FIPS_TO_ABBR.values():
-        if abbr in race:
-            return abbr
-    return None
-
-
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
@@ -316,7 +319,6 @@ def run() -> None:
     """Load inputs from data/ and produce type-based 2026 predictions."""
     type_assignments_path = PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet"
     type_cov_path = PROJECT_ROOT / "data" / "covariance" / "type_covariance.parquet"
-    type_profiles_path = PROJECT_ROOT / "data" / "communities" / "type_profiles.parquet"
     polls_path = PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
     crosswalk_path = PROJECT_ROOT / "data" / "raw" / "fips_county_crosswalk.csv"
 
@@ -394,35 +396,32 @@ def run() -> None:
     if "geography" in polls.columns and "state" not in polls.columns:
         polls = polls.rename(columns={"geography": "state"})
 
-    # Aggregate polls by (race, state)
-    poll_agg = (
-        polls.groupby(["race", "geo_level"])
-        .agg(
-            dem_share=("dem_share", "mean"),
-            n_sample=("n_sample", "sum"),
-            state=("state", "first"),
-        )
-        .reset_index()
-    )
+    # Group polls by race so each race receives all its polls in a single
+    # stacked Bayesian update (rather than collapsing to one effective poll).
+    # We keep individual rows — no aggregation — to preserve geographic
+    # information when multiple polls cover different states.
+    poll_agg = polls[polls.get("geo_level", pd.Series(["state"] * len(polls))) == "state"].copy()
+    if "geo_level" in polls.columns:
+        poll_agg = polls[polls["geo_level"] == "state"].copy()
+    else:
+        poll_agg = polls.copy()
 
     all_predictions = []
-    for _, poll_row in poll_agg.iterrows():
-        race = poll_row["race"]
-        poll_dem = float(poll_row["dem_share"])
-        poll_n = int(poll_row["n_sample"])
-        geo = poll_row["state"]
-
+    for race, race_group in poll_agg.groupby("race"):
+        race_polls = [
+            (float(row["dem_share"]), int(row["n_sample"]), str(row["state"]))
+            for _, row in race_group.iterrows()
+            if row.get("geo_level", "state") == "state"
+        ]
         result = predict_race(
             race=race,
-            poll_dem_share=poll_dem,
-            poll_n=poll_n,
+            polls=race_polls if race_polls else None,
             type_scores=type_scores,
             type_covariance=type_covariance,
             type_priors=type_priors,
             county_fips=county_fips,
             states=states,
             county_names=county_names,
-            state_filter=geo if len(geo) == 2 else None,
             county_priors=county_prior_values,
         )
         result["race"] = race
@@ -431,15 +430,12 @@ def run() -> None:
     # Generate national baseline for all counties (no poll adjustment)
     baseline = predict_race(
         race="baseline",
-        poll_dem_share=None,
-        poll_n=None,
         type_scores=type_scores,
         type_covariance=type_covariance,
         type_priors=type_priors,
         county_fips=county_fips,
         states=states,
         county_names=county_names,
-        state_filter=None,      # no filter = all counties
         county_priors=county_prior_values,
     )
     baseline["race"] = "baseline"

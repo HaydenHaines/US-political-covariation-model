@@ -13,8 +13,11 @@
 1. **Build it right, not fast.** Use the correct model even if it takes longer. Wrong foundations compound.
 2. **Build it expandable.** Every component should have a clear interface so it can be swapped, extended, or scaled without rewriting everything around it.
 3. **Types are primary.** Electoral types are discovered directly from county shift vectors via KMeans. Types are the predictive engine: covariance, poll propagation, and prediction all flow through type structure. Geographic communities (HAC blobs) are deferred to the tract-level phase.
-4. **J is the hardest problem.** The number of types J determines everything downstream. J selection must be principled — maximize holdout predictive accuracy subject to balanced type sizes — not heuristic. Current: J=20 via KMeans.
+4. **J is the hardest problem.** The number of types J determines everything downstream. J selection must be principled — maximize holdout predictive accuracy subject to balanced type sizes — not heuristic. Current: J=100 via KMeans.
 5. **The model answers one question publicly:** *What will happen in 2026?* Everything else (community discovery, type classification, covariance estimation) is infrastructure that makes that answer defensible.
+6. **θ is the fundamental inference target.** Type means θ are what the model is actually estimating. State and county outcomes are downstream products of θ — they are not the thing we are inferring. Every poll, every piece of data, every modeling decision should be evaluated in terms of how well it constrains θ.
+7. **Polls are observations of W·θ, not of state outcomes.** A Georgia poll tells us about Georgia's type mix. The model learns from it what it implies about θ — and propagates that inference everywhere those types exist. The goal is to triangulate θ from many diverse geographic observations, not to aggregate state-level signals.
+8. **Deviations from expected θ are candidate effects.** Σ + fundamentals generate an expected θ for a given cycle. When posterior θ deviates from expected, that deviation is a candidate-specific draw. Trump's Rust Belt draw and W's Hispanic draw are canonical examples. These effects are detectable from early polling and propagatable to unpolled geographies via the type structure.
 
 ---
 
@@ -263,17 +266,46 @@ Each versioned dir contains:
 
 ## Phase 4: National
 
-*The full map.*
+*The full map. (Substantially complete as of 2026-03-26: 3,154 counties, 50 states + DC, J=100.)*
 
 ### Key work
-- All 50 states, all 3,143 counties
-- MEDSL presidential + governor data for all states (already structured to support this)
-- National type discovery: KMeans with presidential weighting + state-centered non-presidential shifts
-- J selection at national scale (J ≈ 40-80, research needed)
-- Super-type classification at national scale (12-20 super-types)
+- ~~All 50 states, all 3,143 counties~~ — **DONE.** National model live with 3,154 counties.
+- ~~MEDSL presidential + governor data for all states~~ — **DONE.**
+- ~~National type discovery~~ — **DONE.** J=100, pw=8.0, StandardScaler, LOO r=0.671 (Ridge+HGB ensemble, S203).
 - Handle non-standard primaries (OQ-001)
 - National 2026 predictions: all Senate races, governor races
 - National visualization: the map that shows the country's actual political topology
+
+---
+
+## Phase 5: The θ Inference Engine (2028 Presidential)
+
+*The model that makes WetherVane genuinely distinctive. 2026 proves the architecture. 2028 realizes it.*
+
+### Core goal
+
+Build an engine that ingests a continuous stream of national and state-level polls and converts them into **type response inferences** — estimates of θ (how each type is voting this cycle) — that cross-propagate nationwide via the type covariance structure. State and county predictions are automatic byproducts of a well-constrained θ.
+
+### Why presidential
+
+Presidential races generate the highest polling volume, the most diverse geographic coverage, and the broadest crosstab reporting. The overdetermined system (many polls × many geographies × many types) allows θ to be pinned with high confidence. Midterm cycles (2026) prove the architecture; presidential volume (2028) makes it shine.
+
+### Key capabilities
+
+**Rich poll ingestion:** Every quality poll with demographic crosstabs contributes a type-specific W vector rather than a geographic-average W. A poll that oversampled college-educated voters pulls harder on knowledge-worker types. The denser the crosstab coverage, the more directly polls constrain individual type means. See CLAUDE.md debt item on rich poll ingestion.
+
+**Candidate effect detection and propagation:** The model compares posterior θ against expected θ from Σ + fundamentals. Consistent deviations across polls from diverse geographies are interpreted as candidate effects. These effects are detected early (from polled states) and propagated to unpolled states via the type structure. A candidate who consistently overperforms with Mormon-affiliated types in FL, MA, and TX will have that effect applied to UT, NV, ID, and AZ even without a single poll from those states. Trump and Rust Belt working-class types (2016) and W and socially conservative Hispanic types (2004) are canonical examples.
+
+**Unpolled state inference:** Unpolled states are not missing data — they are underdetermined constraints on θ. Once θ is well-constrained from polled states, unpolled state predictions follow from θ × state type scores. Utah in a presidential year requires no polling: its prediction is a function of how Mormon, rural conservative, and suburban professional types are performing nationally.
+
+**Cycle-specific θ tracking:** θ evolves through the campaign as polls accumulate. The model maintains a rolling posterior on θ, updating as new polls arrive. A forecast history view shows how each type has shifted through the cycle.
+
+### Key questions to resolve before 2028
+- How quickly can candidate effects be detected from early-cycle polling? What is the minimum signal needed?
+- How stable is Σ across cycles for the same race type (presidential vs. midterm)? Should Σ be cycle-type-specific?
+- For unpolled states, how does uncertainty scale with distance in type-space from polled geographies?
+- What crosstab schema captures the most type-relevant demographic breakdowns without requiring variables pollsters rarely report?
+- **Candidate effect vs. structural shift:** When does a persistent θ deviation warrant updating the structural baseline rather than attributing it to the current candidate? What is the evidence threshold for reclassifying a candidate effect as a realignment? This is one of the hardest modeling questions in the project — see VISION.md for the full framing.
 
 ---
 

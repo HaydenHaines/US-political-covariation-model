@@ -9,6 +9,11 @@ interface MapContextValue {
   compareTypeIds: number[];
   setCompareTypeIds: React.Dispatch<React.SetStateAction<number[]>>;
   addToComparison: (id: number) => void;
+  // Forecast tab: highlighted state + choropleth data
+  forecastState: string | null;
+  setForecastState: (s: string | null) => void;
+  forecastChoropleth: Map<string, number> | null;
+  setForecastChoropleth: (m: Map<string, number> | null) => void;
 }
 
 const MapContext = createContext<MapContextValue>({
@@ -19,12 +24,18 @@ const MapContext = createContext<MapContextValue>({
   compareTypeIds: [],
   setCompareTypeIds: () => {},
   addToComparison: () => {},
+  forecastState: null,
+  setForecastState: () => {},
+  forecastChoropleth: null,
+  setForecastChoropleth: () => {},
 });
 
 export function MapProvider({ children }: { children: React.ReactNode }) {
   const [selectedCommunityId, setSelectedCommunityId] = useState<number | null>(null);
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
   const [compareTypeIds, setCompareTypeIds] = useState<number[]>([]);
+  const [forecastState, setForecastState] = useState<string | null>(null);
+  const [forecastChoropleth, setForecastChoropleth] = useState<Map<string, number> | null>(null);
 
   const addToComparison = useCallback((id: number) => {
     setCompareTypeIds((prev) => {
@@ -39,6 +50,8 @@ export function MapProvider({ children }: { children: React.ReactNode }) {
       selectedCommunityId, setSelectedCommunityId,
       selectedTypeId, setSelectedTypeId,
       compareTypeIds, setCompareTypeIds, addToComparison,
+      forecastState, setForecastState,
+      forecastChoropleth, setForecastChoropleth,
     }}>
       {children}
     </MapContext.Provider>

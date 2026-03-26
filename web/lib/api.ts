@@ -196,3 +196,33 @@ export async function feedMultiplePolls(body: {
   if (!res.ok) throw new Error(`/forecast/polls failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchForecastRaces(): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/forecast/races`);
+  if (!res.ok) throw new Error(`/forecast/races failed: ${res.status}`);
+  return res.json();
+}
+
+export interface PollRow {
+  race: string;
+  geography: string;
+  geo_level: string;
+  dem_share: number;
+  n_sample: number;
+  date: string | null;
+  pollster: string | null;
+}
+
+export async function fetchPolls(params: {
+  race?: string;
+  state?: string;
+  cycle?: string;
+}): Promise<PollRow[]> {
+  const p = new URLSearchParams();
+  if (params.race) p.set("race", params.race);
+  if (params.state) p.set("state", params.state);
+  if (params.cycle) p.set("cycle", params.cycle);
+  const res = await fetch(`${API_BASE}/polls?${p}`);
+  if (!res.ok) throw new Error(`/polls failed: ${res.status}`);
+  return res.json();
+}

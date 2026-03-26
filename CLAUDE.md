@@ -4,13 +4,16 @@ A political modeling platform that discovers electoral communities directly from
 
 **Core insight:** beneath the noise of individual elections is a structural landscape of communities that move together politically. Those communities cross administrative boundaries, persist across decades, and can be discovered purely from how places shift. Understanding this structure — not just the surface results — is what makes prediction defensible.
 
-**Governing principles (updated 2026-03-22):**
+**Governing principles (updated 2026-03-26):**
 - Build it right, not fast. Use the correct model even if it takes longer.
 - Build it expandable. Every component has a clear interface.
 - Types are primary. KMeans on shift vectors discovers J types. Counties/tracts get soft membership. Types carry covariance and prediction.
 - Governor/Senate shifts must be state-centered before cross-state clustering. Presidential shifts carry cross-state signal.
 - J selection must be principled (holdout accuracy), not heuristic.
-- The public question is: *What will happen in 2026?*
+- **θ is the fundamental inference target.** Type means θ are what the model estimates. State/county outcomes are downstream products of θ, not the primary objects of inference.
+- **Polls are observations of W·θ.** A poll tells us about the type composition of the polled geography. The model learns θ from it and propagates that inference everywhere those types exist — regardless of state lines.
+- **Deviations from expected θ are candidate effects.** Σ + fundamentals generate an expected θ. Posterior deviations are candidate-specific draws (Trump/Rust Belt, W/Hispanic). These are detectable from early polling and propagatable to unpolled geographies.
+- The public question is: *What will happen in 2026?* The 2028 question is: *What is each type doing, and why?*
 
 ## CRITICAL: For Autonomous Agents
 
@@ -331,7 +334,26 @@ The API is the contract boundary between model pipeline and frontend. The fronte
 
 ## Known Tech Debt
 
-(None yet -- project is pre-implementation.)
+### Poll Ingestion — Rich Ingestion Model Needed
+**DEBT:** Current poll ingestion treats every poll as a scalar `(dem_share, n_sample)` pair. This leaves significant information on the table. Polls with crosstabs tell us *which types* were sampled heavily — a poll that oversampled college-educated voters should pull harder on types with high college-educated membership. The correct fix is to construct poll-specific W vectors from crosstab demographic composition rather than using a generic state-level W. This requires rebuilding the entire poll ingestion pipeline to ingest, store, and process crosstab data, and mapping crosstab demographic groups to the type structure. Until this is done, poll propagation is informationally impoverished.
+
+### ~~Poll Propagation — Multi-Poll Collapse is Mathematically Wrong~~
+**RESOLVED 2026-03-26** (feat/forecasting, commit e710dc6): `predict_race` now accepts `polls: list[tuple[float, int, str]]`. Each poll stacks as its own W row. `update_forecast_with_multi_polls` passes the full weighted list instead of collapsing. Do not reopen unless a new mathematical issue is identified.
+
+### ~~Poll Propagation — Fragile State Extraction in API~~
+**RESOLVED 2026-03-26** (feat/forecasting, commit e710dc6): `_forecast_poll_types` now passes `polls=[(poll.dem_share, poll.n, poll.state)]` directly. `_extract_state_from_race` deleted. `state_filter` is now output-only. Do not reopen unless the polls interface changes.
+
+### ~~API Contract — `state_pred` Inconsistency~~
+**RESOLVED 2026-03-26** (feat/forecasting, commit e710dc6): `_forecast_poll_types` computes `state_pred_val` as mean `pred_dem_share` across counties matching `poll.state`. Both pipelines now populate the field. Do not reopen unless the computation method needs revision.
+
+### Covariance — Cross-Race Underrepresentation
+**DEBT:** The type covariance Σ is built primarily from presidential shift data. Cross-race covariance between Senate/governor races and presidential races may be understated. Types are race-agnostic by design, but the Σ structure reflects presidential comovement more than Senate or governor comovement. Worth revisiting once Senate/governor shift data is more fully integrated into covariance construction.
+
+### Fundamentals — State-Level Signal Investigation Needed
+**DEBT:** Fundamentals modeling is currently conceived as a national signal ("it's the economy, stupid"). However, regional economic conditions likely vary in how they hit different types — a manufacturing downturn hits Rust Belt working-class types differently than coastal knowledge-worker types. Worth investigating whether BLS, BEA regional Fed, or BEA state-level data can support state- or type-level fundamentals signals rather than a single national scalar.
+
+### Forecast Tab — Map Performance on Recalculate
+**DEBT:** The "Recalculate" button in the Forecast tab re-renders the full map choropleth. At national scale (3,154 counties + 81K tracts) this is a heavy draw. Consider rendering a state-only zoomed view when a state is selected in the Forecast tab, rather than re-rendering the full national map on every recalculate.
 
 ## Constraints
 

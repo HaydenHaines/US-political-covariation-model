@@ -112,6 +112,16 @@ class MultiPollResponse(BaseModel):
     effective_n_total: int  # sum of adjusted sample sizes
 
 
+class PollRow(BaseModel):
+    race: str
+    geography: str          # state abbreviation for state-level polls (e.g. "FL")
+    geo_level: str          # "state" | "county" | "district"
+    dem_share: float
+    n_sample: int
+    date: str | None
+    pollster: str | None
+
+
 # ── Type-primary models ─────────────────────────────────────────────────────
 
 class TypeSummary(BaseModel):

@@ -12,7 +12,8 @@ Verifies:
 - CHR health features present (excl. ACS-overlap cols) and imputed when missing
 - Migration features present and imputed when missing
 - Urbanicity features present and imputed when missing
-- Total column count correct (ACS + RCMS + QCEW + CHR + Migration + Urbanicity)
+- SCI social connectedness features present and imputed when missing
+- Total column count correct (ACS + RCMS + QCEW + CHR + Migration + Urbanicity + SCI)
 - No duplicate columns after joining all sources
 """
 from __future__ import annotations
@@ -26,6 +27,7 @@ from src.assembly.build_county_features_national import (
     MIGRATION_FEATURE_COLS,
     QCEW_FEATURE_COLS,
     RCMS_FEATURE_COLS,
+    SCI_FEATURE_COLS,
     URBANICITY_FEATURE_COLS,
     build_national_features,
 )
@@ -565,6 +567,117 @@ class TestNoDuplicateColumns:
             + len(CHR_FEATURE_COLS)
             + len(MIGRATION_FEATURE_COLS)
             + len(URBANICITY_FEATURE_COLS)
+        )
+        assert len(result.columns) == expected, (
+            f"Expected {expected} cols, got {len(result.columns)}: {list(result.columns)}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Helper for SCI
+# ---------------------------------------------------------------------------
+
+
+def _make_sci(fips_list: list[str]) -> pd.DataFrame:
+    """Minimal synthetic SCI county features DataFrame."""
+    rng = np.random.default_rng(30)
+    n = len(fips_list)
+    return pd.DataFrame({
+        "county_fips": fips_list,
+        "network_diversity": rng.uniform(0.5, 1.0, size=n),
+        "pct_sci_instate": rng.uniform(0.0, 1.0, size=n),
+        "sci_top5_mean_dem_share": rng.uniform(0.2, 0.8, size=n),
+        "sci_geographic_reach": rng.integers(1, 15, size=n).astype(float),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tests: SCI features
+# ---------------------------------------------------------------------------
+
+
+class TestSciIntegration:
+    """SCI social connectedness features are merged correctly and imputed when missing."""
+
+    def test_sci_columns_present(self):
+        """All SCI_FEATURE_COLS appear in output when sci is provided."""
+        fips = ["01001", "01003", "01005"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        sci = _make_sci(fips)
+        result = build_national_features(acs, rcms, sci=sci)
+        for col in SCI_FEATURE_COLS:
+            assert col in result.columns, f"Missing SCI column: {col}"
+
+    def test_sci_missing_county_imputed(self):
+        """County absent from SCI data gets state-median imputation (no NaN)."""
+        acs_fips = ["01001", "01003", "01005"]
+        sci_fips = ["01001", "01003"]   # 01005 missing
+        acs = _make_acs(acs_fips)
+        rcms = _make_rcms(acs_fips)
+        sci = _make_sci(sci_fips)
+        result = build_national_features(acs, rcms, sci=sci)
+        for col in SCI_FEATURE_COLS:
+            assert result[col].isna().sum() == 0, f"{col} has NaN after SCI imputation"
+
+    def test_sci_none_no_extra_cols(self):
+        """When sci=None, no SCI columns appear in output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        result = build_national_features(acs, rcms, sci=None)
+        for col in SCI_FEATURE_COLS:
+            assert col not in result.columns, f"Unexpected SCI column: {col}"
+
+    def test_sci_fips_validation_raises(self):
+        """Malformed SCI county_fips raises ValueError."""
+        acs = _make_acs(["01001", "01003"])
+        rcms = _make_rcms(["01001", "01003"])
+        bad_sci = _make_sci(["1001", "01003"])  # '1001' is 4 chars
+        with pytest.raises(ValueError, match="5-char"):
+            build_national_features(acs, rcms, sci=bad_sci)
+
+    def test_no_duplicate_cols_all_seven_sources(self):
+        """Full join (ACS + RCMS + QCEW + CHR + Migration + Urbanicity + SCI) has no duplicate columns."""
+        fips = ["01001", "01003", "01005", "12001"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        chr_df = _make_chr(fips)
+        migration = _make_migration(fips)
+        urbanicity = _make_urbanicity(fips)
+        sci = _make_sci(fips)
+        result = build_national_features(
+            acs, rcms, qcew=qcew, chr_df=chr_df,
+            migration=migration, urbanicity=urbanicity, sci=sci,
+        )
+        assert result.columns.nunique() == len(result.columns), (
+            f"Duplicate columns: {[c for c in result.columns if list(result.columns).count(c) > 1]}"
+        )
+
+    def test_total_feature_count_all_seven_sources(self):
+        """Output column count equals ACS + RCMS + QCEW + CHR + Migration + Urbanicity + SCI."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        chr_df = _make_chr(fips)
+        migration = _make_migration(fips)
+        urbanicity = _make_urbanicity(fips)
+        sci = _make_sci(fips)
+        result = build_national_features(
+            acs, rcms, qcew=qcew, chr_df=chr_df,
+            migration=migration, urbanicity=urbanicity, sci=sci,
+        )
+        acs_cols = len(acs.columns)  # includes county_fips
+        expected = (
+            acs_cols
+            + len(RCMS_FEATURE_COLS)
+            + len(QCEW_FEATURE_COLS)
+            + len(CHR_FEATURE_COLS)
+            + len(MIGRATION_FEATURE_COLS)
+            + len(URBANICITY_FEATURE_COLS)
+            + len(SCI_FEATURE_COLS)
         )
         assert len(result.columns) == expected, (
             f"Expected {expected} cols, got {len(result.columns)}: {list(result.columns)}"

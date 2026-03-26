@@ -331,7 +331,26 @@ The API is the contract boundary between model pipeline and frontend. The fronte
 
 ## Known Tech Debt
 
-(None yet -- project is pre-implementation.)
+### Poll Ingestion — Rich Ingestion Model Needed
+**DEBT:** Current poll ingestion treats every poll as a scalar `(dem_share, n_sample)` pair. This leaves significant information on the table. Polls with crosstabs tell us *which types* were sampled heavily — a poll that oversampled college-educated voters should pull harder on types with high college-educated membership. The correct fix is to construct poll-specific W vectors from crosstab demographic composition rather than using a generic state-level W. This requires rebuilding the entire poll ingestion pipeline to ingest, store, and process crosstab data, and mapping crosstab demographic groups to the type structure. Until this is done, poll propagation is informationally impoverished.
+
+### Poll Propagation — Multi-Poll Collapse is Mathematically Wrong
+**DEBT:** `POST /forecast/polls` aggregates all polls into a single effective poll before the Bayesian update. The correct approach stacks each poll as its own W row in the precision update (`Σ⁻¹ += WᵀR⁻¹W`). Collapsing loses geographic information when polls cover different states and conflates polls that carry different structural signals. Fix: pass all polls as a list into a single multi-poll Bayesian update.
+
+### Poll Propagation — Fragile State Extraction in API
+**DEBT:** `_forecast_poll_types()` passes `state_filter=None` to `predict_race()`, which falls back to `_extract_state_from_race()` — a string scan for a 2-letter state abbreviation in the race name. `poll.state` is available on the request object and should be passed explicitly. A misnamed race string breaks state filtering silently.
+
+### API Contract — `state_pred` Inconsistency
+**DEBT:** `state_pred` is populated in the HAC pipeline but returns `None` in the type pipeline. The API contract advertises it; callers cannot rely on it. Fix: compute state-level prediction (W·μ_post) in `_forecast_poll_types` and populate the field consistently.
+
+### Covariance — Cross-Race Underrepresentation
+**DEBT:** The type covariance Σ is built primarily from presidential shift data. Cross-race covariance between Senate/governor races and presidential races may be understated. Types are race-agnostic by design, but the Σ structure reflects presidential comovement more than Senate or governor comovement. Worth revisiting once Senate/governor shift data is more fully integrated into covariance construction.
+
+### Fundamentals — State-Level Signal Investigation Needed
+**DEBT:** Fundamentals modeling is currently conceived as a national signal ("it's the economy, stupid"). However, regional economic conditions likely vary in how they hit different types — a manufacturing downturn hits Rust Belt working-class types differently than coastal knowledge-worker types. Worth investigating whether BLS, BEA regional Fed, or BEA state-level data can support state- or type-level fundamentals signals rather than a single national scalar.
+
+### Forecast Tab — Map Performance on Recalculate
+**DEBT:** The "Recalculate" button in the Forecast tab re-renders the full map choropleth. At national scale (3,154 counties + 81K tracts) this is a heavy draw. Consider rendering a state-only zoomed view when a state is selected in the Forecast tab, rather than re-rendering the full national map on every recalculate.
 
 ## Constraints
 

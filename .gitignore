@@ -79,3 +79,4 @@ data/raw/nyt_precinct/
 research/fekrazad-method/
 __pycache__/
 *.egg-info/
+web/tsconfig.tsbuildinfo

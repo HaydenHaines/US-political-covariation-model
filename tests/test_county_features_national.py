@@ -8,6 +8,9 @@ Verifies:
 - All RCMS features bounded in reasonable ranges after imputation
 - Merge does not lose ACS counties (left join preserves all)
 - No spurious duplicate rows
+- QCEW industry features present and imputed when missing
+- CHR health features present (excl. ACS-overlap cols) and imputed when missing
+- No duplicate columns after joining all sources
 """
 from __future__ import annotations
 
@@ -16,6 +19,8 @@ import pandas as pd
 import pytest
 
 from src.assembly.build_county_features_national import (
+    CHR_FEATURE_COLS,
+    QCEW_FEATURE_COLS,
     RCMS_FEATURE_COLS,
     build_national_features,
 )
@@ -194,3 +199,226 @@ class TestFipsValidation:
         bad_rcms = _make_rcms(["1001", "01003"])  # '1001' is 4 chars
         with pytest.raises(ValueError, match="5-char"):
             build_national_features(acs, bad_rcms)
+
+
+# ---------------------------------------------------------------------------
+# Helpers for QCEW and CHR
+# ---------------------------------------------------------------------------
+
+
+def _make_qcew(fips_list: list[str], year: int = 2023) -> pd.DataFrame:
+    """Minimal synthetic QCEW county × year features DataFrame."""
+    rng = np.random.default_rng(10)
+    n = len(fips_list)
+    shares = rng.dirichlet(np.ones(7), size=n)  # 7 industry shares sum to 1
+    return pd.DataFrame({
+        "county_fips": fips_list,
+        "year": year,
+        "manufacturing_share": shares[:, 0],
+        "government_share": shares[:, 1],
+        "healthcare_share": shares[:, 2],
+        "retail_share": shares[:, 3],
+        "construction_share": shares[:, 4],
+        "finance_share": shares[:, 5],
+        "hospitality_share": shares[:, 6],
+        "industry_diversity_hhi": rng.uniform(0.03, 0.15, size=n),
+        "top_industry": ["manufacturing"] * n,      # should be dropped
+        "avg_annual_pay": rng.uniform(35000, 80000, size=n),  # should be dropped
+    })
+
+
+def _make_chr(fips_list: list[str]) -> pd.DataFrame:
+    """Minimal synthetic CHR county features DataFrame (all expected cols)."""
+    rng = np.random.default_rng(11)
+    n = len(fips_list)
+    return pd.DataFrame({
+        "county_fips": fips_list,
+        "state_abbr": ["AL"] * n,           # metadata — should be dropped
+        "data_year": [2023] * n,            # metadata — should be dropped
+        "premature_death_rate": rng.uniform(5000, 15000, size=n),
+        "adult_smoking_pct": rng.uniform(0.10, 0.30, size=n),
+        "adult_obesity_pct": rng.uniform(0.20, 0.45, size=n),
+        "excessive_drinking_pct": rng.uniform(0.10, 0.25, size=n),
+        "uninsured_pct": rng.uniform(0.05, 0.25, size=n),
+        "primary_care_physicians_rate": rng.uniform(0, 0.005, size=n),
+        "mental_health_providers_rate": rng.uniform(0, 0.003, size=n),
+        "median_household_income": rng.uniform(40000, 90000, size=n),  # should be dropped
+        "children_in_poverty_pct": rng.uniform(0.10, 0.35, size=n),
+        "insufficient_sleep_pct": rng.uniform(0.30, 0.45, size=n),
+        "physical_inactivity_pct": rng.uniform(0.15, 0.40, size=n),
+        "severe_housing_problems_pct": rng.uniform(2.0, 10.0, size=n),
+        "drive_alone_pct": rng.uniform(2.0, 8.0, size=n),
+        "high_school_completion_pct": rng.uniform(0.75, 0.95, size=n),  # should be dropped
+        "some_college_pct": rng.uniform(0.30, 0.70, size=n),           # should be dropped
+        "life_expectancy": rng.uniform(0.06, 0.15, size=n),
+        "diabetes_prevalence_pct": rng.uniform(0.05, 0.18, size=n),
+        "poor_mental_health_days": rng.uniform(2.5, 5.5, size=n),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tests: QCEW features
+# ---------------------------------------------------------------------------
+
+
+class TestQcewIntegration:
+    """QCEW industry features are merged correctly and imputed when missing."""
+
+    def test_qcew_columns_present(self):
+        """All QCEW_FEATURE_COLS appear in output when qcew is provided."""
+        fips = ["01001", "01003", "01005"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        result = build_national_features(acs, rcms, qcew=qcew)
+        for col in QCEW_FEATURE_COLS:
+            assert col in result.columns, f"Missing QCEW column: {col}"
+
+    def test_qcew_dropped_cols_absent(self):
+        """top_industry and avg_annual_pay must NOT appear in output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        result = build_national_features(acs, rcms, qcew=qcew)
+        assert "top_industry" not in result.columns
+        assert "avg_annual_pay" not in result.columns
+
+    def test_qcew_missing_county_imputed(self):
+        """County absent from QCEW 2023 gets state-median imputation (no NaN)."""
+        acs_fips = ["01001", "01003", "01005"]
+        qcew_fips = ["01001", "01003"]   # 01005 missing
+        acs = _make_acs(acs_fips)
+        rcms = _make_rcms(acs_fips)
+        qcew = _make_qcew(qcew_fips)
+        result = build_national_features(acs, rcms, qcew=qcew)
+        for col in QCEW_FEATURE_COLS:
+            assert result[col].isna().sum() == 0, f"{col} has NaN after QCEW imputation"
+
+    def test_qcew_latest_year_used(self):
+        """Only 2023 rows are used when qcew has multiple years."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        # Build multi-year QCEW: 2020 with distinct values, 2023 with zeros
+        qcew_old = _make_qcew(fips, year=2020)
+        qcew_new = _make_qcew(fips, year=2023)
+        qcew_new["manufacturing_share"] = 0.999  # sentinel
+        qcew = pd.concat([qcew_old, qcew_new], ignore_index=True)
+        result = build_national_features(acs, rcms, qcew=qcew)
+        # If 2023 was used, manufacturing_share should be 0.999
+        assert (result["manufacturing_share"] == 0.999).all()
+
+    def test_qcew_none_no_extra_cols(self):
+        """When qcew=None, no QCEW columns appear in output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        result = build_national_features(acs, rcms, qcew=None)
+        for col in QCEW_FEATURE_COLS:
+            assert col not in result.columns, f"Unexpected QCEW column: {col}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: CHR features
+# ---------------------------------------------------------------------------
+
+
+class TestChrIntegration:
+    """CHR health features are merged correctly and ACS overlaps are excluded."""
+
+    def test_chr_columns_present(self):
+        """All CHR_FEATURE_COLS appear in output when chr_df is provided."""
+        fips = ["01001", "01003", "01005"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, chr_df=chr_df)
+        for col in CHR_FEATURE_COLS:
+            assert col in result.columns, f"Missing CHR column: {col}"
+
+    def test_chr_acs_overlap_cols_absent(self):
+        """median_household_income, high_school_completion_pct, some_college_pct absent."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, chr_df=chr_df)
+        for overlap_col in ("median_household_income", "high_school_completion_pct", "some_college_pct"):
+            assert overlap_col not in result.columns, f"ACS-overlap column should be absent: {overlap_col}"
+
+    def test_chr_metadata_cols_absent(self):
+        """state_abbr and data_year (metadata) must not appear in output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, chr_df=chr_df)
+        assert "state_abbr" not in result.columns
+        assert "data_year" not in result.columns
+
+    def test_chr_missing_county_imputed(self):
+        """County absent from CHR gets state-median imputation (no NaN)."""
+        acs_fips = ["01001", "01003", "01005"]
+        chr_fips = ["01001", "01003"]   # 01005 missing
+        acs = _make_acs(acs_fips)
+        rcms = _make_rcms(acs_fips)
+        chr_df = _make_chr(chr_fips)
+        result = build_national_features(acs, rcms, chr_df=chr_df)
+        for col in CHR_FEATURE_COLS:
+            assert result[col].isna().sum() == 0, f"{col} has NaN after CHR imputation"
+
+    def test_chr_none_no_extra_cols(self):
+        """When chr_df=None, no CHR columns appear in output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        result = build_national_features(acs, rcms, chr_df=None)
+        for col in CHR_FEATURE_COLS:
+            assert col not in result.columns, f"Unexpected CHR column: {col}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: no duplicate columns when all sources joined
+# ---------------------------------------------------------------------------
+
+
+class TestNoDuplicateColumns:
+    """Joining all sources must not produce duplicate column names."""
+
+    def test_no_duplicate_cols_all_sources(self):
+        """Full join (ACS + RCMS + QCEW + CHR) produces no duplicate column names."""
+        fips = ["01001", "01003", "01005", "12001"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, qcew=qcew, chr_df=chr_df)
+        assert result.columns.nunique() == len(result.columns), (
+            f"Duplicate columns: {[c for c in result.columns if list(result.columns).count(c) > 1]}"
+        )
+
+    def test_row_count_preserved_all_sources(self):
+        """Row count equals ACS input when all sources are joined."""
+        fips = ["01001", "01003", "01005"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, qcew=qcew, chr_df=chr_df)
+        assert len(result) == len(fips)
+
+    def test_total_feature_count_all_sources(self):
+        """Output column count equals ACS + RCMS + QCEW + CHR feature counts + county_fips."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        qcew = _make_qcew(fips)
+        chr_df = _make_chr(fips)
+        result = build_national_features(acs, rcms, qcew=qcew, chr_df=chr_df)
+        # ACS cols (including county_fips) + RCMS + QCEW + CHR
+        acs_cols = len(acs.columns)  # includes county_fips
+        expected = acs_cols + len(RCMS_FEATURE_COLS) + len(QCEW_FEATURE_COLS) + len(CHR_FEATURE_COLS)
+        assert len(result.columns) == expected, (
+            f"Expected {expected} cols, got {len(result.columns)}: {list(result.columns)}"
+        )

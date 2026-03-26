@@ -97,3 +97,13 @@ class TestPostForecastPoll:
         data = resp.json()
         assert data[0]["state_pred"] is not None
         assert data[0]["poll_avg"] == pytest.approx(0.50)
+
+
+def test_get_polls_queries_duckdb(client):
+    """GET /polls returns rows from DuckDB, not CSV."""
+    resp = client.get("/api/v1/polls?cycle=2026&state=FL")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert data[0]["geography"] == "FL"
+    assert data[0]["dem_share"] == pytest.approx(0.45)

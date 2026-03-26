@@ -89,29 +89,34 @@ def get_forecast_races(
 
 @router.get("/polls", response_model=list[PollRow])
 def get_polls(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
     race: str | None = Query(None, description="Filter by race label (e.g. '2026 FL Senate')"),
     state: str | None = Query(None, description="Filter by state abbreviation (e.g. 'FL')"),
     cycle: str = Query("2026", description="Poll cycle year"),
 ):
-    """Return available polls from the poll CSV for a given race/state."""
-    from src.propagation.poll_weighting import load_polls_with_notes
-
-    try:
-        polls, _ = load_polls_with_notes(cycle, race=race, geography=state)
-    except FileNotFoundError:
-        return []
-
+    """Return available polls from DuckDB polls table."""
+    conditions = ["cycle = ?"]
+    params: list = [cycle]
+    if race:
+        conditions.append("LOWER(race) LIKE ?")
+        params.append(f"%{race.lower()}%")
+    if state:
+        conditions.append("geography = ?")
+        params.append(state)
+    where = " AND ".join(conditions)
+    rows = db.execute(f"SELECT * FROM polls WHERE {where} ORDER BY date", params).fetchdf()
     return [
         PollRow(
-            race=p.race,
-            geography=p.geography,
-            geo_level=p.geo_level,
-            dem_share=p.dem_share,
-            n_sample=p.n_sample,
-            date=p.date or None,
-            pollster=p.pollster or None,
+            race=row["race"],
+            geography=row["geography"],
+            geo_level=row["geo_level"],
+            dem_share=float(row["dem_share"]),
+            n_sample=int(row["n_sample"]),
+            date=row["date"] if row["date"] else None,
+            pollster=row["pollster"] if row["pollster"] else None,
         )
-        for p in polls
+        for _, row in rows.iterrows()
     ]
 
 
@@ -298,29 +303,42 @@ def update_forecast_with_multi_polls(
     """Feed multiple polls from a historical cycle through time-decayed,
     quality-weighted Bayesian update. Returns county-level predictions.
     """
-    from src.propagation.poll_weighting import (
-        aggregate_polls,
-        apply_all_weights,
-        election_day_for_cycle,
-        load_polls_with_notes,
-    )
+    # Load polls from DuckDB instead of CSV
+    rows_df = db.execute(
+        "SELECT * FROM polls WHERE cycle=? ORDER BY date",
+        [body.cycle],
+    ).fetchdf()
 
-    # Load polls + notes from CSV
-    try:
-        polls, notes = load_polls_with_notes(
-            body.cycle, race=body.race, geography=body.state
-        )
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No poll data found for cycle {body.cycle}",
-        )
+    if body.state:
+        rows_df = rows_df[rows_df["geography"] == body.state]
+    if body.race:
+        rows_df = rows_df[rows_df["race"].str.contains(body.race, case=False, na=False)]
 
-    if not polls:
+    if rows_df.empty:
         raise HTTPException(
             status_code=404,
             detail=f"No matching polls for cycle={body.cycle}, state={body.state}, race={body.race}",
         )
+
+    from src.propagation.poll_weighting import (
+        aggregate_polls,
+        apply_all_weights,
+        election_day_for_cycle,
+    )
+    from src.propagation.propagate_polls import PollObservation
+    polls = [
+        PollObservation(
+            geography=row["geography"],
+            dem_share=float(row["dem_share"]),
+            n_sample=int(row["n_sample"]),
+            race=row["race"],
+            date=row["date"] or "",
+            pollster=row["pollster"] or "",
+            geo_level=row["geo_level"],
+        )
+        for _, row in rows_df.iterrows()
+    ]
+    notes = list(rows_df["notes"].fillna(""))
 
     # Apply weighting
     ref_date = election_day_for_cycle(body.cycle)

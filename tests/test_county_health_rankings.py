@@ -10,7 +10,7 @@ These tests use synthetic data and mock HTTP responses so they run without
 network access or the real CHR parquet files. Tests verify:
   - CHR URL is constructed with the correct year
   - CSV parsing extracts FIPS codes, county names, and measure values
-  - State-scope filtering keeps only FL (12xxx), GA (13xxx), AL (01xxx)
+  - National scope: all 50 states + DC are retained; only state-level rows excluded
   - State-level summary rows (countycode=000) are excluded
   - Non-5-digit FIPS codes are dropped
   - Measure columns that are missing from the CSV are filled with NaN
@@ -307,8 +307,8 @@ class TestConstants:
         assert required.issubset(set(OUTPUT_COLUMNS))
 
     def test_chr_feature_cols_count(self):
-        """CHR_FEATURE_COLS must have 19 features."""
-        assert len(CHR_FEATURE_COLS) == 19
+        """CHR_FEATURE_COLS must have 18 features (violent_crime_rate removed from CHR 2023+)."""
+        assert len(CHR_FEATURE_COLS) == 18
 
     def test_default_year_and_fallback_differ(self):
         """DEFAULT_YEAR and FALLBACK_YEAR must be different years."""
@@ -421,10 +421,13 @@ class TestParseChrCsv:
         # FL state-level row would have FIPS '12000'
         assert "12000" not in parsed_df["county_fips"].values
 
-    def test_out_of_scope_states_excluded(self, parsed_df):
-        """Counties from Texas (48xxx) must be excluded."""
-        prefixes = parsed_df["county_fips"].str[:2].unique()
-        assert "48" not in prefixes
+    def test_all_input_states_retained(self, parsed_df):
+        """All counties in the input CSV must be retained (national scope — no state exclusions)."""
+        # FL, GA, and AL are all present in the synthetic input
+        prefixes = set(parsed_df["county_fips"].str[:2].unique())
+        assert "12" in prefixes  # FL
+        assert "13" in prefixes  # GA
+        assert "01" in prefixes  # AL
 
     def test_fl_ga_al_counties_retained(self, parsed_df):
         """FL (12xxx), GA (13xxx), and AL (01xxx) counties must all be present."""
@@ -467,8 +470,9 @@ class TestParseChrCsv:
         assert set(OUTPUT_COLUMNS).issubset(set(result.columns))
 
     def test_state_abbr_derived_from_fips(self, parsed_df):
-        """state_abbr must be derived from county_fips prefix."""
-        fips_to_abbr = {"01": "AL", "12": "FL", "13": "GA"}
+        """state_abbr must be derived from county_fips prefix using the full national mapping."""
+        # Use STATES (loaded from config) to build the expected mapping
+        fips_to_abbr = {v: k for k, v in STATES.items()}
         derived = parsed_df["county_fips"].str[:2].map(fips_to_abbr)
         pd.testing.assert_series_equal(
             parsed_df["state_abbr"].reset_index(drop=True),
@@ -532,23 +536,25 @@ class TestFipsFiltering:
         assert len(result) == 1
         assert result.iloc[0]["county_fips"][:2] == "01"
 
-    def test_non_target_state_excluded(self):
-        """California (06xxx) must be excluded."""
+    def test_california_retained(self):
+        """California (06xxx) must be retained in national coverage."""
         rows = [{
             "statecode": "06", "countycode": "001", "county": "Alameda", "state": "CA",
             **{k: "0.5" for k in CHR_MEASURES},
         }]
         result = parse_chr_csv(_make_chr_csv(rows), year=2024)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result.iloc[0]["county_fips"][:2] == "06"
 
-    def test_texas_excluded(self):
-        """Texas (48xxx) must be excluded."""
+    def test_texas_retained(self):
+        """Texas (48xxx) must be retained in national coverage."""
         rows = [{
             "statecode": "48", "countycode": "201", "county": "Harris", "state": "TX",
             **{k: "0.5" for k in CHR_MEASURES},
         }]
         result = parse_chr_csv(_make_chr_csv(rows), year=2024)
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result.iloc[0]["county_fips"][:2] == "48"
 
 
 # ---------------------------------------------------------------------------
@@ -626,7 +632,6 @@ class TestComputeChrFeatures:
             "mental_health_providers_rate": [180.0],
             "median_household_income": [52000.0],
             "children_in_poverty_pct": [0.20],
-            "violent_crime_rate": [370.0],
             "insufficient_sleep_pct": [0.33],
             "physical_inactivity_pct": [0.22],
             "severe_housing_problems_pct": [0.13],
@@ -655,7 +660,6 @@ class TestComputeChrFeatures:
             "mental_health_providers_rate": [180.0],
             "median_household_income": [52000.0],
             "children_in_poverty_pct": [0.20],
-            "violent_crime_rate": [370.0],
             "insufficient_sleep_pct": [0.33],
             "physical_inactivity_pct": [0.22],
             "severe_housing_problems_pct": [0.13],
@@ -819,14 +823,16 @@ class TestImputeChrStateMedians:
 class TestOutputSchema:
     """Tests for the output DataFrame schema."""
 
-    def test_features_df_only_three_states(self, features_df):
-        """Features output must contain only FL, GA, and AL counties."""
+    def test_features_df_contains_fl_ga_al(self, features_df):
+        """Features output must include FL, GA, and AL counties (national scope — not limited to 3 states)."""
         prefixes = set(features_df["county_fips"].str[:2].unique())
-        assert prefixes <= {"01", "12", "13"}
+        assert "12" in prefixes  # FL
+        assert "13" in prefixes  # GA
+        assert "01" in prefixes  # AL
 
     def test_fips_state_prefix_matches_state_abbr(self, features_df):
-        """FIPS prefix must match state_abbr in features output."""
-        fips_to_abbr = {"01": "AL", "12": "FL", "13": "GA"}
+        """FIPS prefix must match state_abbr in features output using full national FIPS mapping."""
+        fips_to_abbr = {v: k for k, v in STATES.items()}
         derived = features_df["county_fips"].str[:2].map(fips_to_abbr)
         mismatches = features_df["state_abbr"] != derived.reset_index(drop=True)
         assert not mismatches.any(), f"{mismatches.sum()} FIPS/state_abbr mismatches"
@@ -897,11 +903,9 @@ class TestChrIntegration:
 
     @pytest.mark.integration
     def test_raw_county_count_plausible(self, raw_parquet):
-        """FL+GA+AL should have 226 counties total."""
-        # FL=67, GA=159, AL=67 = 293 total... but note CHR may not have all
-        # Accept anything between 200 and 293
+        """National CHR should cover 3,000+ counties (all 50 states + DC)."""
         n = len(raw_parquet)
-        assert 200 <= n <= 300, f"Unexpected county count: {n}"
+        assert n >= 3000, f"Unexpected county count for national coverage: {n}"
 
     @pytest.mark.integration
     def test_assembled_has_required_columns(self, assembled_parquet):
@@ -911,14 +915,19 @@ class TestChrIntegration:
 
     @pytest.mark.integration
     def test_assembled_covers_all_three_states(self, assembled_parquet):
-        """Assembled features must include counties from all three states."""
+        """Assembled features must include counties from FL, GA, and AL (and all other states)."""
         states = set(assembled_parquet["state_abbr"].unique())
-        assert states == {"FL", "GA", "AL"}, f"Expected FL/GA/AL, got: {states}"
+        assert "FL" in states, "FL missing from assembled parquet"
+        assert "GA" in states, "GA missing from assembled parquet"
+        assert "AL" in states, "AL missing from assembled parquet"
+        # National coverage: expect 50 states + DC = 51 jurisdictions
+        assert len(states) >= 50, f"Expected national coverage (50+ states), got {len(states)}"
 
     @pytest.mark.integration
     def test_assembled_fips_state_prefix_matches_abbr(self, assembled_parquet):
         """FIPS prefixes must match state_abbr values in assembled file."""
-        fips_to_abbr = {"01": "AL", "12": "FL", "13": "GA"}
+        from src.core import config as cfg
+        fips_to_abbr = {v: k for k, v in cfg.STATES.items()}
         derived = assembled_parquet["county_fips"].str[:2].map(fips_to_abbr)
         mismatches = assembled_parquet["state_abbr"] != derived
         assert not mismatches.any(), f"{mismatches.sum()} FIPS/state_abbr mismatches"

@@ -12,7 +12,7 @@ low access to primary care) have shifted significantly toward Republicans since
 2016. Health features complement the CDC mortality and COVID vaccination data
 already in the pipeline.
 
-**Features produced (19 total):**
+**Features produced (18 total):**
   premature_death_rate          : Years of Potential Life Lost rate per 100K (age-adj)
   adult_smoking_pct             : % adults who currently smoke
   adult_obesity_pct             : % adults with BMI ≥ 30
@@ -22,7 +22,6 @@ already in the pipeline.
   mental_health_providers_rate  : Mental health providers per 100K population
   median_household_income       : Median household income (dollars)
   children_in_poverty_pct       : % children in poverty
-  violent_crime_rate            : Violent crimes per 100K population
   insufficient_sleep_pct        : % adults reporting insufficient sleep
   physical_inactivity_pct       : % adults physically inactive
   severe_housing_problems_pct   : % households with ≥1 severe housing problem
@@ -32,6 +31,9 @@ already in the pipeline.
   life_expectancy               : Average life expectancy (years)
   diabetes_prevalence_pct       : % adults with diabetes diagnosis
   poor_mental_health_days       : Average number of poor mental health days/month
+
+NOTE: violent_crime_rate (v043) was removed from CHR analytic data as of 2023.
+It is no longer present in CHR downloads and has been removed from this pipeline.
 
 **NaN handling:**
   - Counties with suppressed or unavailable CHR data retain NaN values.
@@ -72,7 +74,6 @@ CHR_FEATURE_COLS = [
     "mental_health_providers_rate",
     "median_household_income",
     "children_in_poverty_pct",
-    "violent_crime_rate",
     "insufficient_sleep_pct",
     "physical_inactivity_pct",
     "severe_housing_problems_pct",

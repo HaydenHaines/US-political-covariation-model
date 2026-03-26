@@ -4,7 +4,7 @@ Stage 1 data assembly: fetch County Health Rankings (CHR) analytic data.
 Source: County Health Rankings & Roadmaps (RWJF / University of Wisconsin)
 Data: CHR Annual Analytic Data CSV
 URL pattern: https://www.countyhealthrankings.org/sites/default/files/media/document/analytic_data{YEAR}.csv
-Scope: FL (FIPS 12), GA (FIPS 13), AL (FIPS 01) — 226 counties total
+Scope: All 50 states + DC (national coverage) — ~3,000+ counties
 
 The County Health Rankings program publishes annual county-level health data
 compiled from dozens of administrative and survey sources. The analytic CSV
@@ -28,7 +28,6 @@ row per county.
   v062_rawvalue  : Mental Health Providers (rate per 100K)
   v063_rawvalue  : Median Household Income ($)
   v024_rawvalue  : Children in Poverty (%)
-  v043_rawvalue  : Violent Crime Rate (per 100K)
   v069_rawvalue  : Insufficient Sleep (% of adults)
   v070_rawvalue  : Physical Inactivity (%)
   v042_rawvalue  : Severe Housing Problems (% households)
@@ -38,7 +37,6 @@ row per county.
   v085_rawvalue  : Life Expectancy (years)
   v060_rawvalue  : Diabetes Prevalence (%)
   v036_rawvalue  : Poor Mental Health Days (avg days/month)
-  v042_rawvalue  : Severe Housing Problems (% households)
 
 **NaN handling:**
   - Counties with suppressed or unavailable data retain NaN values.
@@ -46,6 +44,7 @@ row per county.
 
 **CLI:**
   --year YEAR   : Data year to fetch (default: try 2024, fall back to 2023)
+  --force       : Re-download even if output file already exists (idempotent by default)
 
 Output: data/raw/county_health_rankings/chr_{year}.parquet
 """
@@ -61,16 +60,18 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from src.core import config as cfg
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parents[2]
 OUTPUT_DIR = PROJECT_ROOT / "data" / "raw" / "county_health_rankings"
 
-# Target states: abbreviation → FIPS prefix
-STATES = {"AL": "01", "FL": "12", "GA": "13"}
+# All states + DC from central config (abbreviation → FIPS prefix)
+STATES: dict[str, str] = cfg.get_state_fips()
 
-# Set of state FIPS prefixes we care about (for filtering)
+# Set of state FIPS prefixes for filtering (all 50 states + DC)
 TARGET_STATE_FIPS = frozenset(STATES.values())
 
 # CHR analytic data URL pattern (try year in descending order)
@@ -88,6 +89,8 @@ REQUEST_TIMEOUT = 60
 
 # CHR measure codes → friendly column names (raw values only)
 # Based on the standard CHR analytic data dictionary (2023/2024 editions).
+# NOTE: v043_rawvalue (violent_crime_rate) was removed from CHR analytic data
+# in 2023; it is intentionally absent from this mapping.
 CHR_MEASURES: dict[str, str] = {
     "v001_rawvalue": "premature_death_rate",
     "v009_rawvalue": "adult_smoking_pct",
@@ -98,7 +101,6 @@ CHR_MEASURES: dict[str, str] = {
     "v062_rawvalue": "mental_health_providers_rate",
     "v063_rawvalue": "median_household_income",
     "v024_rawvalue": "children_in_poverty_pct",
-    "v043_rawvalue": "violent_crime_rate",
     "v069_rawvalue": "insufficient_sleep_pct",
     "v070_rawvalue": "physical_inactivity_pct",
     "v042_rawvalue": "severe_housing_problems_pct",
@@ -223,12 +225,12 @@ def parse_chr_csv(csv_text: str, year: int) -> pd.DataFrame:
     df = df[state_prefix_mask].copy()
     n_after = len(df)
     log.info(
-        "  State filter: %d → %d rows (kept FL/GA/AL counties)",
+        "  State filter: %d → %d rows (kept all 50 states + DC)",
         n_before, n_after,
     )
 
     if df.empty:
-        log.warning("  No FL/GA/AL counties found after filtering")
+        log.warning("  No counties found after filtering")
         return pd.DataFrame(columns=OUTPUT_COLUMNS)
 
     # Validate FIPS format
@@ -288,20 +290,34 @@ def _find_column(df: pd.DataFrame, candidates: list[str]) -> str | None:
     return None
 
 
-def main(year: int | None = None) -> None:
+def main(year: int | None = None, force: bool = False) -> None:
     """Download CHR analytic data and save to parquet.
+
+    Idempotent: skips download if the output file already exists unless
+    ``force=True`` is passed.
 
     Attempts to download the requested year; falls back to FALLBACK_YEAR
     if the primary year is unavailable.
 
     Args:
         year: 4-digit data year. Defaults to DEFAULT_YEAR with FALLBACK_YEAR fallback.
+        force: If True, re-download even when output file already exists.
     """
     if year is None:
         year = DEFAULT_YEAR
 
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = OUTPUT_DIR / f"chr_{year}.parquet"
+
+    if output_path.exists() and not force:
+        log.info(
+            "CHR %d already downloaded at %s — skipping (pass --force to re-download)",
+            year, output_path,
+        )
+        return
+
     log.info("Fetching County Health Rankings analytic data for year %d", year)
-    log.info("Target states: %s", list(STATES.keys()))
+    log.info("Target: national coverage (%d states + DC)", len(STATES) - 1)
     log.info("Measures: %d", len(CHR_MEASURES))
 
     csv_text = fetch_raw_csv(year)
@@ -351,8 +367,6 @@ def main(year: int | None = None) -> None:
             pct = 100 * n / n_counties
             log.info("  %-35s  %d (%.1f%%)", col, n, pct)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = OUTPUT_DIR / f"chr_{year}.parquet"
     df.to_parquet(output_path, index=False)
     log.info(
         "\nSaved → %s  (%d rows × %d cols)",
@@ -362,7 +376,7 @@ def main(year: int | None = None) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Fetch County Health Rankings analytic data for FL/GA/AL counties."
+        description="Fetch County Health Rankings analytic data (national, all 50 states + DC)."
     )
     parser.add_argument(
         "--year",
@@ -370,5 +384,11 @@ if __name__ == "__main__":
         default=None,
         help=f"Data year to fetch (default: {DEFAULT_YEAR}, falls back to {FALLBACK_YEAR})",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        default=False,
+        help="Re-download even if output file already exists",
+    )
     args = parser.parse_args()
-    main(year=args.year)
+    main(year=args.year, force=args.force)

@@ -1,6 +1,6 @@
 {
   "alpha": 0.23101297000831605,
-  "r2_train": 0.9879337000739915,
+  "r2_train": 0.9881727155022936,
   "feature_names": [
     "type_0_score",
     "type_1_score",
@@ -122,11 +122,18 @@
     "catholic_share",
     "black_protestant_share",
     "congregations_per_1000",
-    "religious_adherence_rate"
+    "religious_adherence_rate",
+    "vax_complete_pct",
+    "vax_booster_pct",
+    "vax_dose1_pct",
+    "drug_overdose_rate",
+    "covid_death_rate",
+    "allcause_age_adj_rate",
+    "excess_mortality_ratio"
   ],
   "n_counties": 3106,
   "n_training_samples": 3106,
-  "date_trained": "2026-03-25",
+  "date_trained": "2026-03-26",
   "target": "pres_dem_share_2024",
   "history_years": [
     2008,
@@ -135,5 +142,5 @@
     2020
   ],
   "n_type_scores": 100,
-  "n_demo_features": 20
+  "n_demo_features": 27
 }

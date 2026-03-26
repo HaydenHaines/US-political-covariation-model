@@ -45,12 +45,12 @@ from src.prediction.train_ridge_model import (
 log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
-# HGB hyperparameters confirmed by exp1b_hgb_full_loo.py (LOO r=0.687)
+# HGB hyperparameters (updated 2026-03-26: max_iter 300→800, lr 0.05→0.1, max_depth 4→5, min_samples_leaf 20→30)
 HGB_PARAMS = {
-    "max_iter": 300,
-    "learning_rate": 0.05,
-    "max_depth": 4,
-    "min_samples_leaf": 20,
+    "max_iter": 800,
+    "learning_rate": 0.1,
+    "max_depth": 5,
+    "min_samples_leaf": 30,
     "l2_regularization": 1.0,
     "random_state": 42,
 }

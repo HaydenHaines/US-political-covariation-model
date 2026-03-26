@@ -41,17 +41,23 @@ function normCdf(x: number): number {
 
 /**
  * Anchoring comparisons — maps a win probability to a familiar analog.
- * Thresholds are midpoints between the actual anchor values so each bucket
- * maps to the closest familiar probability (snake eyes ≈97%, die face ≈17%, etc.).
+ * Thresholds sit at midpoints between anchor values so each bucket maps to
+ * the closest familiar probability. Anchor values in parentheses.
+ *
+ * The 38–62% zone is split into three using the two-dice anchor: rolling 7+
+ * on two standard dice has P ≈ 58%, rolling under 7 has P ≈ 42%. Familiar
+ * from Monopoly/Catan — prevents calling every close race "a coin flip."
  */
 const PROB_ANCHORS: Array<{ min: number; text: string }> = [
-  { min: 0.90, text: "about as certain as not rolling snake eyes" },     // anchor ≈ 97%
-  { min: 0.79, text: "about as likely as not rolling a 1 on a die" },   // anchor ≈ 83%
-  { min: 0.62, text: "about as likely as not drawing a spade" },         // anchor = 75%
-  { min: 0.38, text: "about as certain as a coin flip" },                // anchor = 50%
-  { min: 0.21, text: "about as likely as drawing a spade" },             // anchor = 25%
-  { min: 0.12, text: "about as likely as rolling a 1 on a die" },       // anchor ≈ 17%
-  { min: 0,    text: "about as likely as drawing an ace from a deck" },  // anchor ≈ 8%
+  { min: 0.90, text: "about as certain as not rolling snake eyes" },          // ≈ 97%
+  { min: 0.79, text: "about as likely as not rolling a 1 on a die" },        // ≈ 83%
+  { min: 0.67, text: "about as likely as not drawing a spade" },              //   75%
+  { min: 0.54, text: "about as likely as rolling 7 or higher on two dice" }, // ≈ 58%
+  { min: 0.46, text: "about as certain as a coin flip" },                     //   50%
+  { min: 0.34, text: "about as likely as rolling under 7 on two dice" },     // ≈ 42%
+  { min: 0.21, text: "about as likely as drawing a spade" },                  //   25%
+  { min: 0.12, text: "about as likely as rolling a 1 on a die" },            // ≈ 17%
+  { min: 0,    text: "about as likely as drawing an ace from a deck" },       // ≈  8%
 ];
 
 function getAnchor(p: number): string {

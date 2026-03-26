@@ -346,15 +346,37 @@ def run() -> None:
                     type_priors[t] = row["prior_dem_share"]
     log.info("Type priors: %s", np.round(type_priors, 3))
 
-    # Load county-level priors (each county's own historical baseline)
-    log.info("Computing county-level priors from historical election results...")
-    county_prior_values = compute_county_priors(county_fips)
-    n_with_data = np.sum(county_prior_values != 0.45)
-    log.info(
-        "County priors: %d/%d counties have historical data, range [%.3f, %.3f]",
-        n_with_data, len(county_fips),
-        county_prior_values.min(), county_prior_values.max(),
-    )
+    # Load county-level priors: Ridge-predicted if available, else historical
+    ridge_priors_path = PROJECT_ROOT / "data" / "models" / "ridge_model" / "ridge_county_priors.parquet"
+    county_prior_values = compute_county_priors(county_fips)  # baseline fallback
+
+    if ridge_priors_path.exists():
+        log.info("Loading Ridge county priors from %s", ridge_priors_path)
+        ridge_df = pd.read_parquet(ridge_priors_path)
+        ridge_df["county_fips"] = ridge_df["county_fips"].astype(str).str.zfill(5)
+        ridge_map = dict(zip(ridge_df["county_fips"], ridge_df["ridge_pred_dem_share"]))
+        n_matched = sum(1 for f in county_fips if f in ridge_map)
+        n_fallback = len(county_fips) - n_matched
+        for i, fips in enumerate(county_fips):
+            if fips in ridge_map:
+                county_prior_values[i] = ridge_map[fips]
+        log.info(
+            "Ridge priors: %d/%d counties matched; %d using historical fallback",
+            n_matched, len(county_fips), n_fallback,
+        )
+        print(f"Using Ridge priors for {n_matched}/{len(county_fips)} counties "
+              f"({n_fallback} fallback to historical)")
+    else:
+        log.info(
+            "Ridge model not found at %s — using historical county priors",
+            ridge_priors_path,
+        )
+        n_with_data = np.sum(county_prior_values != 0.45)
+        log.info(
+            "County priors (historical): %d/%d counties have data, range [%.3f, %.3f]",
+            n_with_data, len(county_fips),
+            county_prior_values.min(), county_prior_values.max(),
+        )
 
     # Derive states and names
     states = [_STATE_FIPS_TO_ABBR.get(f[:2], "??") for f in county_fips]

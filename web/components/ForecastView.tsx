@@ -63,6 +63,17 @@ function SectionHeader({
   );
 }
 
+/** Extract 2-char state abbreviation from a race label.
+ * Handles the actual API format: "2026 FL Senate", "2026 GA Governor".
+ * Walks whitespace-delimited tokens and returns the first all-uppercase 2-char token.
+ */
+function stateFromRace(race: string): string | null {
+  for (const part of race.trim().split(/\s+/)) {
+    if (/^[A-Z]{2}$/.test(part)) return part;
+  }
+  return null;
+}
+
 export function ForecastView() {
   const { setForecastState, setForecastChoropleth } = useMapContext();
 
@@ -84,12 +95,12 @@ export function ForecastView() {
     });
   }, []);
 
-  // Derive available states from race names like "FL_Senate" → "FL"
+  // Derive available states from race labels ("2026 FL Senate" → "FL")
   const availableStates = useMemo(() => {
     const stateSet = new Set<string>();
     allRows.forEach((r) => {
-      const abbr = r.race.split("_")[0];
-      if (abbr && abbr.length === 2) stateSet.add(abbr);
+      const s = stateFromRace(r.race);
+      if (s) stateSet.add(s);
     });
     return Array.from(stateSet).sort();
   }, [allRows]);
@@ -101,10 +112,14 @@ export function ForecastView() {
     }
   }, [availableStates, selectedState]);
 
-  // Races available for selected state
+  // Races available for selected state ("2026 FL Senate" matches "FL")
   const racesForState = useMemo(() => {
     if (!selectedState) return [];
-    return Array.from(new Set(allRows.filter((r) => r.race.startsWith(selectedState + "_")).map((r) => r.race))).sort();
+    return Array.from(new Set(
+      allRows
+        .filter((r) => stateFromRace(r.race) === selectedState)
+        .map((r) => r.race)
+    )).sort();
   }, [allRows, selectedState]);
 
   // Auto-select first race when state changes
@@ -210,7 +225,7 @@ export function ForecastView() {
               <option value="">—</option>
             ) : (
               racesForState.map((r) => (
-                <option key={r} value={r}>{r.replace(/_/g, " ")}</option>
+                <option key={r} value={r}>{r}</option>
               ))
             )}
           </select>
@@ -287,7 +302,7 @@ export function ForecastView() {
             {selectedState} projected Dem share: {(statePred * 100).toFixed(1)}%
           </div>
           <div style={{ fontSize: "11px", color: "var(--color-text-muted)", marginTop: "2px" }}>
-            {selectedRace.replace(/_/g, " ")} · Model prior only
+            {selectedRace} · Model prior only
           </div>
         </div>
       )}

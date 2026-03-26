@@ -17,6 +17,14 @@ from src.db.domains import DomainIngestionError, DomainSpec
 
 log = logging.getLogger(__name__)
 
+# Default type-level dem_share prior used when type_profiles.parquet
+# lacks a mean_dem_share column (the column is computed in a later
+# pipeline stage not yet run).
+DEFAULT_TYPE_PRIOR = 0.45
+
+# Tolerance for covariance matrix symmetry check: |A[i,j] - A[j,i]| ≤ tol.
+COVARIANCE_SYMMETRY_TOL = 1e-6
+
 DOMAIN_SPEC = DomainSpec(
     name="model",
     tables=[
@@ -234,7 +242,7 @@ def _ingest_type_covariance(con, version_id, path):
     cov_df = pd.read_parquet(path)
     J = cov_df.shape[0]
     mat = cov_df.values[:J, :J].astype(float)
-    if not np.allclose(mat, mat.T, atol=1e-6):
+    if not np.allclose(mat, mat.T, atol=COVARIANCE_SYMMETRY_TOL):
         raise DomainIngestionError("model", str(path), "covariance matrix is not symmetric")
 
     rows = [{"type_i": i, "type_j": j, "value": float(mat[i, j])} for i in range(J) for j in range(J)]
@@ -279,7 +287,7 @@ def _ingest_type_priors(con, version_id, path):
         if not type_ids:
             log.warning("type_scores also empty; skipping type_priors ingest")
             return
-        rows = [{"type_id": int(tid), "mean_dem_share": 0.45} for tid in type_ids]
+        rows = [{"type_id": int(tid), "mean_dem_share": DEFAULT_TYPE_PRIOR} for tid in type_ids]
     _validate_rows(TypePriorRow, rows, str(path))
     df = pd.DataFrame(rows)
     df["version_id"] = version_id

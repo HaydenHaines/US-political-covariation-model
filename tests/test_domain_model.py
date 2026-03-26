@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 
 from src.db.domains import DomainIngestionError
-from src.db.domains.model import ingest, _cross_compliance
+from src.db.domains.model import ingest, _cross_compliance, COVARIANCE_SYMMETRY_TOL
 
 
 # ---------------------------------------------------------------------------
@@ -112,10 +112,10 @@ def test_ingest_creates_type_covariance_symmetric(tmp_data):
     n = con.execute("SELECT COUNT(*) FROM type_covariance WHERE version_id='test_v1'").fetchone()[0]
     assert n == TEST_J ** 2
     # Symmetry: value at (i,j) == value at (j,i)
-    asym = con.execute("""
+    asym = con.execute(f"""
         SELECT COUNT(*) FROM type_covariance a
         JOIN type_covariance b ON a.type_i=b.type_j AND a.type_j=b.type_i AND a.version_id=b.version_id
-        WHERE ABS(a.value - b.value) > 1e-6 AND a.version_id='test_v1'
+        WHERE ABS(a.value - b.value) > {COVARIANCE_SYMMETRY_TOL} AND a.version_id='test_v1'
     """).fetchone()[0]
     assert asym == 0
 

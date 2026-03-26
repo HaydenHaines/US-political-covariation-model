@@ -103,15 +103,15 @@ def _make_wide_df(counties: list[dict]) -> pd.DataFrame:
     default = {
         "county_fips": "12001",
         "year": 2022,
-        "empl_10": 10000.0,   # total
-        "empl_31": 1000.0,    # manufacturing
-        "empl_92": 800.0,     # government
-        "empl_62": 1200.0,    # healthcare
-        "empl_44": 700.0,     # retail
-        "empl_23": 400.0,     # construction
-        "empl_52": 300.0,     # finance
-        "empl_72": 600.0,     # hospitality
-        "empl_48": 500.0,     # transportation
+        "empl_10": 10000.0,      # total
+        "empl_31-33": 1000.0,    # manufacturing (range code)
+        "empl_92": 800.0,        # government
+        "empl_62": 1200.0,       # healthcare
+        "empl_44-45": 700.0,     # retail (range code)
+        "empl_23": 400.0,        # construction
+        "empl_52": 300.0,        # finance
+        "empl_72": 600.0,        # hospitality
+        "empl_48-49": 500.0,     # transportation (range code)
         "total_wages": 500000000.0,
     }
     records = [{**default, **c} for c in counties]
@@ -607,14 +607,14 @@ class TestComputeTopIndustry:
         wide = _make_wide_df(
             [
                 {
-                    "empl_62": 5000.0,  # healthcare — largest
-                    "empl_31": 1000.0,
+                    "empl_62": 5000.0,     # healthcare — largest
+                    "empl_31-33": 1000.0,  # manufacturing
                     "empl_92": 800.0,
-                    "empl_44": 700.0,
+                    "empl_44-45": 700.0,   # retail
                     "empl_23": 400.0,
                     "empl_52": 300.0,
                     "empl_72": 200.0,
-                    "empl_48": 150.0,
+                    "empl_48-49": 150.0,   # transportation
                     "empl_10": 10000.0,
                 }
             ]
@@ -691,8 +691,8 @@ class TestComputeQcewFeatures:
                         "total_annual_wages": 500000000.0,
                     }
                 )
-                for code, empl in [("31", 1000), ("92", 800), ("62", 1200), ("44", 700),
-                                   ("23", 400), ("52", 300), ("72", 600), ("48", 500)]:
+                for code, empl in [("31-33", 1000), ("92", 800), ("62", 1200), ("44-45", 700),
+                                   ("23", 400), ("52", 300), ("72", 600), ("48-49", 500)]:
                     rows.append(
                         {
                             "county_fips": county,

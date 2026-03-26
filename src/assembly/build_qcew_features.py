@@ -51,15 +51,17 @@ INPUT_PATH = PROJECT_ROOT / "data" / "raw" / "qcew_county.parquet"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "assembled" / "county_qcew_features.parquet"
 
 # NAICS codes for each feature sector (must match INDUSTRY_CODES in fetch_bls_qcew.py)
+# Note: manufacturing, retail, and transportation use range codes as they appear
+# in the BLS singlefile CSV (e.g. "31-33" not "31").
 SECTOR_CODES: dict[str, str] = {
-    "manufacturing": "31",
+    "manufacturing": "31-33",  # BLS singlefile uses range "31-33"
     "government": "92",
     "healthcare": "62",
-    "retail": "44",
+    "retail": "44-45",          # BLS singlefile uses range "44-45"
     "construction": "23",
     "finance": "52",
     "hospitality": "72",
-    "transportation": "48",
+    "transportation": "48-49",  # BLS singlefile uses range "48-49"
 }
 
 # Feature column names in the output

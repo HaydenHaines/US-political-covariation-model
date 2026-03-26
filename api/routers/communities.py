@@ -368,11 +368,26 @@ def get_type(
         except Exception:
             pass
 
+    # Compute mean prediction across member counties
+    mean_pred: float | None = None
+    if county_fips_list:
+        try:
+            placeholders = ", ".join("?" * len(county_fips_list))
+            pred_row = db.execute(
+                f"SELECT AVG(pred_dem_share) FROM predictions WHERE county_fips IN ({placeholders})",
+                county_fips_list,
+            ).fetchone()
+            if pred_row and pred_row[0] is not None:
+                mean_pred = float(pred_row[0])
+        except Exception:
+            pass
+
     return TypeDetail(
         type_id=int(tid),
         super_type_id=int(super_type_id),
         display_name=str(display_name),
         n_counties=len(counties),
+        mean_pred_dem_share=mean_pred,
         counties=counties,
         demographics=demographics,
         shift_profile=shift_profile,

@@ -8,6 +8,8 @@ export const DEMO_DISPLAY: Record<string, { label: string; fmt: "pct" | "dollar"
   pct_hispanic: { label: "Hispanic", fmt: "pct" },
   pct_asian: { label: "Asian", fmt: "pct" },
   pct_bachelors_plus: { label: "Bachelor's+", fmt: "pct" },
+  pct_graduate: { label: "Graduate degree", fmt: "pct" },
+  pct_management: { label: "Management workers", fmt: "pct" },
   pct_owner_occupied: { label: "Owner-occupied", fmt: "pct" },
   pct_wfh: { label: "Work from home", fmt: "pct" },
   pct_transit: { label: "Transit commuters", fmt: "pct" },
@@ -18,6 +20,10 @@ export const DEMO_DISPLAY: Record<string, { label: string; fmt: "pct" | "dollar"
   black_protestant_share: { label: "Black Protestant", fmt: "pct" },
   congregations_per_1000: { label: "Congregations/1K", fmt: "num" },
   religious_adherence_rate: { label: "Religious adherence", fmt: "num" },
+  pop_per_sq_mi: { label: "Pop. density (per mi²)", fmt: "num" },
+  land_area_sq_mi: { label: "Avg. land area (mi²)", fmt: "num" },
+  net_migration_rate: { label: "Net migration rate", fmt: "num" },
+  inflow_outflow_ratio: { label: "Migration in/out ratio", fmt: "num" },
 };
 
 export const DEMO_SKIP = new Set([
@@ -25,6 +31,12 @@ export const DEMO_SKIP = new Set([
   "housing_total", "housing_owner", "educ_total", "educ_bachelors_plus",
   "commute_total", "commute_car", "commute_transit", "commute_wfh",
   "n_counties",
+  // Log-transformed / z-score derived columns — raw values are meaningless to users
+  "log_median_hh_income", "log_pop_density",
+  // Intermediate values that don't display well
+  "avg_inflow_income", "migration_diversity",
+  // Text fields that leak through demographics dict
+  "narrative",
 ]);
 
 export function formatDemoValue(value: number, fmt: "pct" | "dollar" | "num"): string {

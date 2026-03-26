@@ -39,8 +39,8 @@ h1, h2, h3 { font-family: var(--font-serif); }
   .map-pane {
     flex: none !important;
     width: 100% !important;
-    height: 40vh !important;
-    min-height: 200px;
+    height: 45vh !important;
+    min-height: 250px;
   }
 
   .panel-pane {
@@ -102,10 +102,17 @@ h1, h2, h3 { font-family: var(--font-serif); }
   .compare-table-scroll {
     overflow-x: auto !important;
     -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 0 16px;
   }
 
   .compare-table-scroll table {
-    min-width: 340px;
+    min-width: 420px;
+    table-layout: auto !important;
+  }
+
+  .compare-table-scroll col {
+    width: auto !important;
   }
 
   /* ── Forecast county table: constrained height with show-more ── */

@@ -103,6 +103,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: `${name} is a ${data.type_display_name} county in ${state}. Political lean: ${lean.text}. See demographics and 2026 forecast.`,
       type: "article",
       siteName: "WetherVane",
+      images: [{
+        url: `/county/${fips}/opengraph-image`,
+        width: 1200,
+        height: 630,
+        alt: `${name}, ${state} electoral profile`,
+      }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${name}, ${state} — WetherVane Electoral Profile`,
+      description: `${name} is a ${data.type_display_name} county in ${state}. Political lean: ${lean.text}.`,
     },
   };
 }

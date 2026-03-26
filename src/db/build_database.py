@@ -627,9 +627,14 @@ def build(db_path: Path, reset: bool = False) -> None:
         log.info("No type_covariance_long.parquet found; skipping")
 
     # ── Ingest demographics interpolated ───────────────────────────────────────
+    # DuckDB develops heap corruption after many DataFrame INSERTs on a single
+    # connection. Flush to disk, open a fresh connection for the last large table.
     if DEMOGRAPHICS_INTERPOLATED_PATH.exists():
         di_df = pd.read_parquet(DEMOGRAPHICS_INTERPOLATED_PATH)
         di_df["county_fips"] = di_df["county_fips"].astype(str).str.zfill(5)
+        del con  # release without close() — avoids crash on corrupted heap
+        import gc; gc.collect()
+        con = duckdb.connect(str(db_path))
         con.execute("DROP TABLE IF EXISTS demographics_interpolated")
         con.execute("CREATE TABLE demographics_interpolated AS SELECT * FROM di_df")
         log.info("Ingested demographics_interpolated: %d rows", len(di_df))

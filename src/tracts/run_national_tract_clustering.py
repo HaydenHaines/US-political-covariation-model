@@ -23,6 +23,23 @@ from scipy.stats import pearsonr
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 
+# Demographic features used for super-type nesting (Ward HAC on profiles).
+# NOTE: centroids are in standardized shift space and produce degenerate
+# clustering at J=100 — demographic profiles give meaningful separation.
+NESTING_DEMO_FEATURES = [
+    "pct_white_nh",
+    "pct_black",
+    "pct_hispanic",
+    "pct_asian",
+    "pct_ba_plus",
+    "median_hh_income",
+    "median_age",
+    "evangelical_share",
+    "catholic_share",
+    "black_protestant_share",
+    "religious_adherence_rate",
+]
+
 from src.discovery.nest_types import nest_types
 from src.discovery.run_type_discovery import temperature_soft_membership
 
@@ -208,6 +225,57 @@ def compute_holdout_r(
     return mean_r, per_dim_r
 
 
+def build_demographic_profiles(
+    df_filt: pd.DataFrame,
+    labels: np.ndarray,
+    j: int,
+) -> np.ndarray:
+    """Compute mean demographic profiles per type for super-type nesting.
+
+    Uses NESTING_DEMO_FEATURES averaged per KMeans label.  Missing columns
+    are silently skipped.  NaN values are imputed with the column mean.
+
+    Returns
+    -------
+    ndarray of shape (J, n_features)
+        StandardScaler-normalised profile matrix ready for Ward HAC.
+    """
+    avail = [c for c in NESTING_DEMO_FEATURES if c in df_filt.columns]
+    if not avail:
+        log.warning(
+            "No demographic nesting features found in df_filt. "
+            "Falling back to shift-space centroids for nesting."
+        )
+        return None  # type: ignore[return-value]
+
+    # Assign labels to filtered tracts
+    demo_df = df_filt[avail].copy()
+    demo_df["_label"] = labels
+
+    # Mean per type (ordered by type id 0..J-1)
+    profiles = demo_df.groupby("_label")[avail].mean()
+    # Some types might be missing if labels are non-contiguous (shouldn't happen)
+    profiles = profiles.reindex(range(j))
+
+    feature_matrix = profiles.values.astype(float)
+
+    # Impute any remaining NaN (rare: type with all-NaN feature)
+    col_means = np.nanmean(feature_matrix, axis=0)
+    nan_mask = np.isnan(feature_matrix)
+    for col_idx in range(feature_matrix.shape[1]):
+        feature_matrix[nan_mask[:, col_idx], col_idx] = col_means[col_idx]
+
+    # StandardScaler so all demographics are on equal footing
+    scaler = StandardScaler()
+    feature_matrix = scaler.fit_transform(feature_matrix)
+
+    log.info(
+        "Built demographic profile matrix: %d types × %d features (%s)",
+        feature_matrix.shape[0], feature_matrix.shape[1], avail,
+    )
+    return feature_matrix
+
+
 def run_j_sweep(
     X_train: np.ndarray,
     X_holdout: np.ndarray,
@@ -332,9 +400,14 @@ def main() -> None:
     log.info("Type sizes (sorted): %s", sorted_counts[:20])
     log.info("Min type size: %d, max: %d, median: %.0f", min(counts), max(counts), np.median(counts))
 
-    # Super-type nesting
-    log.info("Nesting %d types into super-types ...", best_j)
-    nesting = nest_types(centroids, s_candidates=[5, 6, 7, 8])
+    # Super-type nesting via demographic profiles (NOT centroids).
+    # Centroids are in standardized shift space — at J=100 they cluster
+    # degenerately, collapsing all types into one super-type.
+    # Demographic profiles produce meaningful separation (see CLAUDE.md).
+    log.info("Nesting %d types into super-types via demographic profiles ...", best_j)
+    demo_profiles = build_demographic_profiles(df_filt, labels, best_j)
+    nesting_features = demo_profiles if demo_profiles is not None else centroids
+    nesting = nest_types(nesting_features, s_candidates=[5, 6, 7, 8])
     log.info(
         "Best super-types: S=%d (silhouette=%.4f)",
         nesting.best_s,

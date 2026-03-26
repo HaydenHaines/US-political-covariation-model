@@ -113,19 +113,26 @@ def load_super_type_names() -> dict[int, str]:
     except Exception:
         pass
 
-    # Descriptive names for 5 tract super-types.
-    # Derived from Ward HAC on demographic profiles of 100 fine types (ACS 2022).
-    # Super-type 0: Black urban, 59% Black, high poverty, low homeownership (5,828 tracts)
-    # Super-type 1: Hispanic/diverse working, 48% Hispanic, young, moderate income (16,472 tracts)
-    # Super-type 2: White mainstream, 75% White NH, older, homeowning (39,959 tracts)
-    # Super-type 3: Urban professional, high education, dense, young renters (4,868 tracts)
-    # Super-type 4: Affluent suburban, high income, Asian, homeowner (14,002 tracts)
+    # Descriptive names for 8 tract super-types.
+    # Derived from Ward HAC on ACS demographic profiles of 100 fine types.
+    # Profile summary (ACS 2022, 81,129 tracts):
+    # ST 0: Mixed-race diverse, 60% White NH, 18% Black, 14% Hispanic, moderate income, evangelical
+    # ST 1: White rural retiree, 85% White NH, old (58), modest income, high evangelical
+    # ST 2: White mainstream, 82% White NH, 56% evangelical, middle-income homeowner
+    # ST 3: Asian-Pacific affluent, 43% Asian, high edu, very high income (>$130K)
+    # ST 4: Educated suburban, 68% White NH, 9% Asian, high edu ($126K), low evangelical
+    # ST 5: White working class, 75% White NH, lower edu, modest income
+    # ST 6: Hispanic working, 59% Hispanic, young, low income
+    # ST 7: Black urban, 67% Black, low income (<$54K), low homeownership
     return {
-        0: "Black Urban",
-        1: "Hispanic & Diverse Working",
-        2: "White Mainstream",
-        3: "Urban Professional",
-        4: "Affluent Suburban",
+        0: "Diverse Mixed",
+        1: "White Rural Retiree",
+        2: "White Evangelical",
+        3: "Asian-Pacific Affluent",
+        4: "Educated Suburban",
+        5: "White Working Class",
+        6: "Hispanic Working",
+        7: "Black Urban",
     }
 
 

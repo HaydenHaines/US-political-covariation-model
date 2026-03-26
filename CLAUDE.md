@@ -18,12 +18,14 @@ A political modeling platform that discovers electoral communities directly from
 - Revert to SVD+varimax, NMF, or HAC as the primary clustering algorithm. KMeans is the production algorithm. See ADR-006.
 - Use raw (non-state-centered) governor/Senate shifts for cross-state clustering. This creates state-isolated types.
 - Use the old community_assignments or HAC K=10 model for anything except historical comparison.
-- Modify the county-level model without running `uv run python -m src.validation.validate_types` and comparing to baseline (holdout r=0.818, MAE=0.061).
+- Modify the county-level model without running `uv run python -m src.validation.validate_types` and comparing to baseline (holdout r=0.648, covariance val r=0.855).
 - Run tract-level experiments without population weighting (tracts with <500 voters are noise).
 
 **BASELINE METRICS (beat these or don't merge):**
-- County holdout r: 0.805 (J sweep CV, national 3,154 counties)
-- County covariance val r: 0.825
+- County holdout r: 0.648 (J=100, StandardScaler+pw=4, national 3,154 counties)
+- County covariance val r: 0.855
+- County coherence: 0.585
+- County RMSE: 0.077
 - Tract holdout r: 0.632 (J=100, 35 dims, S192)
 
 **Data sources on disk (gitignored, do NOT re-download):**
@@ -78,11 +80,11 @@ Two-resolution electoral model (ADR-006):
 
 ### County-Level Model (production, live at wethervane.hhaines.duckdns.org)
 
-**Algorithm:** KMeans J=55 on presidential×2.5 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
-**Key insight:** Governor/Senate shifts are state-specific races — must be state-centered before cross-state clustering. Presidential shifts carry the cross-state signal.
+**Algorithm:** KMeans J=100 on StandardScaler-normalized shifts with presidential weight=4.0 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
+**Key insight:** Governor/Senate shifts are state-specific races — must be state-centered before cross-state clustering. Presidential shifts carry the cross-state signal. StandardScaler normalizes feature scales; presidential weight amplifies the strongest cross-state signal.
 **Soft membership:** Temperature-scaled inverse distance (T=10, production default). T=10 reduces calibration MAE by ~37% vs T=1.
-**Holdout r:** 0.805 (J sweep CV), 0.453 (validation holdout — expected drop at national scale). Covariance val r=0.825.
-**Super-types:** 5 super-types for public communication.
+**Holdout r:** 0.648 (type-mean prior), 0.630 (county-level prior). Coherence=0.585. Covariance val r=0.855. RMSE=0.077.
+**Super-types:** 5 super-types (Rural Young, Black-Belt Urban, Hispanic Exurban, Rural Evangelical, Affluent College) via Ward HAC on demographic profiles (not centroids — centroids produce degenerate clustering at J=100).
 
 ### Tract-Level Model (experimental, toggle on frontend)
 

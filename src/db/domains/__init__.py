@@ -23,6 +23,9 @@ class DomainSpec:
 
 
 REGISTRY: list[DomainSpec] = [
+    # NOTE: The table list here must stay in sync with DOMAIN_SPEC in model.py.
+    # model.py owns the authoritative list used by ingest(); this entry is
+    # for REGISTRY discovery only.
     DomainSpec(
         name="model",
         tables=[

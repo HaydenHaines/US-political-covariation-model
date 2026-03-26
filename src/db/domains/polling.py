@@ -27,6 +27,16 @@ log = logging.getLogger(__name__)
 # of entropy — collision probability is negligible for any realistic poll count.
 POLL_ID_LENGTH = 16
 
+# Known US state abbreviations for cross-compliance validation.
+_US_STATE_ABBRS: frozenset[str] = frozenset({
+    "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+    "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+    "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+    "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+    "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+    "DC",
+})
+
 DOMAIN_SPEC = DomainSpec(
     name="polling",
     tables=["polls", "poll_crosstabs", "poll_notes"],
@@ -72,6 +82,22 @@ CREATE TABLE IF NOT EXISTS poll_notes (
     note_value VARCHAR NOT NULL
 );
 """
+
+
+def _cross_compliance(con: duckdb.DuckDBPyConnection, cycle: str) -> None:
+    """Validate state-level poll geography values against known US abbreviations."""
+    state_geos = con.execute(
+        "SELECT DISTINCT geography FROM polls WHERE geo_level='state' AND cycle=?",
+        [cycle],
+    ).fetchdf()
+    if state_geos.empty:
+        return
+    unknown = [g for g in state_geos["geography"].tolist() if g not in _US_STATE_ABBRS]
+    if unknown:
+        raise DomainIngestionError(
+            "polling", f"polls_{cycle}.csv",
+            f"state-level polls with unknown geography (first 5): {unknown[:5]}"
+        )
 
 
 def _make_poll_id(race: str, geography: str, date: str | None, pollster: str | None, cycle: str) -> str:
@@ -162,6 +188,11 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
         df = pd.DataFrame(poll_rows)
         con.execute("INSERT INTO polls SELECT * FROM df")
         log.info("polls: ingested %d rows for cycle=%s", len(poll_rows), cycle)
+
+    # Cross-compliance: validate state geography values
+    if poll_rows:
+        _cross_compliance(con, cycle)
+        log.info("Polling domain cross-compliance passed for cycle=%s", cycle)
 
     if note_rows:
         ndf = pd.DataFrame(note_rows)

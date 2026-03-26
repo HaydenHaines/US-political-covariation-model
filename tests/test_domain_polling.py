@@ -118,3 +118,17 @@ def test_reingest_is_idempotent(tmp_path):
     n_notes = con.execute("SELECT COUNT(*) FROM poll_notes").fetchone()[0]
     assert n_polls == 2  # not 4
     assert n_notes == 2  # not 4
+
+
+def test_invalid_state_geography_raises(tmp_path):
+    """State-level poll with unknown geography abbreviation should abort ingest."""
+    from src.db.domains import DomainIngestionError
+    rows = [
+        {"race": "FL Senate", "geography": "XX", "geo_level": "state",
+         "dem_share": "0.45", "n_sample": "600", "date": "2026-01-15",
+         "pollster": "Siena", "notes": "grade=A"},
+    ]
+    _write_poll_csv(tmp_path / "data" / "polls" / "polls_2026.csv", rows)
+    con = _base_db()
+    with pytest.raises(DomainIngestionError, match="unknown geography"):
+        ingest(con, "2026", tmp_path)

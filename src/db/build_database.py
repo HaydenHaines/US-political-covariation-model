@@ -41,6 +41,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 DEFAULT_DB = PROJECT_ROOT / "data" / "wethervane.duckdb"
 
+# Election cycle to ingest polling data for.
+# Update this when targeting a new cycle year.
+POLL_INGEST_CYCLE = "2026"
+
 # Parquet source paths
 SHIFTS_MULTIYEAR = PROJECT_ROOT / "data" / "shifts" / "county_shifts_multiyear.parquet"
 COUNTY_ASSIGNMENTS = PROJECT_ROOT / "data" / "communities" / "county_community_assignments.parquet"
@@ -570,7 +574,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
 
     # ── Ingest community sigma ─────────────────────────────────────────────────
     if _sigma_path.exists():
-        sigma_df = pd.read_parquet(sigma_path)
+        sigma_df = pd.read_parquet(_sigma_path)
         sigma_long_rows = []
         for row_id in sigma_df.index:
             for col_id in sigma_df.columns:
@@ -668,7 +672,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
     polling_ddl(con)
 
     ingest_model(con, current_version_id, _project_root)
-    ingest_polling(con, "2026", _project_root)
+    ingest_polling(con, POLL_INGEST_CYCLE, _project_root)
 
     # ── Ingest demographics interpolated ───────────────────────────────────────
     if _demographics_interpolated_path.exists():

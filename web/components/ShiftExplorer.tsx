@@ -366,7 +366,7 @@ export function ShiftExplorer() {
         Shift Explorer
       </h3>
       <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--color-text-muted)" }}>
-        Each dot is one of the 55 electoral types. Size = county count.
+        Each dot is one of the 100 electoral types. Size = county count.
       </p>
 
       {loading && (

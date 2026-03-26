@@ -321,6 +321,111 @@ def holdout_accuracy_county_prior(
     }
 
 
+def holdout_accuracy_ridge(
+    scores: np.ndarray,
+    shift_matrix: np.ndarray,
+    training_cols: list[int],
+    holdout_cols: list[int],
+    include_county_mean: bool = True,
+) -> dict:
+    """Holdout accuracy using Ridge regression on type membership scores.
+
+    Fits RidgeCV (GCV alpha selection) per holdout dimension.
+    Uses the exact LOO formula via augmented hat matrix: y_loo_i = y_i - e_i / (1 - H_ii),
+    where H is the hat matrix for the augmented feature matrix [1 | X] with
+    the intercept unpenalized (matching sklearn fit_intercept=True behavior).
+
+    This method was validated in experiment_ridge_prediction.py (S197) and
+    achieves LOO r=0.5335 at J=100, beating LOO type-mean (0.448) by +0.085.
+
+    Parameters
+    ----------
+    scores : ndarray of shape (N, J)
+        County type scores (soft membership, row-normalized).
+    shift_matrix : ndarray of shape (N, D)
+        Full shift matrix (training + holdout columns).
+    training_cols : list[int]
+        Column indices of training dimensions.
+    holdout_cols : list[int]
+        Column indices of holdout dimensions.
+    include_county_mean : bool
+        If True, augment features with county training mean (recommended).
+        Method (d) in S197: LOO r=0.5335. Method (c) without mean: 0.5223.
+
+    Returns
+    -------
+    dict with keys:
+        "mean_r"         -- float, mean LOO Pearson r across holdout dims
+        "per_dim_r"      -- list[float], one r per holdout dim
+        "mean_rmse"      -- float, mean LOO RMSE across holdout dims
+        "per_dim_rmse"   -- list[float], one RMSE per holdout dim
+        "best_alphas"    -- list[float], GCV-selected alpha per holdout dim
+    """
+    try:
+        from sklearn.linear_model import RidgeCV
+    except ImportError as exc:
+        raise ImportError("scikit-learn required for holdout_accuracy_ridge") from exc
+
+    n, j = scores.shape
+    training_data = shift_matrix[:, training_cols]
+    county_training_means = training_data.mean(axis=1)  # (N,)
+
+    # Build feature matrix
+    if include_county_mean:
+        X = np.column_stack([scores, county_training_means])  # (N, J+1)
+    else:
+        X = scores  # (N, J)
+
+    alphas = np.logspace(-3, 6, 100)
+    per_dim_r: list[float] = []
+    per_dim_rmse: list[float] = []
+    best_alphas: list[float] = []
+
+    for col in holdout_cols:
+        y = shift_matrix[:, col].astype(float)
+
+        # GCV alpha selection
+        rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
+        rcv.fit(X, y)
+        alpha = float(rcv.alpha_)
+        best_alphas.append(alpha)
+
+        # Exact LOO via augmented hat matrix
+        N_feat = X.shape[1]
+        X_aug = np.column_stack([np.ones(n), X])  # (N, N_feat+1)
+        pen = alpha * np.eye(N_feat + 1)
+        pen[0, 0] = 0.0  # unpenalized intercept
+        A = X_aug.T @ X_aug + pen
+        A_inv = np.linalg.inv(A)
+        h = np.einsum("ij,ij->i", X_aug @ A_inv, X_aug)  # (N,) hat diag
+        beta = A_inv @ X_aug.T @ y
+        y_hat = X_aug @ beta
+        e = y - y_hat
+        denom = 1.0 - h
+        denom = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
+        y_loo = y - e / denom  # exact LOO predictions
+
+        if np.std(y) < 1e-10 or np.std(y_loo) < 1e-10:
+            per_dim_r.append(0.0)
+        else:
+            r, _ = pearsonr(y, y_loo)
+            per_dim_r.append(float(np.clip(r, -1.0, 1.0)))
+
+        rmse = float(np.sqrt(np.mean((y - y_loo) ** 2)))
+        per_dim_rmse.append(rmse)
+
+    mean_r = float(np.mean(per_dim_r)) if per_dim_r else 0.0
+    mean_rmse = float(np.mean(per_dim_rmse)) if per_dim_rmse else 0.0
+
+    return {
+        "mean_r": mean_r,
+        "per_dim_r": per_dim_r,
+        "mean_rmse": mean_rmse,
+        "per_dim_rmse": per_dim_rmse,
+        "best_alphas": best_alphas,
+    }
+
+
 def holdout_accuracy_county_prior_loo(
     scores: np.ndarray,
     shift_matrix: np.ndarray,
@@ -503,6 +608,11 @@ def generate_type_validation_report(
         scores, full_matrix, training_indices, holdout_indices,
     )
 
+    log.info("Running holdout_accuracy_ridge (LOO via hat matrix)...")
+    accuracy_ridge = holdout_accuracy_ridge(
+        scores, full_matrix, training_indices, holdout_indices, include_county_mean=True,
+    )
+
     # --- Covariance validation (if data available) ---
     cov_path = resolve(type_covariance_path)
     cov_validation_r: float | None = None
@@ -544,6 +654,7 @@ def generate_type_validation_report(
         "holdout_accuracy": accuracy,
         "holdout_accuracy_county_prior": accuracy_county_prior,
         "holdout_accuracy_county_prior_loo": accuracy_county_prior_loo,
+        "holdout_accuracy_ridge": accuracy_ridge,
         "covariance_validation_r": cov_validation_r,
         "j": j,
         "n_counties": int(full_matrix.shape[0]),
@@ -571,6 +682,9 @@ def generate_type_validation_report(
     print(f"  Holdout LOO r:          {accuracy_county_prior_loo['mean_r']:.3f}  (county-level prior, LOO)")
     if "mean_rmse" in accuracy_county_prior_loo:
         print(f"  Holdout LOO RMSE:       {accuracy_county_prior_loo['mean_rmse']:.4f}  (county-level prior, LOO)")
+    print(f"  Holdout Ridge LOO r:    {accuracy_ridge['mean_r']:.3f}  (Ridge scores+county_mean, LOO)")
+    if "mean_rmse" in accuracy_ridge:
+        print(f"  Holdout Ridge RMSE:     {accuracy_ridge['mean_rmse']:.4f}  (Ridge, LOO)")
     if cov_validation_r is not None:
         print(f"  Covariance val r:       {cov_validation_r:.3f}  (> 0.4 = acceptable)")
     print("=" * 65)

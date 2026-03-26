@@ -24,10 +24,12 @@ A political modeling platform that discovers electoral communities directly from
 
 **BASELINE METRICS (beat these or don't merge):**
 - County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)
-- County holdout LOO r: 0.448 (honest generalization metric, S196)
+- County holdout LOO r: 0.448 (type-mean baseline, S196; honest generalization metric)
+- County holdout LOO r (Ridge): 0.533 (Ridge scores+county_mean, J=100, S197) — NEW BEST
 - County covariance val r: 0.915 (observed LW-regularized, S196; was 0.556 with demographic construction)
 - County coherence: 0.783
 - County RMSE: 0.073
+- County Ridge LOO RMSE: 0.084 (S197)
 - Tract holdout r: 0.632 (J=100, 35 dims, S192)
 
 **Data sources on disk (gitignored, do NOT re-download):**

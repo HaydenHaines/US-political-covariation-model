@@ -267,6 +267,99 @@ def list_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)
     return results
 
 
+@router.get("/types/scatter-data", response_model=list[TypeScatterPoint])
+def get_type_scatter_data(db: duckdb.DuckDBPyConnection = Depends(get_db)):
+    """Return all types with demographics and shift profiles for scatter plot."""
+    if not _has_table(db, "types"):
+        return []
+
+    # Get all types with county counts
+    type_rows = db.execute(
+        """
+        SELECT
+            t.type_id,
+            t.super_type_id,
+            t.display_name,
+            COUNT(DISTINCT cta.county_fips) AS n_counties
+        FROM types t
+        LEFT JOIN county_type_assignments cta ON t.type_id = cta.dominant_type
+        GROUP BY t.type_id, t.super_type_id, t.display_name
+        ORDER BY t.type_id
+        """,
+    ).fetchdf()
+
+    if type_rows.empty:
+        return []
+
+    # Get all type demographics in one query
+    demo_rows = db.execute("SELECT * FROM types ORDER BY type_id").fetchdf()
+    skip_cols = {"type_id", "super_type_id", "display_name", "n_counties", "narrative"}
+    demo_cols = [c for c in demo_rows.columns if c not in skip_cols]
+
+    # Get shift column names
+    shift_col_names: list[str] = []
+    try:
+        shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
+        shift_col_names = [
+            c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
+        ]
+    except Exception:
+        pass
+
+    # Get all county-type assignments and shifts in one join
+    shift_by_type: dict[int, dict[str, float]] = {}
+    if shift_col_names:
+        try:
+            # Average shifts grouped by dominant_type
+            agg_cols = ", ".join(f"AVG(cs.{c}) AS {c}" for c in shift_col_names)
+            shift_df = db.execute(
+                f"""
+                SELECT cta.dominant_type AS type_id, {agg_cols}
+                FROM county_type_assignments cta
+                JOIN county_shifts cs ON cta.county_fips = cs.county_fips
+                GROUP BY cta.dominant_type
+                """,
+            ).fetchdf()
+            for _, row in shift_df.iterrows():
+                tid = int(row["type_id"])
+                profile: dict[str, float] = {}
+                for col in shift_col_names:
+                    if col in row and not pd.isna(row[col]):
+                        profile[col] = float(row[col])
+                shift_by_type[tid] = profile
+        except Exception:
+            pass
+
+    def _f(v) -> float | None:
+        return None if pd.isna(v) else float(v)
+
+    results = []
+    for _, trow in type_rows.iterrows():
+        tid = int(trow["type_id"])
+
+        # Demographics from types table
+        demographics: dict[str, float] = {}
+        demo_match = demo_rows[demo_rows["type_id"] == tid]
+        if not demo_match.empty:
+            r = demo_match.iloc[0]
+            for col in demo_cols:
+                if col in demo_match.columns:
+                    val = _f(r[col])
+                    if val is not None:
+                        demographics[col] = val
+
+        results.append(TypeScatterPoint(
+            type_id=tid,
+            super_type_id=int(trow["super_type_id"]),
+            display_name=str(trow["display_name"]),
+            n_counties=int(trow["n_counties"]),
+            demographics=demographics,
+            shift_profile=shift_by_type.get(tid, {}),
+        ))
+
+    return results
+
+
 @router.get("/types/{type_id}", response_model=TypeDetail)
 def get_type(
     type_id: int,
@@ -393,100 +486,6 @@ def get_type(
         shift_profile=shift_profile,
         narrative=str(narrative) if narrative is not None else None,
     )
-
-
-
-@router.get("/types/scatter-data", response_model=list[TypeScatterPoint])
-def get_type_scatter_data(db: duckdb.DuckDBPyConnection = Depends(get_db)):
-    """Return all types with demographics and shift profiles for scatter plot."""
-    if not _has_table(db, "types"):
-        return []
-
-    # Get all types with county counts
-    type_rows = db.execute(
-        """
-        SELECT
-            t.type_id,
-            t.super_type_id,
-            t.display_name,
-            COUNT(DISTINCT cta.county_fips) AS n_counties
-        FROM types t
-        LEFT JOIN county_type_assignments cta ON t.type_id = cta.dominant_type
-        GROUP BY t.type_id, t.super_type_id, t.display_name
-        ORDER BY t.type_id
-        """,
-    ).fetchdf()
-
-    if type_rows.empty:
-        return []
-
-    # Get all type demographics in one query
-    demo_rows = db.execute("SELECT * FROM types ORDER BY type_id").fetchdf()
-    skip_cols = {"type_id", "super_type_id", "display_name", "n_counties", "narrative"}
-    demo_cols = [c for c in demo_rows.columns if c not in skip_cols]
-
-    # Get shift column names
-    shift_col_names: list[str] = []
-    try:
-        shift_cols_row = db.execute("SELECT * FROM county_shifts LIMIT 0").fetchdf()
-        shift_col_names = [
-            c for c in shift_cols_row.columns if c not in ("county_fips", "version_id")
-        ]
-    except Exception:
-        pass
-
-    # Get all county-type assignments and shifts in one join
-    shift_by_type: dict[int, dict[str, float]] = {}
-    if shift_col_names:
-        try:
-            # Average shifts grouped by dominant_type
-            agg_cols = ", ".join(f"AVG(cs.{c}) AS {c}" for c in shift_col_names)
-            shift_df = db.execute(
-                f"""
-                SELECT cta.dominant_type AS type_id, {agg_cols}
-                FROM county_type_assignments cta
-                JOIN county_shifts cs ON cta.county_fips = cs.county_fips
-                GROUP BY cta.dominant_type
-                """,
-            ).fetchdf()
-            for _, row in shift_df.iterrows():
-                tid = int(row["type_id"])
-                profile: dict[str, float] = {}
-                for col in shift_col_names:
-                    if col in row and not pd.isna(row[col]):
-                        profile[col] = float(row[col])
-                shift_by_type[tid] = profile
-        except Exception:
-            pass
-
-    def _f(v) -> float | None:
-        return None if pd.isna(v) else float(v)
-
-    results = []
-    for _, trow in type_rows.iterrows():
-        tid = int(trow["type_id"])
-
-        # Demographics from types table
-        demographics: dict[str, float] = {}
-        demo_match = demo_rows[demo_rows["type_id"] == tid]
-        if not demo_match.empty:
-            r = demo_match.iloc[0]
-            for col in demo_cols:
-                if col in demo_match.columns:
-                    val = _f(r[col])
-                    if val is not None:
-                        demographics[col] = val
-
-        results.append(TypeScatterPoint(
-            type_id=tid,
-            super_type_id=int(trow["super_type_id"]),
-            display_name=str(trow["display_name"]),
-            n_counties=int(trow["n_counties"]),
-            demographics=demographics,
-            shift_profile=shift_by_type.get(tid, {}),
-        ))
-
-    return results
 
 
 @router.get("/super-types", response_model=list[SuperTypeSummary])

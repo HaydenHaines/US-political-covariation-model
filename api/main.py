@@ -148,6 +148,26 @@ async def lifespan(app: FastAPI):
     else:
         log.info("Type data not found — will use HAC pipeline for forecasts")
 
+    # ── Ridge county priors (optional — graceful fallback if not present) ──────
+    ridge_priors_path = data_dir / "models" / "ridge_model" / "ridge_county_priors.parquet"
+    if ridge_priors_path.exists():
+        try:
+            ridge_df = pd.read_parquet(ridge_priors_path)
+            ridge_df["county_fips"] = ridge_df["county_fips"].astype(str).str.zfill(5)
+            app.state.ridge_priors = dict(
+                zip(ridge_df["county_fips"], ridge_df["ridge_pred_dem_share"])
+            )
+            log.info("Loaded Ridge county priors: %d counties", len(app.state.ridge_priors))
+        except Exception:
+            log.warning("Failed to load Ridge county priors — falling back to type-mean", exc_info=True)
+            app.state.ridge_priors = {}
+    else:
+        log.warning(
+            "Ridge county priors not found at %s — forecast will use type-mean priors",
+            ridge_priors_path,
+        )
+        app.state.ridge_priors = {}
+
     # ── Contract check ─────────────────────────────────────────────────────────
     contract_ok = True
     for table_name in ["super_types", "types", "county_type_assignments"]:

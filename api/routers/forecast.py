@@ -129,6 +129,15 @@ def _forecast_poll_types(
     states = [state_map.get(f, f[:2]) for f in type_county_fips]
     county_names = [name_map.get(f, "") for f in type_county_fips]
 
+    # Build county-level priors from Ridge predictions (if loaded at startup)
+    ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
+    if ridge_priors:
+        county_priors = np.array(
+            [ridge_priors.get(f, 0.45) for f in type_county_fips]
+        )
+    else:
+        county_priors = None  # falls back to type-mean inside predict_race
+
     result_df = predict_race(
         race=poll.race,
         poll_dem_share=poll.dem_share,
@@ -140,6 +149,7 @@ def _forecast_poll_types(
         states=states,
         county_names=county_names,
         state_filter=None,
+        county_priors=county_priors,
     )
 
     results = []

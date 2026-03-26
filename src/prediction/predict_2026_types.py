@@ -132,6 +132,7 @@ def predict_race(
     county_names: list[str] | None = None,
     state_filter: str | None = None,
     county_priors: np.ndarray | None = None,
+    prior_weight: float = 1.0,
 ) -> pd.DataFrame:
     """Produce county-level predictions from type structure.
 
@@ -204,6 +205,11 @@ def predict_race(
     # ── Type-level Bayesian update ──────────────────────────────────────────
     type_means = type_priors.copy().astype(float)
     type_cov = type_covariance.copy().astype(float)
+
+    # Scale prior precision by prior_weight (lower weight = less informative prior,
+    # so polls pull predictions further from the baseline).
+    if prior_weight != 1.0 and prior_weight > 0:
+        type_cov = type_cov / prior_weight
 
     if polls:
         # Each poll contributes one W row: the type composition of its state.

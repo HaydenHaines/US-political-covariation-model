@@ -52,8 +52,12 @@ Per-state analysis revealed systematic biases (Alaska RMSE=0.38, Idaho r=0.05), 
 - Training-derived state effects are all ~zero (types already capture state patterns)
 - The bias is 2024-specific (Hispanic realignment, etc.), not predictable from training
 
-## Experiment 5: Ridge Regression Prediction (incomplete)
-LOO cross-validation with 3,154 folds was too slow to complete in this session. Deferred.
+## Experiment 5: Ridge Regression Prediction ✅ COMPLETED (late)
+**Hypothesis:** Ridge regression from type scores + county training mean may outperform simple type-mean adjustment.
+
+**Result:** Ridge LOO r=0.447 vs type-mean LOO r=0.396 (+0.051). Alpha=6.55 (moderate regularization). This is meaningful — the type scores contain predictive signal that simple weighted-mean adjustment doesn't fully exploit.
+
+**Not yet implemented.** Would require changes to the prediction pipeline. Worth pursuing in a future session.
 
 ## Summary of Improvements
 | Change | Before | After | Status |

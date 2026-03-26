@@ -76,18 +76,23 @@ async def lifespan(app: FastAPI):
     db_path = Path(os.environ.get("WETHERVANE_DB_PATH", str(data_dir / "wethervane.duckdb")))
 
     log.info("Opening DuckDB at %s (read_only=True)", db_path)
-    app.state.db = duckdb.connect(str(db_path), read_only=True)
+    # Store the path so each request can open its own connection (avoids DuckDB
+    # concurrent-query cancellation when Promise.all fires multiple requests).
+    app.state.db_path = str(db_path)
 
-    version_id = _get_current_version_id(app.state.db)
+    # Use a short-lived startup connection only for loading in-memory data.
+    startup_db = duckdb.connect(str(db_path), read_only=True)
+
+    version_id = _get_current_version_id(startup_db)
     app.state.version_id = version_id
     log.info("Using model version: %s", version_id)
 
-    sigma, K = _load_sigma(app.state.db, version_id)
+    sigma, K = _load_sigma(startup_db, version_id)
     app.state.sigma = sigma
     app.state.K = K
     log.info("Loaded sigma matrix (%d×%d)", K, K)
 
-    app.state.mu_prior = _load_mu_prior(app.state.db, version_id, K)
+    app.state.mu_prior = _load_mu_prior(startup_db, version_id, K)
     log.info("Loaded mu_prior: %s", app.state.mu_prior.round(3))
 
     # Load weight matrices from parquet (not in DuckDB)
@@ -147,7 +152,7 @@ async def lifespan(app: FastAPI):
     contract_ok = True
     for table_name in ["super_types", "types", "county_type_assignments"]:
         try:
-            result = app.state.db.execute(
+            result = startup_db.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
                 [table_name],
             ).fetchone()
@@ -159,10 +164,10 @@ async def lifespan(app: FastAPI):
     app.state.contract_ok = contract_ok
     log.info("Contract status: %s", "ok" if contract_ok else "degraded")
 
-    yield
+    startup_db.close()
+    log.info("Startup DuckDB connection closed")
 
-    app.state.db.close()
-    log.info("DuckDB connection closed")
+    yield
 
 
 def create_app(lifespan_override=None) -> FastAPI:

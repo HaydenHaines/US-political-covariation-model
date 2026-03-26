@@ -22,10 +22,10 @@ A political modeling platform that discovers electoral communities directly from
 - Run tract-level experiments without population weighting (tracts with <500 voters are noise).
 
 **BASELINE METRICS (beat these or don't merge):**
-- County holdout r: 0.648 (J=100, StandardScaler+pw=4, national 3,154 counties)
-- County covariance val r: 0.855
-- County coherence: 0.585
-- County RMSE: 0.077
+- County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)
+- County covariance val r: 0.556
+- County coherence: 0.783
+- County RMSE: 0.073
 - Tract holdout r: 0.632 (J=100, 35 dims, S192)
 
 **Data sources on disk (gitignored, do NOT re-download):**
@@ -80,11 +80,11 @@ Two-resolution electoral model (ADR-006):
 
 ### County-Level Model (production, live at wethervane.hhaines.duckdns.org)
 
-**Algorithm:** KMeans J=100 on StandardScaler-normalized shifts with presidential weight=4.0 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
-**Key insight:** Governor/Senate shifts are state-specific races — must be state-centered before cross-state clustering. Presidential shifts carry the cross-state signal. StandardScaler normalizes feature scales; presidential weight amplifies the strongest cross-state signal.
+**Algorithm:** KMeans J=100 on StandardScaler-normalized shifts with presidential weight=8.0 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
+**Key insight:** Governor/Senate shifts are state-specific races — must be state-centered before cross-state clustering. Presidential shifts carry the cross-state signal. StandardScaler normalizes feature scales; presidential weight=8.0 amplifies the strongest cross-state signal (optimal via LOO sweep over pw=[2..12]).
 **Soft membership:** Temperature-scaled inverse distance (T=10, production default). T=10 reduces calibration MAE by ~37% vs T=1.
-**Holdout r:** 0.648 (type-mean prior), 0.630 (county-level prior). Coherence=0.585. Covariance val r=0.855. RMSE=0.077.
-**Super-types:** 5 super-types (Rural Young, Black-Belt Urban, Hispanic Exurban, Rural Evangelical, Affluent College) via Ward HAC on demographic profiles (not centroids — centroids produce degenerate clustering at J=100).
+**Holdout r:** 0.698 (type-mean prior), 0.672 (county-level prior). Coherence=0.783. Covariance val r=0.556. RMSE=0.073.
+**Super-types:** 5 super-types (Hispanic Urban, Rural Retiree, Catholic College, Evangelical Coalition, Asian-Pacific Exurban) via Ward HAC on demographic profiles (not centroids — centroids produce degenerate clustering at J=100).
 
 ### Tract-Level Model (experimental, toggle on frontend)
 

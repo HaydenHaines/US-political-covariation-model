@@ -7,7 +7,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from src.db.domains.polling import ingest, _make_poll_id
+from src.db.domains.polling import ingest, _make_poll_id, POLL_ID_LENGTH
 
 
 def _base_db() -> duckdb.DuckDBPyConnection:
@@ -45,7 +45,7 @@ def test_poll_id_is_stable():
     id1 = _make_poll_id("FL Senate", "FL", "2026-01-15", "Siena", "2026")
     id2 = _make_poll_id("FL Senate", "FL", "2026-01-15", "Siena", "2026")
     assert id1 == id2
-    assert len(id1) == 16  # first 16 chars of SHA-256 hex
+    assert len(id1) == POLL_ID_LENGTH  # first POLL_ID_LENGTH chars of SHA-256 hex
 
 
 def test_poll_id_differs_on_different_pollster():
@@ -106,3 +106,15 @@ def test_invalid_dem_share_row_is_skipped(tmp_path):
     ingest(con, "2026", tmp_path)
     n = con.execute("SELECT COUNT(*) FROM polls WHERE cycle='2026'").fetchone()[0]
     assert n == 2  # bad row skipped
+
+
+def test_reingest_is_idempotent(tmp_path):
+    """Calling ingest() twice for the same cycle must not double the rows."""
+    _write_poll_csv(tmp_path / "data" / "polls" / "polls_2026.csv", SAMPLE_ROWS)
+    con = _base_db()
+    ingest(con, "2026", tmp_path)
+    ingest(con, "2026", tmp_path)
+    n_polls = con.execute("SELECT COUNT(*) FROM polls WHERE cycle='2026'").fetchone()[0]
+    n_notes = con.execute("SELECT COUNT(*) FROM poll_notes").fetchone()[0]
+    assert n_polls == 2  # not 4
+    assert n_notes == 2  # not 4

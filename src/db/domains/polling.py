@@ -23,6 +23,10 @@ from src.db.domains import DomainIngestionError, DomainSpec
 
 log = logging.getLogger(__name__)
 
+# Truncation length for poll_id SHA-256 hex digest. 16 hex chars = 64 bits
+# of entropy — collision probability is negligible for any realistic poll count.
+POLL_ID_LENGTH = 16
+
 DOMAIN_SPEC = DomainSpec(
     name="polling",
     tables=["polls", "poll_crosstabs", "poll_notes"],
@@ -73,7 +77,7 @@ CREATE TABLE IF NOT EXISTS poll_notes (
 def _make_poll_id(race: str, geography: str, date: str | None, pollster: str | None, cycle: str) -> str:
     """SHA-256 hex digest of pipe-delimited fields, truncated to 16 chars."""
     key = "|".join([race, geography, date or "", pollster or "", cycle])
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
+    return hashlib.sha256(key.encode()).hexdigest()[:POLL_ID_LENGTH]
 
 
 def _parse_note_kvs(notes_str: str) -> list[tuple[str, str]]:
@@ -100,9 +104,9 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
     """
     create_tables(con)
 
-    # Clear existing data for this cycle
-    for table in DOMAIN_SPEC.tables:
-        con.execute(f"DELETE FROM {table} WHERE poll_id IN (SELECT poll_id FROM polls WHERE cycle=?)", [cycle])
+    # Delete child rows before parent — subquery reads polls before it is cleared
+    con.execute("DELETE FROM poll_crosstabs WHERE poll_id IN (SELECT poll_id FROM polls WHERE cycle=?)", [cycle])
+    con.execute("DELETE FROM poll_notes WHERE poll_id IN (SELECT poll_id FROM polls WHERE cycle=?)", [cycle])
     con.execute("DELETE FROM polls WHERE cycle=?", [cycle])
 
     path = project_root / "data" / "polls" / f"polls_{cycle}.csv"
@@ -125,7 +129,7 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
                 n_sample = int(float(raw_n))
             except ValueError:
                 continue
-            if not (0.0 < dem_share < 1.0) or n_sample <= 0:
+            if not (0.0 <= dem_share <= 1.0) or n_sample <= 0:
                 continue
 
             race = row.get("race", "").strip()

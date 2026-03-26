@@ -26,7 +26,7 @@ A political modeling platform that discovers electoral communities directly from
 - County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)
 - County holdout LOO r: 0.448 (type-mean baseline, S196; honest generalization metric)
 - County holdout LOO r (Ridge): 0.533 (Ridge scores+county_mean, J=100, S197)
-- County holdout LOO r (Ridge+Demo): 0.650 (Ridge scores+county_mean+demographics, N=3,106, S197) — NEW BEST
+- County holdout LOO r (Ridge+all): 0.671 (Ridge scores+county_mean+54 features from 7 sources, N=3,106, S203) — NEW BEST
 - County covariance val r: 0.915 (observed LW-regularized, S196; was 0.556 with demographic construction)
 - County coherence: 0.783
 - County RMSE: 0.073
@@ -41,6 +41,8 @@ A political modeling platform that discovers electoral communities directly from
 - `data/raw/vest/` — precinct shapefiles 2016-2020
 - `data/raw/nyt_precinct/` — NYTimes 2020+2024 precinct data
 - `data/raw/tiger/` — TIGER/Line 2020 tract shapefiles
+- `data/raw/facebook_sci/` — Facebook Social Connectedness Index (234MB, 10.3M county pairs)
+- `data/raw/qcew_county.parquet` — BLS QCEW industry data (104K rows, 3,192 counties, 2020-2023)
 - `research/economist-model/` — Economist 2020 model (MIT license)
 
 See `docs/ROADMAP.md` for the full path forward and `docs/TODO-autonomous-improvements.md` for the autonomous improvement queue.

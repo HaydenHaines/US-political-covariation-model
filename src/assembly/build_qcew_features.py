@@ -41,6 +41,7 @@ import numpy as np
 import pandas as pd
 
 from src.assembly.fetch_bls_qcew import TOTAL_INDUSTRY_CODE
+from src.core import config as _cfg
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -393,7 +394,7 @@ def main() -> None:
         "\nSummary: %d county-year rows | %d unique counties | %d year(s)",
         n_county_years, n_counties, n_years,
     )
-    fips_to_abbr = {"01": "AL", "12": "FL", "13": "GA"}
+    fips_to_abbr = _cfg.STATE_ABBR  # maps "01" → "AL", "12" → "FL", etc. (all 50+DC)
     for fips_pref, count in sorted(state_counts.items()):
         abbr = fips_to_abbr.get(fips_pref, fips_pref)
         log.info("  %s: %d county-year rows", abbr, count)

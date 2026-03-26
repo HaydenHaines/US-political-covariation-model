@@ -101,6 +101,11 @@ PROJECT_ROOT = Path(__file__).parents[2]
 
 RAW_OUTPUT_PATH = PROJECT_ROOT / "data" / "raw" / "qcew_county.parquet"
 
+# Per-(year, industry) cache directory — enables idempotent re-runs.
+# Each downloaded+filtered CSV is saved as a parquet shard here so the full
+# fetcher can resume without re-downloading already-completed combinations.
+CACHE_DIR = PROJECT_ROOT / "data" / "raw" / "qcew_cache"
+
 # State list comes from config/model.yaml (all 50+DC by default).
 # BLS QCEW API is national; we filter to our target state FIPS prefixes.
 STATES: dict[str, str] = _cfg.STATES  # abbr → fips prefix
@@ -352,8 +357,16 @@ def filter_county_df(
     return df[available_out].reset_index(drop=True)
 
 
+def _cache_path(year: int, industry_code: str) -> Path:
+    """Return the parquet cache path for a (year, industry_code) shard."""
+    return CACHE_DIR / f"qcew_{year}_{industry_code}.parquet"
+
+
 def fetch_industry_year(year: int, industry_name: str, industry_code: str) -> pd.DataFrame:
     """Fetch, parse, and filter QCEW data for one industry+year combination.
+
+    Idempotent: if a parquet cache shard already exists for this (year,
+    industry_code), the cached data is returned without making an HTTP request.
 
     Args:
         year: Data year.
@@ -363,6 +376,14 @@ def fetch_industry_year(year: int, industry_name: str, industry_code: str) -> pd
     Returns:
         Filtered county-level DataFrame, or empty DataFrame on failure.
     """
+    cache = _cache_path(year, industry_code)
+    if cache.exists():
+        log.info(
+            "  Cache hit: year=%d industry=%s (%s) — loading %s",
+            year, industry_code, industry_name, cache.name,
+        )
+        return pd.read_parquet(cache)
+
     log.info("Fetching year=%d industry=%s (%s)...", year, industry_code, industry_name)
     raw = fetch_county_csv(year, industry_code)
     if raw is None or raw.empty:
@@ -374,6 +395,13 @@ def fetch_industry_year(year: int, industry_name: str, industry_code: str) -> pd
         "  year=%d industry=%s: %d county rows retained",
         year, industry_code, len(filtered),
     )
+
+    # Persist shard for idempotent re-runs
+    if not filtered.empty:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        filtered.to_parquet(cache, index=False)
+        log.info("  Cached → %s", cache.name)
+
     return filtered
 
 

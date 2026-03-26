@@ -11,7 +11,7 @@ any network access. Tests verify:
   - Raw CSV is correctly parsed and column types coerced
   - Annual-average filter (qtr == "A") keeps correct rows
   - own_code filter keeps only total-ownership rows
-  - State-scope filtering keeps only FL/GA/AL county FIPS
+  - State-scope filtering keeps only configured state county FIPS (all 50+DC)
   - Suppressed rows (disclosure_code == "N") are dropped
   - Non-county FIPS (state-level "SS000") are dropped
   - Output schema has required columns
@@ -243,7 +243,7 @@ class TestFilterOwnership:
 
 
 class TestFilterStateScope:
-    """Tests that filter_county_df() keeps only FL/GA/AL counties."""
+    """Tests that filter_county_df() keeps only counties in configured states (all 50+DC)."""
 
     def test_keeps_fl_county(self):
         """FL counties (12xxx) must be kept."""
@@ -866,9 +866,9 @@ class TestQcewIntegration:
         assert raw_parquet["county_fips"].str.isdigit().all()
 
     def test_raw_target_states_only(self, raw_parquet):
-        """Only FL/GA/AL counties must appear in the raw parquet."""
+        """Only configured states (all 50+DC) may appear in the raw parquet."""
         state_prefixes = raw_parquet["county_fips"].str[:2].unique()
-        assert set(state_prefixes) <= {"01", "12", "13"}
+        assert set(state_prefixes) <= TARGET_STATE_FIPS
 
     def test_raw_no_state_level_fips(self, raw_parquet):
         """No state-level FIPS (county part == '000') must be present."""

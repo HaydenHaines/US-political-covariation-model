@@ -10,17 +10,21 @@ import pytest
 
 from src.propagation.propagate_polls import PollObservation
 from src.propagation.poll_weighting import (
+    _HE_DEM_SHARE_MAX,
+    _HE_DEM_SHARE_MIN,
     _SB_MAX_MULTIPLIER,
     _SB_MIN_MULTIPLIER,
     _sb_score_to_multiplier,
     aggregate_polls,
     apply_all_weights,
+    apply_house_effect_correction,
     apply_pollster_quality,
     apply_time_decay,
     election_day_for_cycle,
     extract_grade_from_notes,
     grade_to_multiplier,
     load_polls_with_notes,
+    reset_house_effect_cache,
     reset_sb_cache,
 )
 
@@ -468,5 +472,242 @@ class TestSilverBulletinFallback:
                 reference_date="2020-11-03",
                 apply_quality=True,
                 use_silver_bulletin=True,
+                apply_house_effects=False,  # isolate quality test from house effects
             )
         assert result[0].n_sample == int(max(1, round(1000 * _SB_MAX_MULTIPLIER)))
+
+
+# ---------------------------------------------------------------------------
+# House effect correction
+# ---------------------------------------------------------------------------
+
+
+class TestHouseEffectCorrection:
+    """Tests for apply_house_effect_correction."""
+
+    def setup_method(self):
+        reset_house_effect_cache()
+
+    def teardown_method(self):
+        reset_house_effect_cache()
+
+    # --- Basic correction direction and magnitude ---
+
+    def test_positive_house_effect_reduces_dem_share(self):
+        """Positive house effect (D-biased pollster) lowers dem_share."""
+        poll = _make_poll(dem_share=0.50, pollster="Biased Left Pollster")
+        # +2 pp house effect: 0.50 - 0.02 = 0.48
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Biased Left Pollster": 2.0},
+            bias_538={},
+        )
+        assert result[0].dem_share == pytest.approx(0.48, abs=1e-6)
+
+    def test_negative_house_effect_raises_dem_share(self):
+        """Negative house effect (R-biased pollster) raises dem_share."""
+        poll = _make_poll(dem_share=0.50, pollster="Biased Right Pollster")
+        # -3 pp house effect: 0.50 - (-0.03) = 0.53
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Biased Right Pollster": -3.0},
+            bias_538={},
+        )
+        assert result[0].dem_share == pytest.approx(0.53, abs=1e-6)
+
+    def test_zero_house_effect_leaves_dem_share_unchanged(self):
+        """Zero house effect should not modify dem_share."""
+        poll = _make_poll(dem_share=0.52, pollster="Unbiased Pollster")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Unbiased Pollster": 0.0},
+            bias_538={},
+        )
+        assert result[0].dem_share == pytest.approx(0.52, abs=1e-6)
+
+    # --- Source priority ---
+
+    def test_sb_takes_priority_over_538(self):
+        """Silver Bulletin house effect takes priority over 538 bias_ppm."""
+        poll = _make_poll(dem_share=0.50, pollster="Priority Pollster")
+        # SB says +5 pp; 538 says +1 pp — SB should win
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Priority Pollster": 5.0},
+            bias_538={"Priority Pollster": 1.0},
+        )
+        assert result[0].dem_share == pytest.approx(0.45, abs=1e-6)
+
+    def test_fallback_to_538_when_sb_absent(self):
+        """When pollster not in SB, 538 bias_ppm should be used."""
+        poll = _make_poll(dem_share=0.50, pollster="FiveThirtyEight Only Pollster")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={},
+            bias_538={"FiveThirtyEight Only Pollster": 2.0},
+        )
+        assert result[0].dem_share == pytest.approx(0.48, abs=1e-6)
+
+    def test_no_correction_when_pollster_unknown(self):
+        """Unknown pollster (not in either source) → dem_share unchanged."""
+        poll = _make_poll(dem_share=0.55, pollster="Completely Unknown Org ZZZZZ")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={},
+            bias_538={},
+        )
+        assert result[0].dem_share == pytest.approx(0.55, abs=1e-6)
+
+    # --- Clamping ---
+
+    def test_clamp_at_upper_bound(self):
+        """Result above _HE_DEM_SHARE_MAX should be clamped."""
+        poll = _make_poll(dem_share=0.98, pollster="R Biased Extreme")
+        # -5 pp house effect: 0.98 + 0.05 = 1.03 → clamp to 0.99
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"R Biased Extreme": -5.0},
+            bias_538={},
+        )
+        assert result[0].dem_share == _HE_DEM_SHARE_MAX
+
+    def test_clamp_at_lower_bound(self):
+        """Result below _HE_DEM_SHARE_MIN should be clamped."""
+        poll = _make_poll(dem_share=0.02, pollster="D Biased Extreme")
+        # +5 pp house effect: 0.02 - 0.05 = -0.03 → clamp to 0.01
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"D Biased Extreme": 5.0},
+            bias_538={},
+        )
+        assert result[0].dem_share == _HE_DEM_SHARE_MIN
+
+    # --- Return value properties ---
+
+    def test_returns_copies_not_originals(self):
+        """Original polls should be unchanged after correction."""
+        poll = _make_poll(dem_share=0.50, pollster="Test Pollster")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Test Pollster": 2.0},
+            bias_538={},
+        )
+        assert poll.dem_share == 0.50  # original unchanged
+        assert result[0].dem_share != 0.50  # copy was modified
+
+    def test_n_sample_unchanged_by_correction(self):
+        """House effect correction adjusts dem_share, not n_sample."""
+        poll = _make_poll(dem_share=0.50, n_sample=1234, pollster="Test Pollster")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={"Test Pollster": 1.5},
+            bias_538={},
+        )
+        assert result[0].n_sample == 1234
+
+    def test_empty_pollster_skipped(self):
+        """Polls with no pollster name should pass through unchanged."""
+        poll = _make_poll(dem_share=0.50, n_sample=500, pollster="")
+        result = apply_house_effect_correction(
+            [poll],
+            sb_house_effects={},
+            bias_538={},
+        )
+        assert result[0].dem_share == pytest.approx(0.50, abs=1e-6)
+
+
+class TestHouseEffectsInPipeline:
+    """Integration: house effect correction wired into apply_all_weights."""
+
+    def setup_method(self):
+        reset_house_effect_cache()
+        reset_sb_cache()
+
+    def teardown_method(self):
+        reset_house_effect_cache()
+        reset_sb_cache()
+
+    def test_house_effects_applied_before_time_decay(self):
+        """Correction is on dem_share, unaffected by time decay (which adjusts n_sample)."""
+        # Poll same day as reference → no time decay; A+ grade → 1.2x quality
+        poll = _make_poll(date="2020-11-03", dem_share=0.50, n_sample=1000, pollster="Biased Pollster")
+        result = apply_all_weights(
+            [poll],
+            reference_date="2020-11-03",
+            poll_notes=["grade=3.0"],  # A+ → 1.2x quality
+            apply_quality=True,
+            use_silver_bulletin=False,
+            apply_house_effects=True,
+            # Inject a known +2 pp house effect
+        )
+        # We need to inject the bias; patch the cache directly
+        reset_house_effect_cache()
+        with patch("src.propagation.poll_weighting._SB_HOUSE_EFFECTS", {"Biased Pollster": 2.0}), \
+             patch("src.propagation.poll_weighting._538_BIAS", {}):
+            result = apply_all_weights(
+                [poll],
+                reference_date="2020-11-03",
+                poll_notes=["grade=3.0"],
+                apply_quality=True,
+                use_silver_bulletin=False,
+                apply_house_effects=True,
+            )
+        # dem_share corrected: 0.50 - 0.02 = 0.48
+        assert result[0].dem_share == pytest.approx(0.48, abs=1e-4)
+
+    def test_house_effects_disabled_leaves_dem_share(self):
+        """apply_house_effects=False bypasses correction entirely."""
+        poll = _make_poll(date="2020-11-03", dem_share=0.50, n_sample=1000, pollster="Biased Pollster")
+        with patch("src.propagation.poll_weighting._SB_HOUSE_EFFECTS", {"Biased Pollster": 5.0}), \
+             patch("src.propagation.poll_weighting._538_BIAS", {}):
+            result = apply_all_weights(
+                [poll],
+                reference_date="2020-11-03",
+                apply_quality=False,
+                apply_house_effects=False,
+            )
+        assert result[0].dem_share == pytest.approx(0.50, abs=1e-6)
+
+
+class TestLoadHouseEffects:
+    """Tests for the loaders in silver_bulletin_ratings."""
+
+    def test_sb_house_effects_loads_dict(self):
+        """load_pollster_house_effects returns a non-empty dict."""
+        from src.assembly.silver_bulletin_ratings import load_pollster_house_effects
+        he = load_pollster_house_effects()
+        assert isinstance(he, dict)
+        assert len(he) > 50
+
+    def test_sb_house_effects_are_floats(self):
+        """All house effect values should be floats."""
+        from src.assembly.silver_bulletin_ratings import load_pollster_house_effects
+        he = load_pollster_house_effects()
+        for name, val in he.items():
+            assert isinstance(val, float), f"Non-float house effect for {name!r}: {val!r}"
+
+    def test_538_bias_loads_dict(self):
+        """load_538_bias returns a non-empty dict."""
+        from src.assembly.silver_bulletin_ratings import load_538_bias
+        bias = load_538_bias()
+        assert isinstance(bias, dict)
+        assert len(bias) > 50
+
+    def test_538_bias_are_floats(self):
+        """All 538 bias values should be floats."""
+        from src.assembly.silver_bulletin_ratings import load_538_bias
+        bias = load_538_bias()
+        for name, val in bias.items():
+            assert isinstance(val, float), f"Non-float bias for {name!r}: {val!r}"
+
+    def test_sb_file_not_found_raises(self, tmp_path):
+        """Missing XLSX raises FileNotFoundError."""
+        from src.assembly.silver_bulletin_ratings import load_pollster_house_effects
+        with pytest.raises(FileNotFoundError):
+            load_pollster_house_effects(tmp_path / "missing.xlsx")
+
+    def test_538_file_not_found_raises(self, tmp_path):
+        """Missing CSV raises FileNotFoundError."""
+        from src.assembly.silver_bulletin_ratings import load_538_bias
+        with pytest.raises(FileNotFoundError):
+            load_538_bias(tmp_path / "missing.csv")

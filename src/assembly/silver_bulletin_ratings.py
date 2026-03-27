@@ -39,6 +39,7 @@ substitutions so that fuzzy lookups work without a heavy library dependency.
 
 from __future__ import annotations
 
+import csv
 import re
 from pathlib import Path
 from typing import Optional
@@ -75,6 +76,26 @@ DEFAULT_SCORE: float = 0.5
 DEFAULT_XLSX_PATH: Path = (
     Path(__file__).parent.parent.parent / "data" / "raw" / "silver_bulletin" / "pollster_stats_full_2026.xlsx"
 )
+
+# Default path to the 538 pollster-ratings CSV
+DEFAULT_538_CSV_PATH: Path = (
+    Path(__file__).parent.parent.parent
+    / "data"
+    / "raw"
+    / "fivethirtyeight"
+    / "data-repo"
+    / "pollster-ratings"
+    / "pollster-ratings-combined.csv"
+)
+
+# Column name for Silver Bulletin house effects (percentage points, mean-reverted)
+_SB_HOUSE_EFFECT_COL: str = "House Effect"
+
+# Column name for 538 bias (percentage points, same sign convention)
+_538_BIAS_COL: str = "bias_ppm"
+
+# Column name for pollster name in 538 CSV
+_538_POLLSTER_COL: str = "pollster"
 
 
 # ---------------------------------------------------------------------------
@@ -218,18 +239,145 @@ def load_pollster_ratings(path: Optional[Path | str] = None) -> dict[str, float]
     return ratings
 
 
+def load_pollster_house_effects(path: Optional[Path | str] = None) -> dict[str, float]:
+    """Load Silver Bulletin house effects and return {pollster_name: house_effect_pp}.
+
+    House effect is the mean-reverted estimate of partisan bias in percentage
+    points. Positive = pollster overestimates Democrats; negative = overestimates
+    Republicans.
+
+    Uses the same column detection and name normalization as ``load_pollster_ratings``.
+    Rows where the House Effect cell is blank or non-numeric are silently skipped.
+
+    Parameters
+    ----------
+    path:
+        Path to the Silver Bulletin XLSX file. Defaults to
+        ``data/raw/silver_bulletin/pollster_stats_full_2026.xlsx``.
+
+    Returns
+    -------
+    dict[str, float]
+        Mapping from original pollster name to house effect in percentage points.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the XLSX file does not exist at the given path.
+    """
+    xlsx_path = Path(path) if path is not None else DEFAULT_XLSX_PATH
+
+    if not xlsx_path.exists():
+        raise FileNotFoundError(
+            f"Silver Bulletin XLSX not found at {xlsx_path}. "
+            "Download it with: curl -sL <url> -o <path>"
+        )
+
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    ws = wb.active
+
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return {}
+
+    header = rows[0]
+
+    # Pollster name column — same offset logic as load_pollster_ratings
+    col_name_raw = _find_col(header, "pollster", required=True, fallback=0)
+    if len(rows) > 1 and len(rows[1]) > col_name_raw:
+        peek = rows[1][col_name_raw]
+        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
+            col_name_raw += 1
+    col_name = col_name_raw
+
+    col_house_effect = _find_col(header, _SB_HOUSE_EFFECT_COL, required=False, fallback=None)
+
+    house_effects: dict[str, float] = {}
+
+    for row in rows[1:]:
+        if row is None or len(row) <= col_name:
+            continue
+        raw_name = row[col_name]
+        if not raw_name:
+            continue
+        name = str(raw_name).strip()
+
+        if col_house_effect is None or len(row) <= col_house_effect:
+            continue
+        raw_he = row[col_house_effect]
+        if raw_he is None:
+            continue
+        try:
+            house_effects[name] = float(raw_he)
+        except (TypeError, ValueError):
+            continue
+
+    wb.close()
+    return house_effects
+
+
+def load_538_bias(path: Optional[Path | str] = None) -> dict[str, float]:
+    """Load 538 pollster bias estimates and return {pollster_name: bias_pp}.
+
+    Reads the ``bias_ppm`` column from the 538 pollster-ratings CSV.
+    Sign convention matches Silver Bulletin: positive = D-biased, negative = R-biased.
+    Rows with missing or non-numeric bias values are silently skipped.
+
+    Parameters
+    ----------
+    path:
+        Path to the 538 pollster-ratings CSV. Defaults to
+        ``data/raw/fivethirtyeight/data-repo/pollster-ratings/pollster-ratings-combined.csv``.
+
+    Returns
+    -------
+    dict[str, float]
+        Mapping from pollster name to bias in percentage points.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the CSV file does not exist at the given path.
+    """
+    csv_path = Path(path) if path is not None else DEFAULT_538_CSV_PATH
+
+    if not csv_path.exists():
+        raise FileNotFoundError(
+            f"538 pollster-ratings CSV not found at {csv_path}."
+        )
+
+    bias: dict[str, float] = {}
+    with csv_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            name = row.get(_538_POLLSTER_COL, "").strip()
+            if not name:
+                continue
+            raw_bias = row.get(_538_BIAS_COL, "").strip()
+            if not raw_bias:
+                continue
+            try:
+                bias[name] = float(raw_bias)
+            except ValueError:
+                continue
+
+    return bias
+
+
 def _find_col(
     header: tuple,
     keyword: str,
     required: bool = False,
-    fallback: int = 0,
+    fallback: Optional[int] = 0,
 ) -> Optional[int]:
-    """Return column index whose header contains *keyword* (case-insensitive)."""
+    """Return column index whose header contains *keyword* (case-insensitive).
+
+    Returns *fallback* when no column matches.  Pass ``fallback=None`` for
+    optional columns where absence should be a no-op rather than an error.
+    """
     for i, cell in enumerate(header):
         if cell is not None and keyword.lower() in str(cell).lower():
             return i
-    if required:
-        return fallback
     return fallback
 
 

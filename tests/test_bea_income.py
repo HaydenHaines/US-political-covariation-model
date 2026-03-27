@@ -4,7 +4,7 @@ Tests use synthetic DataFrames and mock HTTP/file I/O so no network access
 is required and no BEA_API_KEY is needed. Coverage:
 
 1. compute_income_shares() correctly divides each component by personal income
-2. Counties are filtered to FL (12), GA (13), AL (01) only
+2. Counties are filtered to all 50 states + DC (national scope)
 3. Zero personal income and missing values produce NaN / exclusion
 4. Cache behavior: uses cached parquet if present; calls API if missing
 5. API key error: helpful EnvironmentError when BEA_API_KEY is unset
@@ -45,8 +45,8 @@ from src.assembly.fetch_bea_income import (
 # ---------------------------------------------------------------------------
 
 
-def _make_raw_cainc1(rows: list[dict]) -> pd.DataFrame:
-    """Build a minimal raw CAINC1 DataFrame matching BEA API output."""
+def _make_raw_cainc4(rows: list[dict]) -> pd.DataFrame:
+    """Build a minimal raw CAINC4 DataFrame matching BEA API output."""
     defaults = {
         "GeoFips": "12001",
         "GeoName": "Alachua County, FL",
@@ -59,40 +59,44 @@ def _make_raw_cainc1(rows: list[dict]) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+# Keep backward-compatible alias used in some tests
+_make_raw_cainc1 = _make_raw_cainc4
+
+
 @pytest.fixture
 def simple_raw_df() -> pd.DataFrame:
-    """Three FL counties, all four line codes, clean integer values."""
-    return _make_raw_cainc1([
-        # County 12001 — clean data
-        {"GeoFips": "12001", "LineCode": "1",  "DataValue": "1000000"},
-        {"GeoFips": "12001", "LineCode": "3",  "DataValue": "600000"},
-        {"GeoFips": "12001", "LineCode": "6",  "DataValue": "250000"},
-        {"GeoFips": "12001", "LineCode": "7",  "DataValue": "150000"},
+    """Three counties (FL/GA/AL), all four line codes, clean integer values."""
+    return _make_raw_cainc4([
+        # County 12001 — FL
+        {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "600000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
         # County 13001 (GA)
-        {"GeoFips": "13001", "LineCode": "1",  "DataValue": "500000"},
-        {"GeoFips": "13001", "LineCode": "3",  "DataValue": "200000"},
-        {"GeoFips": "13001", "LineCode": "6",  "DataValue": "100000"},
-        {"GeoFips": "13001", "LineCode": "7",  "DataValue": "50000"},
+        {"GeoFips": "13001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "500000"},
+        {"GeoFips": "13001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "200000"},
+        {"GeoFips": "13001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "100000"},
+        {"GeoFips": "13001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "50000"},
         # County 01001 (AL)
-        {"GeoFips": "01001", "LineCode": "1",  "DataValue": "200000"},
-        {"GeoFips": "01001", "LineCode": "3",  "DataValue": "80000"},
-        {"GeoFips": "01001", "LineCode": "6",  "DataValue": "70000"},
-        {"GeoFips": "01001", "LineCode": "7",  "DataValue": "50000"},
+        {"GeoFips": "01001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "200000"},
+        {"GeoFips": "01001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "80000"},
+        {"GeoFips": "01001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "70000"},
+        {"GeoFips": "01001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "50000"},
     ])
 
 
 @pytest.fixture
 def mixed_state_raw_df() -> pd.DataFrame:
-    """Includes a CA county (06001) that should be filtered out."""
-    return _make_raw_cainc1([
-        {"GeoFips": "12001", "LineCode": "1",  "DataValue": "1000000"},
-        {"GeoFips": "12001", "LineCode": "3",  "DataValue": "600000"},
-        {"GeoFips": "12001", "LineCode": "6",  "DataValue": "250000"},
-        {"GeoFips": "12001", "LineCode": "7",  "DataValue": "150000"},
-        {"GeoFips": "06001", "LineCode": "1",  "DataValue": "9000000"},
-        {"GeoFips": "06001", "LineCode": "3",  "DataValue": "5000000"},
-        {"GeoFips": "06001", "LineCode": "6",  "DataValue": "2000000"},
-        {"GeoFips": "06001", "LineCode": "7",  "DataValue": "1000000"},
+    """Includes a CA county (06001) that should also appear in national output."""
+    return _make_raw_cainc4([
+        {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "600000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+        {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
+        {"GeoFips": "06001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "9000000"},
+        {"GeoFips": "06001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "5000000"},
+        {"GeoFips": "06001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "2000000"},
+        {"GeoFips": "06001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "1000000"},
     ])
 
 
@@ -147,13 +151,13 @@ class TestComputeIncomeShares:
 
 
 # ---------------------------------------------------------------------------
-# 2. Counties filtered to FL/GA/AL
+# 2. Counties filtered to national scope (all states + DC)
 # ---------------------------------------------------------------------------
 
 
 class TestFilterToTargetStates:
     def test_ca_county_retained(self, mixed_state_raw_df):
-        """California county (06*) is retained — CA is now a target state (national scope)."""
+        """California county (06*) is retained — CA is a target state (national scope)."""
         shares = compute_income_shares(mixed_state_raw_df)
         filtered = filter_to_target_states(shares)
         assert "06001" in filtered["county_fips"].values
@@ -166,7 +170,6 @@ class TestFilterToTargetStates:
 
     def test_target_prefixes_are_correct(self):
         """TARGET_FIPS_PREFIXES contains all 50 states + DC (51 entries)."""
-        # All US state FIPS prefixes — 50 states + DC
         assert len(TARGET_FIPS_PREFIXES) == 51
         assert "12" in TARGET_FIPS_PREFIXES  # FL
         assert "13" in TARGET_FIPS_PREFIXES  # GA
@@ -190,22 +193,22 @@ class TestFilterToTargetStates:
 class TestZeroAndMissingIncome:
     def test_zero_personal_income_excluded(self):
         """County with personal_income == 0 is excluded from output."""
-        raw = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "0"},
-            {"GeoFips": "12001", "LineCode": "3", "DataValue": "500000"},
-            {"GeoFips": "12001", "LineCode": "6", "DataValue": "100000"},
-            {"GeoFips": "12001", "LineCode": "7", "DataValue": "50000"},
+        raw = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "0"},
+            {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "500000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "100000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "50000"},
         ])
         result = compute_income_shares(raw)
         assert len(result) == 0 or "12001" not in result["county_fips"].values
 
     def test_missing_personal_income_excluded(self):
         """County with suppressed personal_income (D) is excluded."""
-        raw = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "(D)"},
-            {"GeoFips": "12001", "LineCode": "3", "DataValue": "500000"},
-            {"GeoFips": "12001", "LineCode": "6", "DataValue": "100000"},
-            {"GeoFips": "12001", "LineCode": "7", "DataValue": "50000"},
+        raw = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "(D)"},
+            {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "500000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "100000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "50000"},
         ])
         result = compute_income_shares(raw)
         # County with suppressed total should not appear with valid shares
@@ -215,11 +218,11 @@ class TestZeroAndMissingIncome:
 
     def test_missing_component_produces_nan_share(self):
         """Missing net_earnings line produces NaN earnings_share (not a crash)."""
-        raw = _make_raw_cainc1([
+        raw = _make_raw_cainc4([
             # Only personal_income; no net_earnings line
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "1000000"},
-            {"GeoFips": "12001", "LineCode": "6", "DataValue": "250000"},
-            {"GeoFips": "12001", "LineCode": "7", "DataValue": "150000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
         ])
         result = compute_income_shares(raw)
         if "12001" in result["county_fips"].values:
@@ -245,17 +248,17 @@ class TestZeroAndMissingIncome:
 
     def test_valid_county_still_returned_alongside_invalid(self):
         """A valid county is returned even when another county has zero income."""
-        raw = _make_raw_cainc1([
+        raw = _make_raw_cainc4([
             # Valid county
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "1000000"},
-            {"GeoFips": "12001", "LineCode": "3", "DataValue": "600000"},
-            {"GeoFips": "12001", "LineCode": "6", "DataValue": "250000"},
-            {"GeoFips": "12001", "LineCode": "7", "DataValue": "150000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "600000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
             # Zero-income county
-            {"GeoFips": "12003", "LineCode": "1", "DataValue": "0"},
-            {"GeoFips": "12003", "LineCode": "3", "DataValue": "100000"},
-            {"GeoFips": "12003", "LineCode": "6", "DataValue": "50000"},
-            {"GeoFips": "12003", "LineCode": "7", "DataValue": "20000"},
+            {"GeoFips": "12003", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "0"},
+            {"GeoFips": "12003", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "100000"},
+            {"GeoFips": "12003", "LineCode": str(LINE_TRANSFERS),         "DataValue": "50000"},
+            {"GeoFips": "12003", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "20000"},
         ])
         result = compute_income_shares(raw)
         assert "12001" in result["county_fips"].values
@@ -269,21 +272,20 @@ class TestZeroAndMissingIncome:
 class TestCacheBehavior:
     def test_cache_hit_skips_api(self, tmp_path, monkeypatch):
         """When cache file exists, API is never called."""
-        # Build a minimal cached parquet
-        cached_df = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "1000000"},
-            {"GeoFips": "12001", "LineCode": "3", "DataValue": "600000"},
-            {"GeoFips": "12001", "LineCode": "6", "DataValue": "250000"},
-            {"GeoFips": "12001", "LineCode": "7", "DataValue": "150000"},
+        cached_df = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "600000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+            {"GeoFips": "12001", "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
         ])
-        cache_path = tmp_path / f"cainc1_12_{PRIMARY_YEAR}.parquet"
+        # Cache file uses cainc4_ prefix
+        cache_path = tmp_path / f"cainc4_12_{PRIMARY_YEAR}.parquet"
         cached_df.to_parquet(cache_path, index=False)
 
-        # Patch RAW_DIR to point to tmp_path
         import src.assembly.fetch_bea_income as module
         monkeypatch.setattr(module, "RAW_DIR", tmp_path)
 
-        with patch("src.assembly.fetch_bea_income._fetch_cainc1_state") as mock_api:
+        with patch("src.assembly.fetch_bea_income._fetch_cainc4_state") as mock_api:
             from src.assembly.fetch_bea_income import fetch_cainc1_state_cached
             result = fetch_cainc1_state_cached("12", PRIMARY_YEAR)
 
@@ -296,12 +298,12 @@ class TestCacheBehavior:
         monkeypatch.setattr(module, "RAW_DIR", tmp_path)
         monkeypatch.setenv("BEA_API_KEY", "test_key_abc")
 
-        api_df = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "1000000"},
+        api_df = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME), "DataValue": "1000000"},
         ])
 
         with patch(
-            "src.assembly.fetch_bea_income._fetch_cainc1_state",
+            "src.assembly.fetch_bea_income._fetch_cainc4_state",
             return_value=api_df,
         ) as mock_api:
             from src.assembly.fetch_bea_income import fetch_cainc1_state_cached
@@ -316,18 +318,18 @@ class TestCacheBehavior:
         monkeypatch.setattr(module, "RAW_DIR", tmp_path)
         monkeypatch.setenv("BEA_API_KEY", "test_key_abc")
 
-        api_df = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "1000000"},
+        api_df = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME), "DataValue": "1000000"},
         ])
 
         with patch(
-            "src.assembly.fetch_bea_income._fetch_cainc1_state",
+            "src.assembly.fetch_bea_income._fetch_cainc4_state",
             return_value=api_df,
         ):
             from src.assembly.fetch_bea_income import fetch_cainc1_state_cached
             fetch_cainc1_state_cached("12", PRIMARY_YEAR)
 
-        expected_cache = tmp_path / f"cainc1_12_{PRIMARY_YEAR}.parquet"
+        expected_cache = tmp_path / f"cainc4_12_{PRIMARY_YEAR}.parquet"
         assert expected_cache.exists()
 
     def test_force_refresh_bypasses_cache(self, tmp_path, monkeypatch):
@@ -336,18 +338,18 @@ class TestCacheBehavior:
         monkeypatch.setattr(module, "RAW_DIR", tmp_path)
         monkeypatch.setenv("BEA_API_KEY", "test_key_abc")
 
-        cached_df = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "OLD_VALUE"},
+        cached_df = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME), "DataValue": "OLD_VALUE"},
         ])
-        cache_path = tmp_path / f"cainc1_12_{PRIMARY_YEAR}.parquet"
+        cache_path = tmp_path / f"cainc4_12_{PRIMARY_YEAR}.parquet"
         cached_df.to_parquet(cache_path, index=False)
 
-        fresh_df = _make_raw_cainc1([
-            {"GeoFips": "12001", "LineCode": "1", "DataValue": "2000000"},
+        fresh_df = _make_raw_cainc4([
+            {"GeoFips": "12001", "LineCode": str(LINE_PERSONAL_INCOME), "DataValue": "2000000"},
         ])
 
         with patch(
-            "src.assembly.fetch_bea_income._fetch_cainc1_state",
+            "src.assembly.fetch_bea_income._fetch_cainc4_state",
             return_value=fresh_df,
         ) as mock_api:
             from src.assembly.fetch_bea_income import fetch_cainc1_state_cached
@@ -393,13 +395,13 @@ class TestApiKeyHandling:
 
 class TestBuildBeaIncomeFeatures:
     def _make_state_raw(self, fips_prefix: str) -> pd.DataFrame:
-        """Synthetic CAINC1 data for one state."""
-        county = f"{fips_prefix}001"
-        return _make_raw_cainc1([
-            {"GeoFips": county, "LineCode": "1", "DataValue": "1000000"},
-            {"GeoFips": county, "LineCode": "3", "DataValue": "600000"},
-            {"GeoFips": county, "LineCode": "6", "DataValue": "250000"},
-            {"GeoFips": county, "LineCode": "7", "DataValue": "150000"},
+        """Synthetic CAINC4 data for one state."""
+        county = f"{fips_prefix.zfill(2)}001"
+        return _make_raw_cainc4([
+            {"GeoFips": county, "LineCode": str(LINE_PERSONAL_INCOME),   "DataValue": "1000000"},
+            {"GeoFips": county, "LineCode": str(LINE_NET_EARNINGS),      "DataValue": "600000"},
+            {"GeoFips": county, "LineCode": str(LINE_TRANSFERS),         "DataValue": "250000"},
+            {"GeoFips": county, "LineCode": str(LINE_DIVIDENDS_INTEREST), "DataValue": "150000"},
         ])
 
     def _side_effect(self, fips_prefix: str, year: int, force_refresh: bool = False) -> pd.DataFrame:
@@ -441,12 +443,12 @@ class TestBuildBeaIncomeFeatures:
             assert result[col].dtype.kind == "f", f"{col} is not float"
 
     @patch("src.assembly.fetch_bea_income.fetch_cainc1_state_cached")
-    def test_three_states_fetched(self, mock_fetch):
-        """fetch_cainc1_state_cached is called once per target state."""
+    def test_all_states_fetched(self, mock_fetch):
+        """fetch_cainc1_state_cached is called once per target state (51)."""
         mock_fetch.side_effect = self._side_effect
         build_bea_income_features()
-        # Called once per state (3 states), possibly twice if fallback triggered
-        assert mock_fetch.call_count >= 3
+        # Called once per state (51 states + DC), possibly twice for fallback
+        assert mock_fetch.call_count >= 51
 
     @patch("src.assembly.fetch_bea_income.fetch_cainc1_state_cached")
     def test_empty_state_data_skipped_gracefully(self, mock_fetch):
@@ -478,7 +480,7 @@ class TestPathConstants:
         assert ASSEMBLED_DIR.parts[-2:] == ("data", "assembled")
 
     def test_primary_year_is_2022(self):
-        """PRIMARY_YEAR is 2022 (latest BEA CAINC1)."""
+        """PRIMARY_YEAR is 2022 (latest BEA CAINC4)."""
         assert PRIMARY_YEAR == 2022
 
     def test_fallback_year_is_2021(self):
@@ -486,11 +488,11 @@ class TestPathConstants:
         assert FALLBACK_YEAR == 2021
 
     def test_line_codes_defined(self):
-        """BEA line codes have the expected integer values."""
-        assert LINE_PERSONAL_INCOME == 1
-        assert LINE_NET_EARNINGS == 3
-        assert LINE_TRANSFERS == 6
-        assert LINE_DIVIDENDS_INTEREST == 7
+        """BEA CAINC4 line codes have the expected integer values."""
+        assert LINE_PERSONAL_INCOME == 10
+        assert LINE_NET_EARNINGS == 45
+        assert LINE_TRANSFERS == 47
+        assert LINE_DIVIDENDS_INTEREST == 46
 
     def test_state_abbr_maps_fips_to_names(self):
         """STATE_ABBR maps FIPS prefixes to FL, GA, AL abbreviations."""

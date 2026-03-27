@@ -3,13 +3,17 @@
 Source: BEA Regional Data API
   https://apps.bea.gov/api/data/
 
-Dataset: CAINC1 — County and MSA Personal Income Summary
+Dataset: CAINC4 — Personal income by major component
 
-Line codes used:
-  LineCode 1: Personal income (total)
-  LineCode 3: Net earnings by place of residence
-  LineCode 6: Personal current transfer receipts
-  LineCode 7: Dividends, interest, and rent
+Line codes used (CAINC4):
+  LineCode 10: Personal income (total)
+  LineCode 45: Net earnings by place of residence
+  LineCode 47: Personal current transfer receipts
+  LineCode 46: Dividends, interest, and rent
+
+Note: CAINC1 (County Personal Income Summary) only has 3 line codes (personal income,
+population, per capita personal income) and does NOT support multiple LineCode values
+in a single request (APIErrorCode 41). CAINC4 has the income component breakdown.
 
 Output:
   data/assembled/bea_county_income.parquet
@@ -21,7 +25,8 @@ Output:
     investment_share  = dividends_interest_rent / personal_income
 
 Cache:
-  data/raw/bea/cainc1_{fips_prefix}_{year}.parquet  (one file per state FIPS prefix per year)
+  data/raw/bea/cainc4_national_{year}.parquet  — all US counties, all line codes, one file
+  data/raw/bea/cainc4_{fips_prefix}_{year}.parquet  — per-state subset (state-level cache)
 
 API key:
   Set environment variable BEA_API_KEY.
@@ -35,8 +40,11 @@ from pathlib import Path
 
 import pandas as pd
 import requests
+from dotenv import load_dotenv
 
 from src.core import config as _cfg
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -49,11 +57,14 @@ ASSEMBLED_DIR = PROJECT_ROOT / "data" / "assembled"
 
 BEA_BASE = "https://apps.bea.gov/api/data/"
 
-# CAINC1 line codes
-LINE_PERSONAL_INCOME = 1       # Total personal income
-LINE_NET_EARNINGS = 3          # Net earnings by place of residence
-LINE_TRANSFERS = 6             # Personal current transfer receipts
-LINE_DIVIDENDS_INTEREST = 7    # Dividends, interest, and rent
+# BEA table and line codes
+# CAINC4 = "Personal income by major component" — has earnings, transfers, dividends
+BEA_TABLE = "CAINC4"
+
+LINE_PERSONAL_INCOME = 10      # Personal income (total)
+LINE_NET_EARNINGS = 45         # Net earnings by place of residence
+LINE_TRANSFERS = 47            # Personal current transfer receipts
+LINE_DIVIDENDS_INTEREST = 46   # Dividends, interest, and rent
 
 # Preferred year; falls back to FALLBACK_YEAR if primary year is unavailable
 PRIMARY_YEAR = 2022
@@ -62,8 +73,8 @@ FALLBACK_YEAR = 2021
 # FIPS prefix → state abbreviation (e.g. "12" → "FL")
 STATE_ABBR: dict[str, str] = _cfg.STATE_ABBR
 
-# Target state FIPS prefixes: FL=12, GA=13, AL=01
-TARGET_FIPS_PREFIXES = set(STATE_ABBR.keys())  # {"12", "13", "01"}
+# All configured state FIPS prefixes (50 states + DC = 51)
+TARGET_FIPS_PREFIXES = set(STATE_ABBR.keys())
 
 
 # ── API key handling ──────────────────────────────────────────────────────────
@@ -84,64 +95,147 @@ def _get_api_key() -> str:
 # ── API fetching ──────────────────────────────────────────────────────────────
 
 
-def _fetch_cainc1_state(
-    fips_prefix: str,
+def _fetch_cainc4_one_linecode(
+    line_code: int,
     year: int,
     api_key: str,
 ) -> pd.DataFrame:
-    """Fetch CAINC1 data for all counties in one state for a given year.
+    """Fetch CAINC4 data for ALL US counties for a single LineCode and year.
+
+    The BEA Regional API rejects requests with multiple LineCode values
+    (APIErrorCode 41: "Multiple parameter values were supplied for a parameter
+    that only allows single values"). Each LineCode must be fetched separately.
 
     Returns a DataFrame with columns:
       GeoFips, GeoName, LineCode, TimePeriod, DataValue
     """
-    # BEA GeoFips wildcard: use state FIPS + "000" for all counties in state
-    # e.g. FL counties = "12*" or use state + "000" pattern
-    # The BEA API accepts GeoFips as a comma-separated list or a state wildcard.
-    # State-level wildcard: "{state_fips}*" fetches all counties in that state.
-    state_fips_2 = fips_prefix.zfill(2)
-
     params = {
         "UserID": api_key,
         "method": "GetData",
         "DataSetName": "Regional",
-        "TableName": "CAINC1",
-        "LineCode": f"{LINE_PERSONAL_INCOME},{LINE_NET_EARNINGS},{LINE_TRANSFERS},{LINE_DIVIDENDS_INTEREST}",
-        "GeoFips": f"COUNTY",
+        "TableName": BEA_TABLE,
+        "LineCode": str(line_code),
+        "GeoFips": "COUNTY",
         "Year": str(year),
         "ResultFormat": "JSON",
     }
 
-    log.info("Fetching BEA CAINC1 state_fips=%s year=%d ...", state_fips_2, year)
+    log.info("  Fetching BEA %s LineCode=%d year=%d ...", BEA_TABLE, line_code, year)
     resp = requests.get(BEA_BASE, params=params, timeout=120)
     resp.raise_for_status()
 
     payload = resp.json()
 
-    # BEA API can return error inside a 200 response
     if "BEAAPI" not in payload:
         raise ValueError(f"Unexpected BEA response structure: {list(payload.keys())}")
 
     beaapi = payload["BEAAPI"]
     if "Results" not in beaapi:
-        # Check for error
         error = beaapi.get("Error", {})
         raise ValueError(f"BEA API error: {error}")
 
     results = beaapi["Results"]
+    # Inline API errors are returned as 200 responses with an Error key
+    if "Error" in results and "Data" not in results:
+        raise ValueError(f"BEA API error: {results['Error']}")
+
     data = results.get("Data", [])
     if not data:
-        log.warning("BEA returned no data for state_fips=%s year=%d", state_fips_2, year)
-        return pd.DataFrame(columns=["GeoFips", "GeoName", "LineCode", "TimePeriod", "DataValue"])
+        log.warning(
+            "BEA returned no data for %s LineCode=%d year=%d",
+            BEA_TABLE,
+            line_code,
+            year,
+        )
+        return pd.DataFrame(
+            columns=["GeoFips", "GeoName", "LineCode", "TimePeriod", "DataValue"]
+        )
 
     df = pd.DataFrame(data)
+    # BEA API returns a "Code" column (e.g. "CAINC4-10") instead of "LineCode".
+    # Add a LineCode column matching the requested line code for downstream pivoting.
+    df["LineCode"] = str(line_code)
+    return df
 
-    # Filter to this state's counties: GeoFips starts with state_fips_2 and is 5 chars
-    df = df[
-        df["GeoFips"].astype(str).str.zfill(5).str[:2] == state_fips_2
-    ].copy()
+
+def _fetch_cainc4_national(year: int, api_key: str) -> pd.DataFrame:
+    """Fetch CAINC4 data for ALL US counties for all required LineCodes.
+
+    Makes exactly 4 API calls (one per LineCode) and caches the combined
+    result in data/raw/bea/cainc4_national_{year}.parquet.  All subsequent
+    calls for the same year read from that cache — avoiding 51 × 4 = 204
+    redundant API calls when iterating over states.
+
+    Returns a DataFrame with columns:
+      GeoFips, GeoName, LineCode, TimePeriod, DataValue
+    """
+    national_cache = RAW_DIR / f"cainc4_national_{year}.parquet"
+    if national_cache.exists():
+        log.info("Using national BEA cache: %s", national_cache)
+        return pd.read_parquet(national_cache)
+
+    line_codes = [
+        LINE_PERSONAL_INCOME,
+        LINE_NET_EARNINGS,
+        LINE_TRANSFERS,
+        LINE_DIVIDENDS_INTEREST,
+    ]
+
+    frames: list[pd.DataFrame] = []
+    for lc in line_codes:
+        lc_df = _fetch_cainc4_one_linecode(lc, year, api_key)
+        frames.append(lc_df)
+
+    if not any(len(f) > 0 for f in frames):
+        log.warning("BEA returned no national data for %s year=%d", BEA_TABLE, year)
+        return pd.DataFrame(
+            columns=["GeoFips", "GeoName", "LineCode", "TimePeriod", "DataValue"]
+        )
+
+    national = pd.concat(frames, ignore_index=True)
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    national.to_parquet(national_cache, index=False)
+    n_counties = national["GeoFips"].nunique() if len(national) > 0 else 0
+    log.info(
+        "Saved national BEA cache → %s (%d rows, %d counties)",
+        national_cache,
+        len(national),
+        n_counties,
+    )
+    return national
+
+
+def _fetch_cainc4_state(
+    fips_prefix: str,
+    year: int,
+    api_key: str,
+) -> pd.DataFrame:
+    """Fetch CAINC4 data for all counties in one state for a given year.
+
+    Reads from the national COUNTY cache (fetching it if needed) and filters
+    to the target state.
+
+    Returns a DataFrame with columns:
+      GeoFips, GeoName, LineCode, TimePeriod, DataValue
+    """
+    state_fips_2 = fips_prefix.zfill(2)
+    log.info("Fetching BEA %s state_fips=%s year=%d ...", BEA_TABLE, state_fips_2, year)
+
+    national = _fetch_cainc4_national(year, api_key)
+
+    if national.empty:
+        log.warning(
+            "BEA returned no data for state_fips=%s year=%d", state_fips_2, year
+        )
+        return pd.DataFrame(
+            columns=["GeoFips", "GeoName", "LineCode", "TimePeriod", "DataValue"]
+        )
+
+    # Filter to this state's counties
+    national["GeoFips"] = national["GeoFips"].astype(str).str.zfill(5)
+    df = national[national["GeoFips"].str[:2] == state_fips_2].copy()
 
     # Exclude state-level aggregates (county code 000)
-    df["GeoFips"] = df["GeoFips"].astype(str).str.zfill(5)
     df = df[df["GeoFips"].str[2:] != "000"].copy()
 
     log.info("  state=%s year=%d: %d data rows", state_fips_2, year, len(df))
@@ -153,18 +247,21 @@ def fetch_cainc1_state_cached(
     year: int,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
-    """Download and cache CAINC1 data for one state/year.
+    """Download and cache CAINC4 data for one state/year.
 
-    Cache path: data/raw/bea/cainc1_{fips_prefix}_{year}.parquet
+    Cache path: data/raw/bea/cainc4_{fips_prefix}_{year}.parquet
+
+    Note: function name kept as fetch_cainc1_state_cached for backward
+    compatibility with callers and tests.
     """
-    cache_path = RAW_DIR / f"cainc1_{fips_prefix}_{year}.parquet"
+    cache_path = RAW_DIR / f"cainc4_{fips_prefix}_{year}.parquet"
 
     if cache_path.exists() and not force_refresh:
         log.info("Using cached BEA data: %s", cache_path)
         return pd.read_parquet(cache_path)
 
     api_key = _get_api_key()
-    df = _fetch_cainc1_state(fips_prefix, year, api_key)
+    df = _fetch_cainc4_state(fips_prefix, year, api_key)
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     df.to_parquet(cache_path, index=False)
@@ -189,11 +286,11 @@ def _parse_data_value(val: str | float) -> float:
 
 
 def compute_income_shares(raw_df: pd.DataFrame) -> pd.DataFrame:
-    """Compute income composition shares from raw CAINC1 data.
+    """Compute income composition shares from raw CAINC4 data.
 
     Args:
         raw_df: DataFrame with columns GeoFips, LineCode, DataValue
-                (as returned by _fetch_cainc1_state or from cache).
+                (as returned by _fetch_cainc4_state or from cache).
 
     Returns:
         DataFrame with columns: county_fips, earnings_share, transfers_share,
@@ -247,7 +344,9 @@ def compute_income_shares(raw_df: pd.DataFrame) -> pd.DataFrame:
     )
 
     # Keep only counties with valid personal_income
-    pivot = pivot[pivot["personal_income"].notna() & (pivot["personal_income"] != 0)].copy()
+    pivot = pivot[
+        pivot["personal_income"].notna() & (pivot["personal_income"] != 0)
+    ].copy()
 
     return pivot[
         ["county_fips", "earnings_share", "transfers_share", "investment_share"]
@@ -258,10 +357,8 @@ def compute_income_shares(raw_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def filter_to_target_states(df: pd.DataFrame) -> pd.DataFrame:
-    """Filter county_fips column to FL (12), GA (13), AL (01) only."""
-    return df[
-        df["county_fips"].str[:2].isin(TARGET_FIPS_PREFIXES)
-    ].copy()
+    """Filter county_fips column to configured target states (all 50 + DC)."""
+    return df[df["county_fips"].str[:2].isin(TARGET_FIPS_PREFIXES)].copy()
 
 
 # ── Main assembly ─────────────────────────────────────────────────────────────
@@ -271,9 +368,9 @@ def build_bea_income_features(
     year: int | None = None,
     force_refresh: bool = False,
 ) -> pd.DataFrame:
-    """Build county-level BEA income composition features for FL, GA, AL.
+    """Build county-level BEA income composition features for all US counties.
 
-    Fetches CAINC1 for each state. Falls back from PRIMARY_YEAR to FALLBACK_YEAR
+    Fetches CAINC4 for each state. Falls back from PRIMARY_YEAR to FALLBACK_YEAR
     if the primary year returns no data.
 
     Returns DataFrame with columns:
@@ -291,21 +388,26 @@ def build_bea_income_features(
             if raw.empty:
                 log.warning(
                     "No data for state=%s year=%d, trying fallback year %d",
-                    state_abbr, year, FALLBACK_YEAR,
+                    state_abbr,
+                    year,
+                    FALLBACK_YEAR,
                 )
-                raw = fetch_cainc1_state_cached(fips_prefix, FALLBACK_YEAR, force_refresh)
+                raw = fetch_cainc1_state_cached(
+                    fips_prefix, FALLBACK_YEAR, force_refresh
+                )
         except Exception as exc:
             log.error(
                 "Failed to fetch BEA data for state=%s year=%d: %s — trying fallback year %d",
-                state_abbr, year, exc, FALLBACK_YEAR,
+                state_abbr,
+                year,
+                exc,
+                FALLBACK_YEAR,
             )
             raw = fetch_cainc1_state_cached(fips_prefix, FALLBACK_YEAR, force_refresh)
 
         shares = compute_income_shares(raw)
         shares = filter_to_target_states(shares)
-        log.info(
-            "  %s: %d counties with income shares", state_abbr, len(shares)
-        )
+        log.info("  %s: %d counties with income shares", state_abbr, len(shares))
         frames.append(shares)
 
     if not frames:

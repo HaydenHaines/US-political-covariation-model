@@ -16,8 +16,6 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 FL Senate,FL,state,0.4368,728,2025-10-25,University of North Florida,D=38.0% R=49.0%; LV; src=wikipedia
 2026 FL Senate,FL,state,0.4524,786,2026-03-02,University of North Florida,D=38.0% R=46.0%; LV; src=wikipedia
 2026 FL Senate,FL,state,0.4578,786,2026-03-04,University of North Florida,D=38.0% R=45.0%; LV; src=270towin
-2026 GA Governor,GA,state,0.8333,1000,2025-11-05,University of Georgia,D=5.0% R=1.0%; LV; src=270towin
-2026 GA Governor,GA,state,0.8125,464,2026-03-05,Emerson College,D=13.0% R=3.0%; LV; src=270towin
 2026 GA Senate,GA,state,0.5844,500,2025-01-15,WPA Intelligence,D=45.0% R=32.0%; LV; src=wikipedia
 2026 GA Senate,GA,state,0.5465,600,2025-01-31,Tyson Group,D=47.0% R=39.0%; LV; src=wikipedia
 2026 GA Senate,GA,state,0.5465,600,2025-02-11,Tyson Group,D=47.0% R=39.0%; LV; src=270towin

@@ -231,12 +231,17 @@ def normalize_pollster(name: str) -> str:
 def two_party_share(dem_pct: float, rep_pct: float) -> float | None:
     """Convert raw D% and R% to two-party Democratic share.
 
-    Returns None if the result is outside the (0.15, 0.85) sanity range.
+    Returns None if D+R total is below 30% (too many undecided for meaningful
+    two-party conversion) or if the result is outside the (0.15, 0.85) range.
     """
     if dem_pct <= 0 or rep_pct <= 0:
         return None
     total = dem_pct + rep_pct
-    if total <= 0:
+    if total < 30:
+        logger.warning(
+            "D+R total %.1f%% too low for two-party conversion (D=%.1f, R=%.1f)",
+            total, dem_pct, rep_pct,
+        )
         return None
     share = dem_pct / total
     if share < 0.15 or share > 0.85:

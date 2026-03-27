@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from src.core import config as _cfg
+from src.prediction.generic_ballot import GenericBallotInfo, compute_gb_shift
 
 log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -133,6 +134,7 @@ def predict_race(
     state_filter: str | None = None,
     county_priors: np.ndarray | None = None,
     prior_weight: float = 1.0,
+    generic_ballot_shift: float = 0.0,
 ) -> pd.DataFrame:
     """Produce county-level predictions from type structure.
 
@@ -191,6 +193,14 @@ def predict_race(
         Per-county prior Dem share (historical baseline). When provided,
         predictions use county baselines + type covariance adjustments.
         When None, falls back to type-mean weighted predictions (legacy).
+    generic_ballot_shift : float
+        Flat national environment shift (in Dem share units, e.g. +0.016 for
+        +1.6pp) applied to all county priors **before** the race-specific
+        Bayesian update.  This corrects for the midterm baseline gap: county
+        priors are anchored to 2024 presidential results, but the 2026
+        electorate environment differs.  Defaults to 0.0 (no adjustment).
+        Use :func:`src.prediction.generic_ballot.compute_gb_shift` to derive
+        this value from actual generic ballot polls.
 
     Returns
     -------
@@ -210,6 +220,16 @@ def predict_race(
         states = [_STATE_FIPS_TO_ABBR.get(f[:2], "??") for f in county_fips]
     if county_names is None:
         county_names = [""] * N
+
+    # ── Apply national environment (generic ballot) shift to county priors ──
+    # The shift corrects for the midterm baseline gap: county priors are
+    # anchored to 2024 presidential results, but 2026 polling shows a
+    # different national environment.  The shift is applied before the
+    # race-specific Bayesian update so that poll observations refine a
+    # baseline that already reflects current conditions.
+    if generic_ballot_shift != 0.0 and county_priors is not None:
+        from src.prediction.generic_ballot import apply_gb_shift
+        county_priors = apply_gb_shift(county_priors, generic_ballot_shift)
 
     # ── Type-level Bayesian update ──────────────────────────────────────────
     type_means = type_priors.copy().astype(float)
@@ -431,8 +451,26 @@ def run() -> None:
     else:
         poll_agg = polls.copy()
 
+    # Compute generic ballot shift once for the entire pipeline run.
+    # The shift corrects the 2024-presidential-anchored county priors for
+    # the current midterm national environment.
+    gb_info: GenericBallotInfo = compute_gb_shift(polls_path=polls_path)
+    log.info(
+        "Generic ballot shift: %.4f pp (gb_avg=%.4f, n_polls=%d, source=%s)",
+        gb_info.shift * 100, gb_info.gb_avg, gb_info.n_polls, gb_info.source,
+    )
+    print(
+        f"Generic ballot: avg={gb_info.gb_avg:.4f}, "
+        f"shift={gb_info.shift:+.4f} ({gb_info.shift * 100:+.2f} pp), "
+        f"n_polls={gb_info.n_polls}"
+    )
+
     all_predictions = []
     for race, race_group in poll_agg.groupby("race"):
+        # Skip generic ballot rows — they are national environment anchors, not
+        # race-specific observations that should drive a Bayesian update.
+        if race.startswith("2026 Generic Ballot"):
+            continue
         race_polls = [
             (
                 float(row["dem_share"]),
@@ -452,11 +490,14 @@ def run() -> None:
             states=states,
             county_names=county_names,
             county_priors=county_prior_values,
+            generic_ballot_shift=gb_info.shift,
         )
         result["race"] = race
         all_predictions.append(result)
 
-    # Generate national baseline for all counties (no poll adjustment)
+    # Generate national baseline with generic ballot adjustment applied.
+    # This represents the current national environment without any race-specific
+    # polling signal — useful as a reference and for unpolled races.
     baseline = predict_race(
         race="baseline",
         type_scores=type_scores,
@@ -466,6 +507,7 @@ def run() -> None:
         states=states,
         county_names=county_names,
         county_priors=county_prior_values,
+        generic_ballot_shift=gb_info.shift,
     )
     baseline["race"] = "baseline"
     all_predictions.append(baseline)

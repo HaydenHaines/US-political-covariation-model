@@ -125,12 +125,48 @@ class PollInput(BaseModel):
     race: str           # e.g. "FL_Senate"
     dem_share: float = Field(..., ge=0.0, le=1.0)
     n: int = 600        # poll sample size
+    generic_ballot_shift: float | None = None
+    """Optional explicit generic ballot shift override (Dem share units, e.g. 0.016).
+    When None, the shift is auto-calculated from generic ballot polls in the CSV.
+    When 0.0, no generic ballot adjustment is applied."""
 
 
 class SectionWeights(BaseModel):
     model_prior: float = Field(1.0, ge=0.0, le=2.0)
     state_polls: float = Field(1.0, ge=0.0, le=2.0)
     national_polls: float = Field(1.0, ge=0.0, le=2.0)
+
+
+class GenericBallotInfo(BaseModel):
+    """National environment adjustment derived from generic ballot polling.
+
+    The ``shift`` field is the key value: it represents the difference between
+    the current congressional generic ballot average and the 2024 presidential
+    national Dem share (0.4841).  A positive shift means Democrats are running
+    ahead of their 2024 presidential baseline nationally.
+
+    This shift is applied as a flat additive correction to all county priors
+    before race-specific Bayesian updates, anchoring the midterm forecast to
+    the current national environment rather than 2024 presidential results.
+    """
+
+    gb_avg: float
+    """Weighted average of generic ballot polls (Dem two-party share, 0–1)."""
+
+    pres_baseline: float
+    """2024 presidential national Dem share used as reference (0.4841)."""
+
+    shift: float
+    """gb_avg - pres_baseline.  Positive = Dems ahead of 2024 pres baseline."""
+
+    shift_pp: float
+    """shift expressed in percentage points (shift × 100)."""
+
+    n_polls: int
+    """Number of generic ballot polls used to compute gb_avg."""
+
+    source: str
+    """'auto' (computed from polls CSV) or 'manual' (caller-provided)."""
 
 
 class MultiPollInput(BaseModel):
@@ -140,6 +176,10 @@ class MultiPollInput(BaseModel):
     half_life_days: float = 30.0
     apply_quality: bool = True
     section_weights: SectionWeights = Field(default_factory=SectionWeights)
+    generic_ballot_shift: float | None = None
+    """Optional explicit generic ballot shift override (Dem share units, e.g. 0.016).
+    When None, the shift is auto-calculated from generic ballot polls in the CSV.
+    When 0.0, no generic ballot adjustment is applied."""
 
 
 class MultiPollResponse(BaseModel):
@@ -147,6 +187,9 @@ class MultiPollResponse(BaseModel):
     polls_used: int
     date_range: str         # "2020-01-15 to 2020-11-02"
     effective_n_total: int  # sum of adjusted sample sizes
+    generic_ballot: GenericBallotInfo | None = None
+    """National environment adjustment applied before the Bayesian update.
+    None when generic ballot adjustment is disabled (shift=0.0)."""
 
 
 class PollRow(BaseModel):

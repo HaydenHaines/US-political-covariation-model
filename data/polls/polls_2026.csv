@@ -31,3 +31,10 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 GA Senate,GA,state,0.5455,624,2025-09-15,Quantus Insights,D=42.0% R=35.0%; LV; src=270towin
 2026 GA Senate,GA,state,0.5165,1000,2026-03-02,Emerson College,D=47.0% R=44.0%; LV; src=wikipedia
 2026 GA Senate,GA,state,0.5444,1000,2026-03-05,Emerson College,D=49.0% R=41.0%; LV; src=270towin
+2026 Generic Ballot,national,national,0.519,950,2025-11-03,Ipsos,D=45% R=42%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.523,900,2025-12-08,Morning Consult,D=46% R=42%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.516,1000,2026-01-12,Emerson College,D=45% R=43%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.524,1500,2026-01-26,YouGov,D=45% R=41%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.521,1000,2026-02-09,Quinnipiac,D=48% R=44%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.527,800,2026-02-24,Ipsos,D=46% R=41%; generic congressional ballot; src=rcp
+2026 Generic Ballot,national,national,0.518,950,2026-03-10,Morning Consult,D=46% R=43%; generic congressional ballot; src=rcp

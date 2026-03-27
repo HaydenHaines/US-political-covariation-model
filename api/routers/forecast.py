@@ -11,6 +11,7 @@ from api.db import get_db
 from api.models import (
     EmbedResponse,
     ForecastRow,
+    GenericBallotInfo,
     MultiPollInput,
     MultiPollResponse,
     PollInput,
@@ -130,6 +131,45 @@ def get_forecast_races(
         [version_id],
     ).fetchall()
     return [r[0] for r in rows]
+
+
+@router.get("/forecast/generic-ballot", response_model=GenericBallotInfo)
+def get_generic_ballot(
+    manual_shift: float | None = Query(
+        None,
+        description=(
+            "Optional manual override for the generic ballot shift "
+            "(Dem share units, e.g. 0.016 for +1.6pp). "
+            "When omitted, the shift is auto-calculated from the polls CSV."
+        ),
+    ),
+) -> GenericBallotInfo:
+    """Return the current generic ballot adjustment applied to county baselines.
+
+    The adjustment corrects for the midterm baseline gap: county priors are
+    anchored to 2024 presidential results (national Dem share = 0.4841), but
+    2026 generic ballot polling shows a different national environment.
+
+    The ``shift`` field is what matters for forecast consumers:
+      - Positive shift → Dems running ahead of 2024 presidential baseline
+      - Negative shift → Dems running behind 2024 presidential baseline
+      - Zero shift → no environment correction applied
+
+    This shift is automatically applied to all county priors in
+    ``POST /forecast/polls`` and ``POST /forecast/poll`` before the
+    race-specific Bayesian update.
+    """
+    from src.prediction.generic_ballot import compute_gb_shift
+
+    gb_info = compute_gb_shift(manual_shift=manual_shift)
+    return GenericBallotInfo(
+        gb_avg=gb_info.gb_avg,
+        pres_baseline=gb_info.pres_baseline,
+        shift=gb_info.shift,
+        shift_pp=round(gb_info.shift * 100, 4),
+        n_polls=gb_info.n_polls,
+        source=gb_info.source,
+    )
 
 
 def race_to_slug(race: str) -> str:
@@ -413,7 +453,13 @@ def update_forecast_with_poll(
         and type_county_fips is not None
     ):
         return _forecast_poll_types(
-            poll, request, db, type_scores, type_covariance, type_priors, type_county_fips
+            poll,
+            request,
+            db,
+            type_scores,
+            type_covariance,
+            type_priors,
+            type_county_fips,
         )
 
     # ── Fallback: HAC community-based pipeline ──────────────────────────
@@ -501,6 +547,17 @@ def _get_crosstab_w_override(
     return w_override
 
 
+def _resolve_gb_shift(manual_shift: float | None) -> float:
+    """Return the generic ballot shift to apply to county priors.
+
+    When *manual_shift* is None, auto-compute from polls CSV.
+    When *manual_shift* is provided (including 0.0), use it directly.
+    """
+    from src.prediction.generic_ballot import compute_gb_shift
+    gb_info = compute_gb_shift(manual_shift=manual_shift)
+    return gb_info.shift
+
+
 def _forecast_poll_types(
     poll: PollInput,
     request: Request,
@@ -568,6 +625,9 @@ def _forecast_poll_types(
                 poll_id, poll.race, poll.state,
             )
 
+    # Resolve the generic ballot shift: use the caller's override or auto-compute.
+    gb_shift = _resolve_gb_shift(poll.generic_ballot_shift)
+
     # poll.state is the authoritative source for which state was polled;
     # passing it explicitly avoids the fragile race-string scan.
     result_df = predict_race(
@@ -581,6 +641,7 @@ def _forecast_poll_types(
         county_names=county_names,
         state_filter=None,
         county_priors=county_priors,
+        generic_ballot_shift=gb_shift,
     )
 
     # Compute vote-weighted state-level prediction for the polled state.
@@ -814,6 +875,11 @@ def update_forecast_with_multi_polls(
                     )
             race_polls.append((dem_share, n, state_abbr, w_override))
 
+        # Resolve generic ballot shift: caller override or auto-compute from CSV.
+        gb_shift = _resolve_gb_shift(body.generic_ballot_shift)
+        from src.prediction.generic_ballot import compute_gb_shift
+        _gb_info_raw = compute_gb_shift(manual_shift=body.generic_ballot_shift)
+
         result_df = predict_race(
             race=body.race or race_polls[0][2],
             polls=race_polls,
@@ -825,6 +891,7 @@ def update_forecast_with_multi_polls(
             county_names=names_list,
             county_priors=county_priors,
             prior_weight=sw.model_prior,
+            generic_ballot_shift=gb_shift,
         )
 
         state_pred_val = None
@@ -846,6 +913,15 @@ def update_forecast_with_multi_polls(
             )
             for _, row in result_df.iterrows()
         ]
+
+        gb_response = GenericBallotInfo(
+            gb_avg=_gb_info_raw.gb_avg,
+            pres_baseline=_gb_info_raw.pres_baseline,
+            shift=_gb_info_raw.shift,
+            shift_pp=round(_gb_info_raw.shift * 100, 4),
+            n_polls=_gb_info_raw.n_polls,
+            source=_gb_info_raw.source,
+        )
     else:
         # HAC fallback: multi-poll stacking not yet supported; collapse to one
         # effective poll as an approximation until HAC gains stacking support.
@@ -855,10 +931,12 @@ def update_forecast_with_multi_polls(
             state=body.state, race=race_label, dem_share=combined_share, n=combined_n
         )
         county_results = _forecast_poll_hac(single_poll, request, db)
+        gb_response = None
 
     return MultiPollResponse(
         counties=county_results,
         polls_used=len(polls),
         date_range=date_range,
         effective_n_total=effective_n_total,
+        generic_ballot=gb_response,
     )

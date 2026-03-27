@@ -4,7 +4,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = "https://wethervane.hhaines.duckdns.org";
 
   // Static pages
-  const staticPages = ["", "/forecast", "/about", "/methodology", "/compare", "/explore"].map(
+  const staticPages = ["", "/forecast", "/about", "/methodology", "/methodology/accuracy", "/compare", "/explore"].map(
     (path) => ({
       url: `${base}${path}`,
       lastModified: new Date(),

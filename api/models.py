@@ -11,6 +11,36 @@ class HealthResponse(BaseModel):
     contract: str = "ok"
 
 
+# ── Model accuracy (static, changes only on retrain) ────────────────────────
+
+class OverallAccuracy(BaseModel):
+    loo_r: float
+    holdout_r: float
+    coherence: float
+    rmse: float
+    covariance_val_r: float
+    n_counties: int
+    n_types: int
+    n_super_types: int
+
+
+class CrossElectionResult(BaseModel):
+    cycle: str
+    loo_r: float
+    label: str
+
+
+class MethodComparison(BaseModel):
+    method: str
+    loo_r: float
+
+
+class AccuracyResponse(BaseModel):
+    overall: OverallAccuracy
+    cross_election: list[CrossElectionResult]
+    method_comparison: list[MethodComparison]
+
+
 class ModelVersionResponse(BaseModel):
     version_id: str
     k: int | None

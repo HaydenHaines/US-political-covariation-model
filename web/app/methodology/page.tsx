@@ -633,6 +633,50 @@ export default function MethodologyPage() {
         </p>
       </Section>
 
+      {/* Accuracy page link */}
+      <div
+        style={{
+          padding: "20px 24px",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "8px",
+          marginBottom: "40px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontFamily: "var(--font-serif)",
+              fontSize: "17px",
+              fontWeight: "700",
+              marginBottom: "4px",
+            }}
+          >
+            Backtesting results
+          </div>
+          <div style={{ fontSize: "14px", color: "var(--color-text-muted)" }}>
+            Four-cycle cross-election validation · LOO r = 0.711
+          </div>
+        </div>
+        <Link
+          href="/methodology/accuracy"
+          style={{
+            color: "var(--color-dem)",
+            textDecoration: "none",
+            fontSize: "14px",
+            fontWeight: "600",
+            whiteSpace: "nowrap",
+          }}
+        >
+          View accuracy →
+        </Link>
+      </div>
+
       {/* Footer nav */}
       <div
         style={{

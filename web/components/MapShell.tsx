@@ -8,7 +8,8 @@ import { formatMargin } from "@/lib/typeDisplay";
 import { useMapContext } from "@/components/MapContext";
 import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
-import { TractPanel, type TractFeatureProps } from "@/components/TractPanel";
+import { type TractFeatureProps } from "@/components/TractPanel";
+import { TractPopup, type TractPopupData } from "@/components/TractPopup";
 
 // ── Tooltip helpers ──────────────────────────────────────────────────────────
 
@@ -140,7 +141,7 @@ export default function MapShell() {
   const [tractLoading, setTractLoading] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
   const [tractContext, setTractContext] = useState<TractContext | null>(null);
-  const [selectedTractFeature, setSelectedTractFeature] = useState<TractFeatureProps | null>(null);
+  const [tractPopup, setTractPopup] = useState<TractPopupData | null>(null);
 
   // Pan to selected forecast state whenever it changes
   useEffect(() => {
@@ -395,28 +396,32 @@ export default function MapShell() {
               setTooltip(null);
             }
           },
-          onClick: ({ object }: any) => {
+          onClick: ({ object, x, y }: any) => {
             if (object) {
               if (showTracts && object.properties?.n_tracts != null) {
-                // Tract view: display GeoJSON properties directly, no API call
+                // Tract view: show popup at click location
                 const props = object.properties;
-                const current = selectedTractFeature;
-                if (current && current.type_id === props.type_id && current.n_tracts === props.n_tracts) {
-                  // Click same tract polygon again — deselect
-                  setSelectedTractFeature(null);
+                const current = tractPopup;
+                if (current && current.feature.type_id === props.type_id && current.feature.n_tracts === props.n_tracts) {
+                  // Click same tract polygon again — dismiss popup
+                  setTractPopup(null);
                 } else {
-                  setSelectedTractFeature({
-                    type_id: props.type_id,
-                    super_type: props.super_type,
-                    super_type_name: getSuperTypeName(props.super_type, object),
-                    n_tracts: props.n_tracts,
-                    area_sqkm: props.area_sqkm ?? 0,
-                    median_hh_income: props.median_hh_income,
-                    pct_ba_plus: props.pct_ba_plus,
-                    pct_white_nh: props.pct_white_nh,
-                    pct_black: props.pct_black,
-                    pct_hispanic: props.pct_hispanic,
-                    evangelical_share: props.evangelical_share,
+                  setTractPopup({
+                    feature: {
+                      type_id: props.type_id,
+                      super_type: props.super_type,
+                      super_type_name: getSuperTypeName(props.super_type, object),
+                      n_tracts: props.n_tracts,
+                      area_sqkm: props.area_sqkm ?? 0,
+                      median_hh_income: props.median_hh_income,
+                      pct_ba_plus: props.pct_ba_plus,
+                      pct_white_nh: props.pct_white_nh,
+                      pct_black: props.pct_black,
+                      pct_hispanic: props.pct_hispanic,
+                      evangelical_share: props.evangelical_share,
+                    },
+                    x,
+                    y,
                   });
                 }
                 // Clear county-level selections
@@ -428,7 +433,7 @@ export default function MapShell() {
                 if (dt !== undefined && dt >= 0) {
                   setSelectedTypeId(dt === selectedTypeId ? null : dt);
                   setSelectedCommunityId(null);
-                  setSelectedTractFeature(null);
+                  setTractPopup(null);
                   setTractContext(null);
                 }
               } else {
@@ -436,10 +441,13 @@ export default function MapShell() {
                 if (cid !== undefined && cid >= 0) {
                   setSelectedCommunityId(cid === selectedCommunityId ? null : cid);
                   setSelectedTypeId(null);
-                  setSelectedTractFeature(null);
+                  setTractPopup(null);
                   setTractContext(null);
                 }
               }
+            } else {
+              // Click on empty map space — dismiss tract popup
+              setTractPopup(null);
             }
           },
         }),
@@ -539,7 +547,7 @@ export default function MapShell() {
           if (tractGeojson) {
             setShowTracts((prev) => !prev);
             // Clear selections when switching views — county and tract IDs are independent
-            setSelectedTractFeature(null);
+            setTractPopup(null);
             setSelectedTypeId(null);
             setTractContext(null);
           } else {
@@ -643,10 +651,12 @@ export default function MapShell() {
         />
       )}
 
-      {selectedTractFeature !== null && (
-        <TractPanel
-          tract={selectedTractFeature}
-          onClose={() => setSelectedTractFeature(null)}
+      {tractPopup !== null && (
+        <TractPopup
+          data={tractPopup}
+          nCounties={typeDataMap.get(tractPopup.feature.type_id)?.n_counties ?? null}
+          meanDemShare={typeDataMap.get(tractPopup.feature.type_id)?.mean_pred_dem_share ?? null}
+          onClose={() => setTractPopup(null)}
         />
       )}
     </div>

@@ -29,7 +29,6 @@ import numpy as np
 import pandas as pd
 
 from src.core import config as _cfg
-from src.prediction.generic_ballot import GenericBallotInfo, compute_gb_shift
 
 log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -128,13 +127,12 @@ def predict_race(
     type_covariance: np.ndarray,
     type_priors: np.ndarray,
     county_fips: list[str],
-    polls: list[tuple[float, int, str] | tuple[float, int, str, np.ndarray | None]] | None = None,
+    polls: list[tuple[float, int, str]] | None = None,
     states: list[str] | None = None,
     county_names: list[str] | None = None,
     state_filter: str | None = None,
     county_priors: np.ndarray | None = None,
     prior_weight: float = 1.0,
-    generic_ballot_shift: float = 0.0,
 ) -> pd.DataFrame:
     """Produce county-level predictions from type structure.
 
@@ -166,20 +164,11 @@ def predict_race(
         Prior Dem share per type (used for Bayesian update baseline).
     county_fips : list[str]
         FIPS codes for each county (length N).
-    polls : list of poll tuples or None
-        Poll observations.  Each element is either a 3-tuple
-        ``(dem_share, n, state_abbr)`` or a 4-tuple
-        ``(dem_share, n, state_abbr, w_override)`` where ``w_override``
-        is a precomputed W row (ndarray of shape J, or None).
-
-        When ``w_override`` is a non-None ndarray it is used directly
-        (after renormalisation) instead of computing the state-mean W
-        from type scores.  This supports crosstab-adjusted W vectors
-        from :mod:`src.propagation.crosstab_w_builder`.
-
-        3-tuple calls are fully backward compatible — existing callers
-        do not need to change.
-
+    polls : list of (dem_share, n, state_abbr) tuples or None
+        Poll observations. Each tuple is one poll: Democratic two-party
+        share (0-1), sample size, and the state abbreviation whose type
+        composition defines the observation equation (W row). Multiple
+        polls are stacked into a single multi-row Bayesian update.
         None = use prior only (no poll adjustment).
     states : list[str] or None
         State abbreviation per county. Derived from FIPS if None.
@@ -193,14 +182,6 @@ def predict_race(
         Per-county prior Dem share (historical baseline). When provided,
         predictions use county baselines + type covariance adjustments.
         When None, falls back to type-mean weighted predictions (legacy).
-    generic_ballot_shift : float
-        Flat national environment shift (in Dem share units, e.g. +0.016 for
-        +1.6pp) applied to all county priors **before** the race-specific
-        Bayesian update.  This corrects for the midterm baseline gap: county
-        priors are anchored to 2024 presidential results, but the 2026
-        electorate environment differs.  Defaults to 0.0 (no adjustment).
-        Use :func:`src.prediction.generic_ballot.compute_gb_shift` to derive
-        this value from actual generic ballot polls.
 
     Returns
     -------
@@ -221,16 +202,6 @@ def predict_race(
     if county_names is None:
         county_names = [""] * N
 
-    # ── Apply national environment (generic ballot) shift to county priors ──
-    # The shift corrects for the midterm baseline gap: county priors are
-    # anchored to 2024 presidential results, but 2026 polling shows a
-    # different national environment.  The shift is applied before the
-    # race-specific Bayesian update so that poll observations refine a
-    # baseline that already reflects current conditions.
-    if generic_ballot_shift != 0.0 and county_priors is not None:
-        from src.prediction.generic_ballot import apply_gb_shift
-        county_priors = apply_gb_shift(county_priors, generic_ballot_shift)
-
     # ── Type-level Bayesian update ──────────────────────────────────────────
     type_means = type_priors.copy().astype(float)
     type_cov = type_covariance.copy().astype(float)
@@ -247,18 +218,8 @@ def predict_race(
         W_rows = []
         y_vals = []
         sigma_vals = []
-        for poll_tuple in polls:
-            dem_share = poll_tuple[0]
-            n = poll_tuple[1]
-            poll_state = poll_tuple[2]
-            # Optional 4th element: precomputed crosstab-adjusted W override.
-            w_override = poll_tuple[3] if len(poll_tuple) > 3 else None  # type: ignore[misc]
-
-            if w_override is not None:
-                # Use the precomputed W directly; renormalise against float drift.
-                w_sum = float(w_override.sum())
-                W_row = w_override / w_sum if w_sum > 0 else np.ones(J) / J
-            elif poll_state:
+        for dem_share, n, poll_state in polls:
+            if poll_state:
                 state_mask = np.array([s == poll_state for s in states])
                 if state_mask.any():
                     state_scores = type_scores[state_mask]
@@ -292,17 +253,8 @@ def predict_race(
         type_shift = type_means - type_priors.astype(float)
         # 2. Each county's adjustment = score-weighted average of type shifts
         county_adjustment = (abs_scores * type_shift[None, :]).sum(axis=1) / weight_sums
-        # 3. Blend county baseline toward type-weighted baseline as prior_weight
-        #    decreases.  At pw=1, use ridge county priors (full model confidence).
-        #    At pw=0, use type-weighted priors so the prediction becomes the pure
-        #    Bayesian posterior from polls — the ridge model anchor is fully
-        #    released.  Without this blending, deweighting only affects the type
-        #    covariance precision but the county-level anchor never moves, making
-        #    the slider ineffective when ridge priors diverge from poll signal.
-        type_prior_baseline = (abs_scores * type_priors.astype(float)[None, :]).sum(axis=1) / weight_sums
-        effective_priors = prior_weight * county_priors.astype(float) + (1 - prior_weight) * type_prior_baseline
-        # 4. Final prediction = blended baseline + type shift adjustment
-        pred_dem_share = effective_priors + county_adjustment
+        # 3. Final prediction = county baseline + adjustment
+        pred_dem_share = county_priors.astype(float) + county_adjustment
     else:
         # Legacy: type-mean weighted predictions
         pred_dem_share = (abs_scores * type_means[None, :]).sum(axis=1) / weight_sums
@@ -460,38 +412,39 @@ def run() -> None:
     else:
         poll_agg = polls.copy()
 
-    # Compute generic ballot shift once for the entire pipeline run.
-    # The shift corrects the 2024-presidential-anchored county priors for
-    # the current midterm national environment.
-    gb_info: GenericBallotInfo = compute_gb_shift(polls_path=polls_path)
-    log.info(
-        "Generic ballot shift: %.4f pp (gb_avg=%.4f, n_polls=%d, source=%s)",
-        gb_info.shift * 100, gb_info.gb_avg, gb_info.n_polls, gb_info.source,
-    )
-    print(
-        f"Generic ballot: avg={gb_info.gb_avg:.4f}, "
-        f"shift={gb_info.shift:+.4f} ({gb_info.shift * 100:+.2f} pp), "
-        f"n_polls={gb_info.n_polls}"
-    )
+    # Build poll lookup: race_id -> list of poll tuples
+    # This decouples poll availability from the race iteration loop.
+    poll_lookup: dict[str, list[tuple[float, int, str]]] = {}
+    if poll_agg is not None and len(poll_agg) > 0:
+        for race, race_group in poll_agg.groupby("race"):
+            if race.startswith("2026 Generic Ballot"):
+                continue
+            race_polls = [
+                (
+                    float(row["dem_share"]),
+                    int(row["n_sample"]) if pd.notna(row["n_sample"]) else 600,
+                    str(row["state"]),
+                )
+                for _, row in race_group.iterrows()
+                if row.get("geo_level", "state") == "state"
+            ]
+            if race_polls:
+                poll_lookup[race] = race_polls
+
+    # Iterate over ALL registered races (not just polled ones).
+    # Races without polls get baseline predictions (model prior only).
+    from src.assembly.define_races import load_races
+
+    registry = load_races(2026)
+    log.info("Race registry: %d races loaded", len(registry))
 
     all_predictions = []
-    for race, race_group in poll_agg.groupby("race"):
-        # Skip generic ballot rows — they are national environment anchors, not
-        # race-specific observations that should drive a Bayesian update.
-        if race.startswith("2026 Generic Ballot"):
-            continue
-        race_polls = [
-            (
-                float(row["dem_share"]),
-                int(row["n_sample"]) if pd.notna(row["n_sample"]) else 600,
-                str(row["state"]),
-            )
-            for _, row in race_group.iterrows()
-            if row.get("geo_level", "state") == "state"
-        ]
+    for race_def in registry:
+        race = race_def.race_id
+        race_polls = poll_lookup.get(race, None)
         result = predict_race(
             race=race,
-            polls=race_polls if race_polls else None,
+            polls=race_polls,
             type_scores=type_scores,
             type_covariance=type_covariance,
             type_priors=type_priors,
@@ -499,14 +452,18 @@ def run() -> None:
             states=states,
             county_names=county_names,
             county_priors=county_prior_values,
-            generic_ballot_shift=gb_info.shift,
         )
         result["race"] = race
         all_predictions.append(result)
 
-    # Generate national baseline with generic ballot adjustment applied.
-    # This represents the current national environment without any race-specific
-    # polling signal — useful as a reference and for unpolled races.
+    if poll_lookup:
+        # Warn about polls that don't match any registered race
+        unmatched = set(poll_lookup.keys()) - {r.race_id for r in registry}
+        if unmatched:
+            log.warning("Polls for unregistered races (ignored): %s", unmatched)
+
+    # Generate national baseline for all counties (no poll adjustment).
+    # Useful as a reference for the generic national environment.
     baseline = predict_race(
         race="baseline",
         type_scores=type_scores,
@@ -516,7 +473,6 @@ def run() -> None:
         states=states,
         county_names=county_names,
         county_priors=county_prior_values,
-        generic_ballot_shift=gb_info.shift,
     )
     baseline["race"] = "baseline"
     all_predictions.append(baseline)

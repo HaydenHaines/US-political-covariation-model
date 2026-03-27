@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 import duckdb
 import numpy as np
 import pandas as pd
@@ -9,9 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.db import get_db
 from api.models import (
-    EmbedResponse,
     ForecastRow,
-    GenericBallotInfo,
     MultiPollInput,
     MultiPollResponse,
     PollInput,
@@ -21,40 +17,7 @@ from api.models import (
     TypeBreakdown,
 )
 
-log = logging.getLogger(__name__)
-
 router = APIRouter(tags=["forecast"])
-
-
-def _vote_weighted_pred(
-    result_df: pd.DataFrame,
-    vote_map: dict[str, int],
-    state: str,
-) -> float | None:
-    """Return the vote-weighted mean pred_dem_share for *state* counties.
-
-    Falls back to a simple (unweighted) mean when vote totals are unavailable
-    for a county.  Returns None if no rows match the state.
-
-    Parameters
-    ----------
-    result_df : DataFrame
-        Output of predict_race — must have columns ``county_fips``, ``state``,
-        and ``pred_dem_share``.
-    vote_map : dict[str, int]
-        Mapping county_fips → 2024 presidential total votes.
-    state : str
-        State abbreviation to aggregate (e.g. "FL").
-    """
-    state_rows = result_df[result_df["state"] == state]
-    if state_rows.empty:
-        return None
-    weights = state_rows["county_fips"].map(vote_map).fillna(0).astype(float)
-    total_weight = weights.sum()
-    if total_weight > 0:
-        return float((state_rows["pred_dem_share"].values * weights.values).sum() / total_weight)
-    # Fall back to unweighted mean when no vote data available
-    return float(state_rows["pred_dem_share"].mean())
 
 
 @router.get("/forecast", response_model=list[ForecastRow])
@@ -133,45 +96,6 @@ def get_forecast_races(
     return [r[0] for r in rows]
 
 
-@router.get("/forecast/generic-ballot", response_model=GenericBallotInfo)
-def get_generic_ballot(
-    manual_shift: float | None = Query(
-        None,
-        description=(
-            "Optional manual override for the generic ballot shift "
-            "(Dem share units, e.g. 0.016 for +1.6pp). "
-            "When omitted, the shift is auto-calculated from the polls CSV."
-        ),
-    ),
-) -> GenericBallotInfo:
-    """Return the current generic ballot adjustment applied to county baselines.
-
-    The adjustment corrects for the midterm baseline gap: county priors are
-    anchored to 2024 presidential results (national Dem share = 0.4841), but
-    2026 generic ballot polling shows a different national environment.
-
-    The ``shift`` field is what matters for forecast consumers:
-      - Positive shift → Dems running ahead of 2024 presidential baseline
-      - Negative shift → Dems running behind 2024 presidential baseline
-      - Zero shift → no environment correction applied
-
-    This shift is automatically applied to all county priors in
-    ``POST /forecast/polls`` and ``POST /forecast/poll`` before the
-    race-specific Bayesian update.
-    """
-    from src.prediction.generic_ballot import compute_gb_shift
-
-    gb_info = compute_gb_shift(manual_shift=manual_shift)
-    return GenericBallotInfo(
-        gb_avg=gb_info.gb_avg,
-        pres_baseline=gb_info.pres_baseline,
-        shift=gb_info.shift,
-        shift_pp=round(gb_info.shift * 100, 4),
-        n_polls=gb_info.n_polls,
-        source=gb_info.source,
-    )
-
-
 def race_to_slug(race: str) -> str:
     """Convert race label to URL slug. "2026 FL Governor" → "2026-fl-governor"."""
     return race.lower().replace(" ", "-")
@@ -202,6 +126,49 @@ def get_race_slugs(
     return [race_to_slug(r[0]) for r in rows]
 
 
+@router.get("/forecast/race-metadata")
+def get_race_metadata(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> list[dict]:
+    """Return metadata for all defined races from the registry.
+
+    Includes whether predictions exist and how many polls are available,
+    enabling the frontend to render a complete races index page even for
+    races that haven't been predicted yet.
+    """
+    version_id = request.app.state.version_id
+    try:
+        rows = db.execute(
+            """
+            SELECT r.race_id, r.race_type, r.state, r.year,
+                   COALESCE((SELECT COUNT(*) FROM predictions p
+                             WHERE p.race = r.race_id AND p.version_id = ?), 0) AS n_predictions,
+                   COALESCE((SELECT COUNT(*) FROM polls pl
+                             WHERE pl.race = r.race_id), 0) AS n_polls
+            FROM races r
+            ORDER BY r.state, r.race_type
+            """,
+            [version_id],
+        ).fetchall()
+    except duckdb.CatalogException:
+        # races table may not exist in older databases
+        return []
+
+    return [
+        {
+            "race_id": row[0],
+            "slug": race_to_slug(row[0]),
+            "race_type": row[1],
+            "state": row[2],
+            "year": row[3],
+            "has_predictions": row[4] > 0,
+            "n_polls": row[5],
+        }
+        for row in rows
+    ]
+
+
 @router.get("/forecast/race/{slug}", response_model=RaceDetail)
 def get_race_detail(
     slug: str,
@@ -212,7 +179,24 @@ def get_race_detail(
     version_id = request.app.state.version_id
     race = slug_to_race(slug)
 
-    # Validate the race exists
+    # Look up race metadata from the races table (preferred) or fall back to
+    # slug parsing for backward compatibility with pre-registry predictions.
+    race_meta = db.execute(
+        "SELECT race_type, state, year FROM races WHERE race_id = ?",
+        [race],
+    ).fetchone()
+    if race_meta:
+        race_type = race_meta[0].capitalize()
+        state_abbr = race_meta[1]
+        year = race_meta[2]
+    else:
+        # Fallback: parse from slug (backward compat with old predictions)
+        parts = slug.split("-")
+        state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
+        race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
+        year = int(parts[0]) if parts[0].isdigit() else 2026
+
+    # Validate the race has predictions
     exists = db.execute(
         "SELECT COUNT(*) FROM predictions WHERE version_id = ? AND race = ?",
         [version_id, race],
@@ -220,26 +204,10 @@ def get_race_detail(
     if not exists or exists[0] == 0:
         raise HTTPException(status_code=404, detail=f"Race '{race}' not found")
 
-    # Parse state_abbr and race_type from slug parts
-    parts = slug.split("-")
-    state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
-    race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
-    year = int(parts[0]) if parts[0].isdigit() else 2026
-
-    # State-level prediction: vote-weighted mean of county pred_dem_share for this race+state.
-    # total_votes_2024 weights each county by its 2024 presidential turnout so that
-    # high-population urban counties (which tend D) are not swamped by the large number
-    # of low-population rural counties (which tend R).  Falls back to unweighted mean
-    # when vote totals are unavailable (NULL total_votes_2024).
+    # State-level prediction: mean of county pred_dem_share for this race+state
     pred_row = db.execute(
         """
-        SELECT
-            CASE
-                WHEN SUM(c.total_votes_2024) > 0
-                THEN SUM(p.pred_dem_share * c.total_votes_2024) / SUM(c.total_votes_2024)
-                ELSE AVG(p.pred_dem_share)
-            END AS state_pred,
-            COUNT(*) AS n_counties
+        SELECT AVG(p.pred_dem_share) AS state_pred, COUNT(*) AS n_counties
         FROM predictions p
         JOIN counties c ON p.county_fips = c.county_fips
         WHERE p.version_id = ? AND p.race = ? AND c.state_abbr = ?
@@ -314,89 +282,6 @@ def get_race_detail(
     )
 
 
-@router.get("/embed/{slug}", response_model=EmbedResponse, tags=["embed"])
-def get_embed_metadata(
-    slug: str,
-    request: Request,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-) -> EmbedResponse:
-    """Return embed metadata for a single race, including a ready-to-paste iframe snippet.
-
-    Callers that only need the raw prediction data should use
-    ``GET /forecast/race/{slug}`` instead.  This endpoint is purpose-built for
-    CMS integrations that want a fully-formed iframe snippet without
-    constructing the URL themselves.
-    """
-    site_url = "https://wethervane.hhaines.duckdns.org"
-    version_id = request.app.state.version_id
-    race = slug_to_race(slug)
-
-    exists = db.execute(
-        "SELECT COUNT(*) FROM predictions WHERE version_id = ? AND race = ?",
-        [version_id, race],
-    ).fetchone()
-    if not exists or exists[0] == 0:
-        raise HTTPException(status_code=404, detail=f"Race '{race}' not found")
-
-    parts = slug.split("-")
-    state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
-    race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
-    year = int(parts[0]) if parts[0].isdigit() else 2026
-
-    pred_row = db.execute(
-        """
-        SELECT
-            CASE
-                WHEN SUM(c.total_votes_2024) > 0
-                THEN SUM(p.pred_dem_share * c.total_votes_2024) / SUM(c.total_votes_2024)
-                ELSE AVG(p.pred_dem_share)
-            END AS state_pred,
-            COUNT(*) AS n_counties
-        FROM predictions p
-        JOIN counties c ON p.county_fips = c.county_fips
-        WHERE p.version_id = ? AND p.race = ? AND c.state_abbr = ?
-        """,
-        [version_id, race, state_abbr],
-    ).fetchone()
-
-    dem_pct = None if (pred_row is None or pred_row[0] is None) else float(pred_row[0])
-    n_counties = int(pred_row[1]) if pred_row else 0
-
-    # Partisan lean label and color
-    if dem_pct is not None:
-        margin = abs(dem_pct - 0.5) * 100
-        if dem_pct > 0.5:
-            lean_label = f"D+{margin:.1f}"
-            lean_color = "#2166ac"
-        else:
-            lean_label = f"R+{margin:.1f}"
-            lean_color = "#d73027"
-    else:
-        lean_label = "No prediction"
-        lean_color = "#666666"
-
-    race_title = f"{year} {state_abbr} {race_type}"
-    embed_url = f"{site_url}/embed/{slug}"
-    iframe_snippet = (
-        f'<iframe src="{embed_url}" '
-        f'width="400" height="200" frameborder="0" '
-        f'style="border:none;max-width:100%;" '
-        f'title="{race_title} forecast — WetherVane">'
-        f"</iframe>"
-    )
-
-    return EmbedResponse(
-        slug=slug,
-        race_title=race_title,
-        lean_label=lean_label,
-        lean_color=lean_color,
-        dem_pct=dem_pct,
-        rep_pct=(1.0 - dem_pct) if dem_pct is not None else None,
-        n_counties=n_counties,
-        iframe_snippet=iframe_snippet,
-    )
-
-
 @router.get("/polls", response_model=list[PollRow])
 def get_polls(
     request: Request,
@@ -453,109 +338,11 @@ def update_forecast_with_poll(
         and type_county_fips is not None
     ):
         return _forecast_poll_types(
-            poll,
-            request,
-            db,
-            type_scores,
-            type_covariance,
-            type_priors,
-            type_county_fips,
+            poll, request, db, type_scores, type_covariance, type_priors, type_county_fips
         )
 
     # ── Fallback: HAC community-based pipeline ──────────────────────────
     return _forecast_poll_hac(poll, request, db)
-
-
-def _get_crosstab_w_override(
-    poll_id: str,
-    state_abbr: str,
-    db: duckdb.DuckDBPyConnection,
-    request: Request,
-    type_scores: np.ndarray,
-    county_fips_list: list[str],
-    states_list: list[str],
-) -> np.ndarray | None:
-    """Build a crosstab-adjusted W override for a poll if crosstab data is available.
-
-    Returns a normalised ndarray of shape (J,) if crosstab data exists and the
-    affinity index is loaded, otherwise returns None (caller uses state-mean W).
-
-    This is intentionally defensive: any failure returns None so the caller
-    falls back to the state-mean W rather than crashing the request.
-    """
-    from src.propagation.crosstab_w_builder import compute_state_baseline_w, construct_w_row
-
-    affinity = getattr(request.app.state, "crosstab_affinity", None)
-    if affinity is None:
-        return None  # Affinity index not loaded at startup
-
-    state_means_all: dict[str, dict[str, float]] = getattr(request.app.state, "crosstab_state_means", {})
-    state_means = state_means_all.get(state_abbr)
-    if not state_means:
-        return None  # No demographic baseline for this state
-
-    try:
-        crosstab_rows_df = db.execute(
-            """SELECT demographic_group, group_value, pct_of_sample
-               FROM poll_crosstabs
-               WHERE poll_id = ? AND pct_of_sample IS NOT NULL""",
-            [poll_id],
-        ).fetchdf()
-    except Exception as exc:
-        log.debug("poll_crosstabs query failed for poll_id=%s: %s", poll_id, exc)
-        return None
-
-    if crosstab_rows_df.empty:
-        return None  # No crosstab data for this poll
-
-    crosstab_dicts = crosstab_rows_df.to_dict("records")
-
-    # Population data for baseline W — use pop_total from county_features if available.
-    # Fall back to uniform weights if not present.
-    try:
-        pop_df = db.execute(
-            "SELECT county_fips, pop_total FROM county_demographics ORDER BY county_fips"
-        ).fetchdf()
-        pop_map = dict(zip(pop_df["county_fips"], pop_df["pop_total"].astype(float)))
-        county_pops = np.array([max(pop_map.get(f, 1.0), 1.0) for f in county_fips_list])
-    except Exception:
-        county_pops = np.ones(len(county_fips_list))
-
-    state_mask = np.array([s == state_abbr for s in states_list])
-    if not state_mask.any():
-        return None
-
-    try:
-        w_base = compute_state_baseline_w(
-            np.abs(type_scores),  # abs scores for population weighting (same as predict_race)
-            county_pops,
-            state_mask,
-        )
-        w_override = construct_w_row(
-            poll_crosstabs=crosstab_dicts,
-            state_baseline_w=w_base,
-            affinity_index=affinity,
-            state_demographic_means=state_means,
-        )
-    except Exception as exc:
-        log.warning(
-            "construct_w_row failed for poll_id=%s state=%s: %s",
-            poll_id, state_abbr, exc,
-        )
-        return None
-
-    return w_override
-
-
-def _resolve_gb_shift(manual_shift: float | None) -> float:
-    """Return the generic ballot shift to apply to county priors.
-
-    When *manual_shift* is None, auto-compute from polls CSV.
-    When *manual_shift* is provided (including 0.0), use it directly.
-    """
-    from src.prediction.generic_ballot import compute_gb_shift
-    gb_info = compute_gb_shift(manual_shift=manual_shift)
-    return gb_info.shift
 
 
 def _forecast_poll_types(
@@ -570,19 +357,14 @@ def _forecast_poll_types(
     """Type-based Bayesian update using predict_race from predict_2026_types."""
     from src.prediction.predict_2026_types import predict_race
 
-    # Get county names and 2024 vote totals from DB
+    # Get county names from DB
     county_info = db.execute(
-        """SELECT c.county_fips, c.county_name, c.state_abbr, c.total_votes_2024
+        """SELECT c.county_fips, c.county_name, c.state_abbr
            FROM counties c ORDER BY c.county_fips""",
         [],
     ).fetchdf()
     name_map = dict(zip(county_info["county_fips"], county_info["county_name"]))
     state_map = dict(zip(county_info["county_fips"], county_info["state_abbr"]))
-    vote_map: dict[str, int] = {
-        row["county_fips"]: int(row["total_votes_2024"])
-        for _, row in county_info.iterrows()
-        if row["total_votes_2024"] is not None and not pd.isna(row["total_votes_2024"])
-    }
 
     states = [state_map.get(f, f[:2]) for f in type_county_fips]
     county_names = [name_map.get(f, "") for f in type_county_fips]
@@ -596,43 +378,11 @@ def _forecast_poll_types(
     else:
         county_priors = None  # falls back to type-mean inside predict_race
 
-    # Look up this poll's ID so we can query poll_crosstabs.
-    # poll_id is not part of PollInput (ad-hoc polls don't have one), so we
-    # attempt a best-effort lookup by matching on race+geography+dem_share.
-    # If no match, w_override is None and we fall back to state-mean W.
-    poll_id_row = db.execute(
-        """SELECT poll_id FROM polls
-           WHERE LOWER(race) = LOWER(?) AND geography = ?
-           ORDER BY date DESC LIMIT 1""",
-        [poll.race, poll.state],
-    ).fetchone()
-    poll_id = poll_id_row[0] if poll_id_row else None
-
-    w_override = None
-    if poll_id is not None:
-        w_override = _get_crosstab_w_override(
-            poll_id=poll_id,
-            state_abbr=poll.state,
-            db=db,
-            request=request,
-            type_scores=type_scores,
-            county_fips_list=type_county_fips,
-            states_list=states,
-        )
-        if w_override is not None:
-            log.info(
-                "Using crosstab-adjusted W for poll_id=%s race=%s state=%s",
-                poll_id, poll.race, poll.state,
-            )
-
-    # Resolve the generic ballot shift: use the caller's override or auto-compute.
-    gb_shift = _resolve_gb_shift(poll.generic_ballot_shift)
-
     # poll.state is the authoritative source for which state was polled;
     # passing it explicitly avoids the fragile race-string scan.
     result_df = predict_race(
         race=poll.race,
-        polls=[(poll.dem_share, poll.n, poll.state, w_override)],
+        polls=[(poll.dem_share, poll.n, poll.state)],
         type_scores=type_scores,
         type_covariance=type_covariance,
         type_priors=type_priors,
@@ -641,13 +391,12 @@ def _forecast_poll_types(
         county_names=county_names,
         state_filter=None,
         county_priors=county_priors,
-        generic_ballot_shift=gb_shift,
     )
 
-    # Compute vote-weighted state-level prediction for the polled state.
-    # Uses 2024 presidential total votes so urban counties (high population, tend D)
-    # are not swamped by the large number of rural counties (low population, tend R).
-    state_pred_val = _vote_weighted_pred(result_df, vote_map, poll.state)
+    # Compute state-level prediction as the mean of polled-state county
+    # predictions — consistent with how the HAC pipeline populates state_pred.
+    state_rows = result_df[result_df["state"] == poll.state]
+    state_pred_val = float(state_rows["pred_dem_share"].mean()) if not state_rows.empty else None
 
     results = []
     for _, row in result_df.iterrows():
@@ -806,21 +555,13 @@ def update_forecast_with_multi_polls(
     # states and conflates structurally distinct signals into one scalar.
     # Apply section weight to poll effective N (Option A from spec).
     sw = body.section_weights
-    # Build the weighted poll list including geography, retaining poll_id for crosstab lookup.
-    # rows_df is indexed by original CSV row; we need to align poll_id with the weighted list.
-    # The weighted list preserves the ordering of polls (PollObservation order = rows_df order).
-    # Build a poll_id list parallel to `polls` (which mirrors rows_df ordering).
-    poll_ids_by_index = list(rows_df["poll_id"]) if "poll_id" in rows_df.columns else [None] * len(polls)
-
-    weighted_state_indices = [
-        i for i, p in enumerate(weighted) if p.geo_level == "state"
-    ]
-    race_polls_base = [
-        (weighted[i].dem_share, max(1, int(weighted[i].n_sample * sw.state_polls)), weighted[i].geography)
-        for i in weighted_state_indices
+    race_polls = [
+        (p.dem_share, max(1, int(p.n_sample * sw.state_polls)), p.geography)
+        for p in weighted
+        if p.geo_level == "state"
     ]
 
-    if not race_polls_base:
+    if not race_polls:
         raise HTTPException(status_code=400, detail="No state-level polls after filtering")
 
     type_scores = getattr(request.app.state, "type_scores", None)
@@ -832,15 +573,10 @@ def update_forecast_with_multi_polls(
         from src.prediction.predict_2026_types import predict_race
 
         county_info = db.execute(
-            "SELECT county_fips, county_name, state_abbr, total_votes_2024 FROM counties ORDER BY county_fips"
+            "SELECT county_fips, county_name, state_abbr FROM counties ORDER BY county_fips"
         ).fetchdf()
         name_map = dict(zip(county_info["county_fips"], county_info["county_name"]))
         state_map = dict(zip(county_info["county_fips"], county_info["state_abbr"]))
-        vote_map_multi: dict[str, int] = {
-            row["county_fips"]: int(row["total_votes_2024"])
-            for _, row in county_info.iterrows()
-            if row["total_votes_2024"] is not None and not pd.isna(row["total_votes_2024"])
-        }
 
         fips_list = type_county_fips
         states_list = [state_map.get(f, f[:2]) for f in fips_list]
@@ -851,34 +587,6 @@ def update_forecast_with_multi_polls(
             np.array([ridge_priors.get(f, 0.45) for f in fips_list])
             if ridge_priors else None
         )
-
-        # Augment each poll tuple with a crosstab W override when available.
-        # Falls back to None (state-mean W) when no crosstab data exists.
-        race_polls: list[tuple] = []
-        for idx, (dem_share, n, state_abbr) in zip(weighted_state_indices, race_polls_base):
-            pid = poll_ids_by_index[idx] if idx < len(poll_ids_by_index) else None
-            w_override = None
-            if pid is not None:
-                w_override = _get_crosstab_w_override(
-                    poll_id=pid,
-                    state_abbr=state_abbr,
-                    db=db,
-                    request=request,
-                    type_scores=type_scores,
-                    county_fips_list=fips_list,
-                    states_list=states_list,
-                )
-                if w_override is not None:
-                    log.info(
-                        "Multi-poll: using crosstab-adjusted W for poll_id=%s state=%s",
-                        pid, state_abbr,
-                    )
-            race_polls.append((dem_share, n, state_abbr, w_override))
-
-        # Resolve generic ballot shift: caller override or auto-compute from CSV.
-        gb_shift = _resolve_gb_shift(body.generic_ballot_shift)
-        from src.prediction.generic_ballot import compute_gb_shift
-        _gb_info_raw = compute_gb_shift(manual_shift=body.generic_ballot_shift)
 
         result_df = predict_race(
             race=body.race or race_polls[0][2],
@@ -891,12 +599,13 @@ def update_forecast_with_multi_polls(
             county_names=names_list,
             county_priors=county_priors,
             prior_weight=sw.model_prior,
-            generic_ballot_shift=gb_shift,
         )
 
         state_pred_val = None
         if body.state:
-            state_pred_val = _vote_weighted_pred(result_df, vote_map_multi, body.state)
+            state_rows = result_df[result_df["state"] == body.state]
+            if not state_rows.empty:
+                state_pred_val = float(state_rows["pred_dem_share"].mean())
 
         county_results = [
             ForecastRow(
@@ -913,15 +622,6 @@ def update_forecast_with_multi_polls(
             )
             for _, row in result_df.iterrows()
         ]
-
-        gb_response = GenericBallotInfo(
-            gb_avg=_gb_info_raw.gb_avg,
-            pres_baseline=_gb_info_raw.pres_baseline,
-            shift=_gb_info_raw.shift,
-            shift_pp=round(_gb_info_raw.shift * 100, 4),
-            n_polls=_gb_info_raw.n_polls,
-            source=_gb_info_raw.source,
-        )
     else:
         # HAC fallback: multi-poll stacking not yet supported; collapse to one
         # effective poll as an approximation until HAC gains stacking support.
@@ -931,12 +631,10 @@ def update_forecast_with_multi_polls(
             state=body.state, race=race_label, dem_share=combined_share, n=combined_n
         )
         county_results = _forecast_poll_hac(single_poll, request, db)
-        gb_response = None
 
     return MultiPollResponse(
         counties=county_results,
         polls_used=len(polls),
         date_range=date_range,
         effective_n_total=effective_n_total,
-        generic_ballot=gb_response,
     )

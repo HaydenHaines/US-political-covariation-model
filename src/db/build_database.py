@@ -195,6 +195,14 @@ CREATE TABLE IF NOT EXISTS county_type_assignments (
     dominant_type  INTEGER,
     super_type     INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS races (
+    race_id    VARCHAR PRIMARY KEY,
+    race_type  VARCHAR NOT NULL,
+    state      VARCHAR NOT NULL,
+    year       INTEGER NOT NULL,
+    district   INTEGER
+);
 """
 
 # State FIPS → abbreviation mapping: sourced from config/model.yaml (all 50+DC).
@@ -324,6 +332,20 @@ def _build_type_assignments(
     df["j"] = j
     df["version_id"] = version_id
     return df[["community_id", "k", "dominant_type_id", "j", "version_id"]]
+
+
+def _build_races_table(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate the races table from the race registry."""
+    from src.assembly.define_races import load_races
+
+    con.execute("DELETE FROM races")
+    races = load_races(2026)
+    for r in races:
+        con.execute(
+            "INSERT INTO races VALUES (?, ?, ?, ?, ?)",
+            [r.race_id, r.race_type, r.state, r.year, r.district],
+        )
+    log.info("Ingested races: %d rows", len(races))
 
 
 def _build_predictions(preds: pd.DataFrame, version_id: str) -> pd.DataFrame:
@@ -522,6 +544,9 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         con.execute("DELETE FROM counties")
         _insert_via_parquet(con, "counties", counties_df)
         log.info("Ingested %d counties", len(counties_df))
+
+    # ── Ingest race registry ──────────────────────────────────────────────────
+    _build_races_table(con)
 
     # ── Ingest model versions ──────────────────────────────────────────────────
     con.execute("DELETE FROM model_versions")
@@ -796,7 +821,8 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
                    "county_shifts", "predictions", "community_sigma", "community_profiles",
                    "county_demographics", "types", "county_type_assignments", "super_types",
                    "type_covariance", "demographics_interpolated",
-                   "type_scores", "type_priors", "ridge_county_priors", "polls", "poll_notes"]:
+                   "type_scores", "type_priors", "ridge_county_priors", "polls", "poll_notes",
+                   "races"]:
         try:
             n = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"  {table}: {n:,} rows")

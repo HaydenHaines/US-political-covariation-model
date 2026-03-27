@@ -144,11 +144,15 @@ def _fetch_zip_totals_page(
         "api_key": api_key,
     }
     url = f"{FEC_BASE}/schedules/schedule_a/by_zip/"
-    resp = requests.get(url, params=params, timeout=60)
+    resp = requests.get(url, params=params, timeout=120)
     if resp.status_code == 429:
         log.warning("FEC rate limit hit — sleeping 65s")
         time.sleep(65)
-        resp = requests.get(url, params=params, timeout=60)
+        resp = requests.get(url, params=params, timeout=120)
+    elif resp.status_code >= 500:
+        log.warning("FEC server error %d — retrying in 30s", resp.status_code)
+        time.sleep(30)
+        resp = requests.get(url, params=params, timeout=120)
     resp.raise_for_status()
     return resp.json()
 

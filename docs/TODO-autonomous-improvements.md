@@ -37,6 +37,8 @@ These are the highest-impact improvements. The prediction pipeline has known str
 
 - [x] **P2.2: Urbanicity feature (Economist-style)** — DONE (pre-S164). `log_pop_density`, `land_area_sq_mi`, `pop_per_sq_mi` already integrated into type_profiles.parquet. The Economist-style `avg_log_pop_within_5_miles` is unnecessary — raw log density already distinguishes urban/suburban/rural effectively.
 
+- [ ] **P2.6: LDS/Mormon adherents feature** — Current RCMS fetch uses "Major Religious Groups" (rt=2) which lumps LDS into "Other." ARDA has denomination-level data — need to find the LDS-specific denomination code and fetch county-level LDS adherent counts separately. Politically distinctive: UT/ID/NV/AZ/WY LDS populations create unique shift patterns (anti-Trump 2016, snap-back 2020+). McMullin 2016 is the canonical signal. Feature: `lds_share = lds_adherents / total_pop`. May also want to check ARDA's denomination-level download (CSV export) for RCMS 2020 which lists 366 individual denominations including "Church of Jesus Christ of Latter-day Saints." Hayden's data scientist friend flagged Mormonism as important (2026-03-27).
+
 - [ ] **P2.3: FEC donor density feature** — Requires FEC_API_KEY (free from api.data.gov/signup/). Fetcher exists at `src/assembly/fetch_fec_contributions.py` (29 tests in worktree). Microdonation rate per county as a type discriminator. **BLOCKED on API key — ask Hayden via Telegram if not set.**
 
 - [ ] **P2.4: BEA income composition** — Requires BEA_API_KEY (free from apps.bea.gov/API/signup/). Fetcher exists at `src/assembly/fetch_bea_income.py` (38 tests). Income from wages vs transfers vs investments. **BLOCKED on API key — ask Hayden via Telegram if not set.**

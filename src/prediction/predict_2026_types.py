@@ -127,12 +127,16 @@ def predict_race(
     type_covariance: np.ndarray,
     type_priors: np.ndarray,
     county_fips: list[str],
-    polls: list[tuple[float, int, str]] | None = None,
+    polls: list[
+        tuple[float, int, str] | tuple[float, int, str, np.ndarray | None]
+    ]
+    | None = None,
     states: list[str] | None = None,
     county_names: list[str] | None = None,
     state_filter: str | None = None,
     county_priors: np.ndarray | None = None,
     prior_weight: float = 1.0,
+    generic_ballot_shift: float = 0.0,
 ) -> pd.DataFrame:
     """Produce county-level predictions from type structure.
 
@@ -196,6 +200,12 @@ def predict_race(
     if county_priors is not None:
         assert len(county_priors) == N
 
+    # Apply generic ballot shift to county priors before prediction
+    if generic_ballot_shift != 0.0 and county_priors is not None:
+        from src.prediction.generic_ballot import apply_gb_shift
+
+        county_priors = apply_gb_shift(county_priors, generic_ballot_shift)
+
     # Derive states from FIPS if not provided
     if states is None:
         states = [_STATE_FIPS_TO_ABBR.get(f[:2], "??") for f in county_fips]
@@ -218,8 +228,17 @@ def predict_race(
         W_rows = []
         y_vals = []
         sigma_vals = []
-        for dem_share, n, poll_state in polls:
-            if poll_state:
+        for poll_tuple in polls:
+            dem_share = poll_tuple[0]
+            n = poll_tuple[1]
+            poll_state = poll_tuple[2]
+            w_override = poll_tuple[3] if len(poll_tuple) > 3 else None
+
+            if w_override is not None:
+                # Crosstab-derived W vector: use directly
+                w_sum = float(w_override.sum())
+                W_row = w_override / w_sum if w_sum > 0 else np.ones(J) / J
+            elif poll_state:
                 state_mask = np.array([s == poll_state for s in states])
                 if state_mask.any():
                     state_scores = type_scores[state_mask]
@@ -253,8 +272,18 @@ def predict_race(
         type_shift = type_means - type_priors.astype(float)
         # 2. Each county's adjustment = score-weighted average of type shifts
         county_adjustment = (abs_scores * type_shift[None, :]).sum(axis=1) / weight_sums
-        # 3. Final prediction = county baseline + adjustment
-        pred_dem_share = county_priors.astype(float) + county_adjustment
+        # 3. Blend county priors toward type-weighted baseline using prior_weight.
+        #    pw=1.0 → use county_priors (Ridge model); pw=0.0 → use type-mean baseline.
+        #    This is what the forecast weight slider controls in the UI.
+        type_prior_baseline = (
+            (abs_scores * type_priors.astype(float)[None, :]).sum(axis=1) / weight_sums
+        )
+        effective_priors = (
+            prior_weight * county_priors.astype(float)
+            + (1 - prior_weight) * type_prior_baseline
+        )
+        # 4. Final prediction = blended baseline + adjustment
+        pred_dem_share = effective_priors + county_adjustment
     else:
         # Legacy: type-mean weighted predictions
         pred_dem_share = (abs_scores * type_means[None, :]).sum(axis=1) / weight_sums

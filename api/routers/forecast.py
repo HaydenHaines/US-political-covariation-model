@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from api.db import get_db
 from api.models import (
     ForecastRow,
+    GenericBallotInfo,
     MultiPollInput,
     MultiPollResponse,
     PollInput,
@@ -181,10 +182,13 @@ def get_race_detail(
 
     # Look up race metadata from the races table (preferred) or fall back to
     # slug parsing for backward compatibility with pre-registry predictions.
-    race_meta = db.execute(
-        "SELECT race_type, state, year FROM races WHERE race_id = ?",
-        [race],
-    ).fetchone()
+    try:
+        race_meta = db.execute(
+            "SELECT race_type, state, year FROM races WHERE race_id = ?",
+            [race],
+        ).fetchone()
+    except duckdb.CatalogException:
+        race_meta = None
     if race_meta:
         race_type = race_meta[0].capitalize()
         state_abbr = race_meta[1]
@@ -279,6 +283,26 @@ def get_race_detail(
         n_counties=n_counties,
         polls=polls,
         type_breakdown=type_breakdown,
+    )
+
+
+@router.get("/forecast/generic-ballot", response_model=GenericBallotInfo)
+def get_generic_ballot(
+    manual_shift: float | None = Query(
+        None, description="Override shift value (Dem share units)"
+    ),
+) -> GenericBallotInfo:
+    """Return the national environment adjustment from generic ballot polling."""
+    from src.prediction.generic_ballot import compute_gb_shift as _compute
+
+    info = _compute(manual_shift=manual_shift)
+    return GenericBallotInfo(
+        gb_avg=info.gb_avg,
+        pres_baseline=info.pres_baseline,
+        shift=info.shift,
+        shift_pp=info.shift * 100,
+        n_polls=info.n_polls,
+        source=info.source,
     )
 
 

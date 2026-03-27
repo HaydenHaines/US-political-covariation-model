@@ -412,20 +412,39 @@ def run() -> None:
     else:
         poll_agg = polls.copy()
 
+    # Build poll lookup: race_id -> list of poll tuples
+    # This decouples poll availability from the race iteration loop.
+    poll_lookup: dict[str, list[tuple[float, int, str]]] = {}
+    if poll_agg is not None and len(poll_agg) > 0:
+        for race, race_group in poll_agg.groupby("race"):
+            if race.startswith("2026 Generic Ballot"):
+                continue
+            race_polls = [
+                (
+                    float(row["dem_share"]),
+                    int(row["n_sample"]) if pd.notna(row["n_sample"]) else 600,
+                    str(row["state"]),
+                )
+                for _, row in race_group.iterrows()
+                if row.get("geo_level", "state") == "state"
+            ]
+            if race_polls:
+                poll_lookup[race] = race_polls
+
+    # Iterate over ALL registered races (not just polled ones).
+    # Races without polls get baseline predictions (model prior only).
+    from src.assembly.define_races import load_races
+
+    registry = load_races(2026)
+    log.info("Race registry: %d races loaded", len(registry))
+
     all_predictions = []
-    for race, race_group in poll_agg.groupby("race"):
-        race_polls = [
-            (
-                float(row["dem_share"]),
-                int(row["n_sample"]) if pd.notna(row["n_sample"]) else 600,
-                str(row["state"]),
-            )
-            for _, row in race_group.iterrows()
-            if row.get("geo_level", "state") == "state"
-        ]
+    for race_def in registry:
+        race = race_def.race_id
+        race_polls = poll_lookup.get(race, None)
         result = predict_race(
             race=race,
-            polls=race_polls if race_polls else None,
+            polls=race_polls,
             type_scores=type_scores,
             type_covariance=type_covariance,
             type_priors=type_priors,
@@ -437,7 +456,14 @@ def run() -> None:
         result["race"] = race
         all_predictions.append(result)
 
-    # Generate national baseline for all counties (no poll adjustment)
+    if poll_lookup:
+        # Warn about polls that don't match any registered race
+        unmatched = set(poll_lookup.keys()) - {r.race_id for r in registry}
+        if unmatched:
+            log.warning("Polls for unregistered races (ignored): %s", unmatched)
+
+    # Generate national baseline for all counties (no poll adjustment).
+    # Useful as a reference for the generic national environment.
     baseline = predict_race(
         race="baseline",
         type_scores=type_scores,

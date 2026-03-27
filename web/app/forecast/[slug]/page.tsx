@@ -213,7 +213,7 @@ export default async function RaceDetailPage({ params }: PageProps) {
   const lean = formatLean(data.prediction);
 
   return (
-    <article style={{
+    <article id="main-content" style={{
       maxWidth: 800,
       margin: "0 auto",
       padding: "40px 24px 80px",

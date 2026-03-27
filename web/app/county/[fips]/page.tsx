@@ -193,7 +193,7 @@ export default async function CountyPage({ params }: PageProps) {
   }
 
   return (
-    <article className="county-detail-article" style={{
+    <article id="main-content" className="county-detail-article" style={{
       maxWidth: 800,
       margin: "0 auto",
       padding: "40px 24px 80px",

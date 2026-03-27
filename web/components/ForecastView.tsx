@@ -111,7 +111,7 @@ function SectionHeader({
     >
       <span style={{ fontWeight: 600 }}>{title}</span>
       {disabled ? (
-        <span style={{ fontSize: "10px", background: "#e8e8e8", padding: "2px 6px", borderRadius: "10px" }}>
+        <span style={{ fontSize: "10px", background: "var(--color-border)", padding: "2px 6px", borderRadius: "10px" }}>
           coming soon
         </span>
       ) : (
@@ -331,7 +331,7 @@ export function ForecastView() {
     borderRadius: "3px",
     fontSize: "13px",
     fontFamily: "var(--font-sans)",
-    background: "white",
+    background: "var(--color-surface)",
     width: "100%",
   };
 
@@ -444,7 +444,7 @@ export function ForecastView() {
                 }}
               >
                 <div>
-                  <span style={{ color: "#333" }}>{poll.pollster || "Unknown"}</span>
+                  <span style={{ color: "var(--color-text)" }}>{poll.pollster || "Unknown"}</span>
                   {poll.date && (
                     <span style={{ color: "var(--color-text-muted)", fontSize: "11px", marginLeft: "6px" }}>
                       {poll.date.slice(0, 10)}

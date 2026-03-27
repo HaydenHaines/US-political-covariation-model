@@ -71,14 +71,25 @@
 
 ## Recommendation
 
-**Immediate (unblocked, fetchers exist):** FEC + BEA — running now.
+## Status (Updated S243)
 
-**Next batch (highest unique signal):**
-1. USDA Atlas economic typology codes (farming/mining/government/recreation)
-2. CDC drug overdose death counts
-3. VA veteran density
+**Completed this session:**
+- FEC donor density — fetched, 3,114 counties
+- BEA income composition — fetched, 3,114 counties (earnings/transfers/investment shares)
+- VA disability — ingester built, 3,148 counties
+- USDA economic typology — ingester built, 3,143 counties (13 binary codes)
+- CDC drug overdose — ingester built (state-level, 51 entries)
+- DOT transportation typology — ingester built, 3,142 counties
+- CHR expanded from 18 to 33 measures (drug OD, suicide, firearms, food insecurity, voter turnout, segregation, homeownership, etc.)
 
-**Later (diminishing returns):**
-4. PLACES health measures (check for CHR overlap first)
-5. FBI crime data
-6. SNAP participation
+**Downloads from Hayden (in ~/Downloads/, awaiting ingestion):**
+- Walkability index
+- Civil Rights resource JSON
+
+**Still worth pursuing:**
+1. RCMS denomination-level (LDS, Muslim, Jewish) — see TODO P2.6
+2. CDC WONDER county-level drug overdose deaths (VSRR data is state-level only)
+3. ATF FFL listings (gun dealer density) — blocked, needs manual download
+4. USDA NASS QuickStats (farm income) — quickstats.nass.usda.gov
+5. SSA county SSDI/SSI recipients — blocked, needs manual download
+6. FBI UCR/NIBRS crime — crime-data-explorer.fr.cloud.gov

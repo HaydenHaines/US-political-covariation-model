@@ -304,9 +304,11 @@ export function ForecastView() {
   useEffect(() => () => { setForecastChoropleth(null); setForecastState(null); }, []);
 
   const stateRows = displayRows.filter((r) => r.state_abbr === selectedState);
+  // Use vote-weighted state_pred from the API (accounts for population differences
+  // across counties). Falls back to simple average only if state_pred is unavailable.
   const statePred =
     stateRows.length > 0
-      ? stateRows.reduce((sum, r) => sum + (r.pred_dem_share ?? 0), 0) / stateRows.length
+      ? (stateRows[0].state_pred ?? stateRows.reduce((sum, r) => sum + (r.pred_dem_share ?? 0), 0) / stateRows.length)
       : null;
   const lean = statePred !== null ? getLean(statePred) : null;
 

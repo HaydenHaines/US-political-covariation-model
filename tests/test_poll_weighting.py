@@ -12,6 +12,7 @@ from src.propagation.propagate_polls import PollObservation
 from src.propagation.poll_weighting import (
     _HE_DEM_SHARE_MAX,
     _HE_DEM_SHARE_MIN,
+    _PRE_PRIMARY_DISCOUNT,
     _SB_MAX_MULTIPLIER,
     _SB_MIN_MULTIPLIER,
     _sb_score_to_multiplier,
@@ -19,6 +20,7 @@ from src.propagation.poll_weighting import (
     apply_all_weights,
     apply_house_effect_correction,
     apply_pollster_quality,
+    apply_primary_discount,
     apply_time_decay,
     election_day_for_cycle,
     extract_grade_from_notes,
@@ -711,3 +713,232 @@ class TestLoadHouseEffects:
         from src.assembly.silver_bulletin_ratings import load_538_bias
         with pytest.raises(FileNotFoundError):
             load_538_bias(tmp_path / "missing.csv")
+
+
+# ---------------------------------------------------------------------------
+# Pre/post-primary discount
+# ---------------------------------------------------------------------------
+
+
+def _write_calendar(tmp_path: Path, rows: list[str]) -> Path:
+    """Write a primary calendar CSV to tmp_path and return its path."""
+    path = tmp_path / "primary_calendar_2026.csv"
+    path.write_text("state,race_type,primary_date\n" + "\n".join(rows) + "\n")
+    return path
+
+
+class TestApplyPrimaryDiscount:
+    """Unit tests for apply_primary_discount."""
+
+    def test_pre_primary_poll_discounted(self, tmp_path):
+        """A poll before the primary date gets n_sample reduced by discount_factor."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-03-01",  # well before the Aug primary
+            race="2026 FL Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        # Default factor=0.5 -> 1000 * 0.5 = 500
+        assert result[0].n_sample == 500
+
+    def test_post_primary_poll_unchanged(self, tmp_path):
+        """A poll after the primary date is not discounted."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-09-01",  # after the Aug primary
+            race="2026 FL Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 1000
+
+    def test_poll_on_primary_day_unchanged(self, tmp_path):
+        """A poll conducted exactly on the primary date is not discounted (not before)."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-08-18",
+            race="2026 FL Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 1000
+
+    def test_missing_calendar_entry_no_change(self, tmp_path):
+        """A poll with no matching calendar entry is unchanged."""
+        # Calendar has FL Senate; poll is for GA Senate — no match
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-03-01",
+            race="2026 GA Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 1000
+
+    def test_missing_calendar_file_no_change(self, tmp_path):
+        """When the calendar file does not exist, all polls pass through unchanged."""
+        poll = _make_poll(n_sample=1000, date="2026-03-01", race="2026 FL Senate")
+        nonexistent = tmp_path / "no_such_file.csv"
+        result = apply_primary_discount([poll], primary_calendar_path=nonexistent)
+        assert result[0].n_sample == 1000
+
+    def test_custom_discount_factor(self, tmp_path):
+        """The discount factor is configurable."""
+        cal = _write_calendar(tmp_path, ["GA,Senate,2026-05-19"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-01-15",
+            race="2026 GA Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal, discount_factor=0.25)
+        assert result[0].n_sample == 250
+
+    def test_governor_race_discounted(self, tmp_path):
+        """Governor races are handled identically to Senate races."""
+        cal = _write_calendar(tmp_path, ["OH,Governor,2026-05-05"])
+        poll = _make_poll(
+            n_sample=800,
+            date="2026-02-01",
+            race="2026 OH Governor",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 400  # 800 * 0.5
+
+    def test_returns_copies_not_originals(self, tmp_path):
+        """Original poll objects are not mutated."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(n_sample=1000, date="2026-03-01", race="2026 FL Senate")
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert poll.n_sample == 1000  # original unchanged
+        assert result[0].n_sample == 500  # copy discounted
+
+    def test_dem_share_unchanged_by_discount(self, tmp_path):
+        """Discounting adjusts n_sample only; dem_share is preserved."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            dem_share=0.47,
+            n_sample=1000,
+            date="2026-03-01",
+            race="2026 FL Senate",
+        )
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].dem_share == pytest.approx(0.47)
+
+    def test_poll_with_no_race_unchanged(self, tmp_path):
+        """Polls with empty race field are passed through without modification."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(n_sample=1000, date="2026-03-01", race="")
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 1000
+
+    def test_poll_with_no_date_unchanged(self, tmp_path):
+        """Polls with empty date field are passed through without modification."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(n_sample=1000, date="", race="2026 FL Senate")
+        result = apply_primary_discount([poll], primary_calendar_path=cal)
+        assert result[0].n_sample == 1000
+
+    def test_invalid_discount_factor_raises(self, tmp_path):
+        """discount_factor outside (0, 1] raises ValueError."""
+        poll = _make_poll(n_sample=1000, date="2026-03-01", race="2026 FL Senate")
+        with pytest.raises(ValueError):
+            apply_primary_discount([poll], discount_factor=0.0)
+        with pytest.raises(ValueError):
+            apply_primary_discount([poll], discount_factor=1.5)
+
+    def test_minimum_n_one_after_discount(self, tmp_path):
+        """Very small n_sample is clamped to at least 1 after discounting."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(n_sample=1, date="2026-03-01", race="2026 FL Senate")
+        result = apply_primary_discount([poll], primary_calendar_path=cal, discount_factor=0.1)
+        assert result[0].n_sample >= 1
+
+    def test_multiple_races_mixed_pre_post_primary(self, tmp_path):
+        """Mix of pre and post-primary polls: each gets appropriate treatment."""
+        cal = _write_calendar(tmp_path, [
+            "FL,Senate,2026-08-18",
+            "GA,Senate,2026-05-19",
+        ])
+        pre_fl = _make_poll(n_sample=1000, date="2026-03-01", race="2026 FL Senate")
+        post_fl = _make_poll(n_sample=1000, date="2026-09-01", race="2026 FL Senate")
+        pre_ga = _make_poll(n_sample=800, date="2026-02-01", race="2026 GA Senate")
+        post_ga = _make_poll(n_sample=800, date="2026-06-01", race="2026 GA Senate")
+
+        result = apply_primary_discount(
+            [pre_fl, post_fl, pre_ga, post_ga], primary_calendar_path=cal
+        )
+        assert result[0].n_sample == 500   # pre FL → discounted
+        assert result[1].n_sample == 1000  # post FL → unchanged
+        assert result[2].n_sample == 400   # pre GA → discounted
+        assert result[3].n_sample == 800   # post GA → unchanged
+
+
+class TestPrimaryDiscountInPipeline:
+    """Integration: primary discount wired into apply_all_weights."""
+
+    def test_pre_primary_discount_applied_in_pipeline(self, tmp_path):
+        """apply_all_weights with use_primary_discount=True discounts pre-primary polls."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        # Poll on reference_date (no time decay), no quality (Silver Bulletin off, no grade),
+        # no house effects — isolates the primary discount step.
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-03-01",
+            race="2026 FL Senate",
+        )
+        result = apply_all_weights(
+            [poll],
+            reference_date="2026-03-01",
+            apply_house_effects=False,
+            use_primary_discount=True,
+            primary_calendar_path=cal,
+            primary_discount_factor=0.5,
+            apply_quality=False,
+        )
+        assert result[0].n_sample == 500
+
+    def test_primary_discount_disabled_in_pipeline(self, tmp_path):
+        """apply_all_weights with use_primary_discount=False skips the discount step."""
+        cal = _write_calendar(tmp_path, ["FL,Senate,2026-08-18"])
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-03-01",
+            race="2026 FL Senate",
+        )
+        result = apply_all_weights(
+            [poll],
+            reference_date="2026-03-01",
+            apply_house_effects=False,
+            use_primary_discount=False,
+            primary_calendar_path=cal,
+            apply_quality=False,
+        )
+        assert result[0].n_sample == 1000
+
+    def test_primary_discount_uses_default_calendar(self):
+        """apply_all_weights without explicit path uses the project primary calendar."""
+        # This exercises the default path resolution. The production calendar file
+        # should exist; if it does, a 2026 FL Senate poll from early 2026 gets discounted.
+        from pathlib import Path
+        default_cal = (
+            Path(__file__).parents[1] / "data" / "polls" / "primary_calendar_2026.csv"
+        )
+        if not default_cal.exists():
+            pytest.skip("Primary calendar not present; skipping default-path integration test")
+
+        poll = _make_poll(
+            n_sample=1000,
+            date="2026-01-01",
+            race="2026 FL Senate",
+        )
+        result = apply_all_weights(
+            [poll],
+            reference_date="2026-01-01",
+            apply_house_effects=False,
+            use_primary_discount=True,
+            primary_discount_factor=0.5,
+            apply_quality=False,
+        )
+        # FL Senate primary is 2026-08-18, so Jan 1 is pre-primary → discounted
+        assert result[0].n_sample == 500

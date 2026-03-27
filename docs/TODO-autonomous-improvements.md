@@ -75,13 +75,13 @@ KMeans at J=43 with r=0.818 is solid. These experiments may find marginal gains 
 
 These make the product more useful but don't improve model accuracy.
 
-- [ ] **P5.1: Type-aware tooltips** — County hover shows: name, type name, Dem share, key demographics. Highest-value UX improvement.
+- [x] **P5.1: Type-aware tooltips** — DONE S188. County hover shows type name, super-type, political lean, income, education, white NH %, density. Dark tooltip styling.
 
-- [ ] **P5.2: Type naming in legend** — Replace "Super-Type N" with descriptive names from DuckDB super_types table. Small effort.
+- [x] **P5.2: Type naming in legend** — DONE S188. 55 national type names from demographic z-scores. Data-driven super-type names. No "Type N" fallbacks.
 
-- [ ] **P5.3: Type comparison table** — Side-by-side demographic profiles of selected types. Sortable columns.
+- [x] **P5.3: Type comparison table** — DONE S189. "Compare" tab with side-by-side demographics for 2-4 types. Sortable columns. Subtle heatmap highlighting.
 
-- [ ] **P5.4: Shift Explorer view** — Scatter plot of counties colored by type, x/y axes selectable (e.g., pct_white vs pres_d_shift). For exploration and storytelling.
+- [x] **P5.4: Shift Explorer view** — DONE S189. "Explore" tab with Observable Plot scatter. 55 types as dots, colored by super-type, sized by county count. Selectable X/Y axes.
 
 ---
 
@@ -103,7 +103,7 @@ These are research tasks — web search and evaluation, not code. Output should 
 
 ## Priority 7 — Infrastructure
 
-- [ ] **P7.1: Real 2026 poll data** — Replace placeholder `polls_2026.csv`. Scrape from 538/RCP/Economist. Critical before October 2026 launch.
+- [x] **P7.1: Real 2026 poll data** — DONE S176+S213. Cron-based poll scraper for 18 national races (6 original + 12 competitive Senate/Governor). 108 polls scraped. Silver Bulletin pollster ratings (539 pollsters). House effects correction (S230).
 
 - [x] **P7.2: Model versioning** — DONE S175. Tagged `type-primary-v1.0` on main. KMeans J=43, holdout r=0.828, county RMSE 2.67pp, 1511 tests.
 

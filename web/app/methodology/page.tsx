@@ -231,6 +231,33 @@ function SourceRow({ name, source }: { name: string; source: string }) {
 
 // ── Page Component ────────────────────────────────────────────────────────
 
+const METHODOLOGY_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  headline: "How WetherVane Works",
+  description:
+    "How WetherVane discovers electoral communities from shift patterns, estimates type covariance, and propagates polling signals across geography to produce county-level 2026 forecasts.",
+  url: "https://wethervane.hhaines.duckdns.org/methodology",
+  author: {
+    "@type": "Person",
+    name: "Hayden Haines",
+  },
+  publisher: {
+    "@type": "Organization",
+    name: "WetherVane",
+    url: "https://wethervane.hhaines.duckdns.org",
+  },
+  dateModified: "2026-03-27",
+  about: [
+    { "@type": "Thing", name: "Electoral Forecasting" },
+    { "@type": "Thing", name: "KMeans Clustering" },
+    { "@type": "Thing", name: "Bayesian Poll Propagation" },
+    { "@type": "Thing", name: "US Midterm Elections 2026" },
+  ],
+  dependencies: "KMeans, Ridge Regression, Histogram Gradient Boosting, Ledoit-Wolf covariance estimation",
+  proficiencyLevel: "Expert",
+};
+
 export default function MethodologyPage() {
   return (
     <article
@@ -240,6 +267,10 @@ export default function MethodologyPage() {
         padding: "40px 24px 80px",
       }}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(METHODOLOGY_JSON_LD) }}
+      />
       {/* Back link */}
       <nav style={{ marginBottom: "32px" }}>
         <Link

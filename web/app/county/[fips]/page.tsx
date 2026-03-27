@@ -192,12 +192,55 @@ export default async function CountyPage({ params }: PageProps) {
     }
   }
 
+  const siteUrl = "https://wethervane.hhaines.duckdns.org";
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Place",
+    name: `${name}, ${state}`,
+    description: `${name} is a ${data.type_display_name} county in ${state}. Political lean: ${lean.text}.`,
+    url: `${siteUrl}/county/${fips}`,
+    containedInPlace: {
+      "@type": "AdministrativeArea",
+      name: state,
+    },
+    additionalProperty: [
+      {
+        "@type": "PropertyValue",
+        name: "Electoral Type",
+        value: data.type_display_name,
+      },
+      {
+        "@type": "PropertyValue",
+        name: "Super-Type",
+        value: data.super_type_display_name,
+      },
+      ...(data.pred_dem_share !== null
+        ? [
+            {
+              "@type": "PropertyValue",
+              name: "Predicted Democratic Two-Party Vote Share",
+              value: data.pred_dem_share,
+            },
+            {
+              "@type": "PropertyValue",
+              name: "Political Lean",
+              value: lean.text,
+            },
+          ]
+        : []),
+    ],
+  };
+
   return (
     <article className="county-detail-article" style={{
       maxWidth: 800,
       margin: "0 auto",
       padding: "40px 24px 80px",
     }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <nav style={{
         fontSize: 13,

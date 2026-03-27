@@ -197,6 +197,52 @@ export default async function TypePage({ params }: PageProps) {
 
   const lean = formatLean(data.mean_pred_dem_share);
 
+  const siteUrl = "https://wethervane.hhaines.duckdns.org";
+  const countyWord = data.n_counties === 1 ? "county" : "counties";
+  const typeDescription = data.narrative
+    ? `${data.narrative} Includes ${data.n_counties} ${countyWord}. Political lean: ${lean.text}.`
+    : `Electoral type ${data.type_id}: ${data.display_name}. Includes ${data.n_counties} ${countyWord}. Political lean: ${lean.text}.`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: `${data.display_name} — WetherVane Electoral Type ${data.type_id}`,
+    description: typeDescription,
+    url: `${siteUrl}/type/${id}`,
+    creator: {
+      "@type": "Organization",
+      name: "WetherVane",
+      url: siteUrl,
+    },
+    variableMeasured: [
+      {
+        "@type": "PropertyValue",
+        name: "Number of Counties",
+        value: data.n_counties,
+      },
+      ...(data.mean_pred_dem_share !== null
+        ? [
+            {
+              "@type": "PropertyValue",
+              name: "Mean Predicted Democratic Vote Share",
+              value: data.mean_pred_dem_share,
+            },
+            {
+              "@type": "PropertyValue",
+              name: "Political Lean",
+              value: lean.text,
+            },
+          ]
+        : []),
+    ],
+    keywords: [
+      "electoral type",
+      "political forecast",
+      "county clustering",
+      data.display_name,
+      "2026 midterms",
+    ],
+  };
+
   const superType = superTypes.find((st) => st.super_type_id === data.super_type_id);
   const superTypeName = superType?.display_name ?? `Super-Type ${data.super_type_id}`;
 
@@ -232,6 +278,10 @@ export default async function TypePage({ params }: PageProps) {
       margin: "0 auto",
       padding: "40px 24px 80px",
     }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <nav style={{
         fontSize: 13,

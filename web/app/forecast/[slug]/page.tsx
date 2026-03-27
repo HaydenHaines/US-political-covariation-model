@@ -212,12 +212,71 @@ export default async function RaceDetailPage({ params }: PageProps) {
   const stateName = STATE_NAMES[data.state_abbr] ?? data.state_abbr;
   const lean = formatLean(data.prediction);
 
+  const siteUrl = "https://wethervane.hhaines.duckdns.org";
+  const raceDescription =
+    data.prediction !== null
+      ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race at ${lean.text}. Based on ${data.n_counties} counties and electoral type modeling.`
+      : `WetherVane's forecast for the ${data.year} ${stateName} ${data.race_type} race. Explore county-level predictions and polling data.`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: `${data.year} ${stateName} ${data.race_type}`,
+    description: raceDescription,
+    url: `${siteUrl}/forecast/${slug}`,
+    startDate: `${data.year}-11-03`,
+    eventStatus: "https://schema.org/EventScheduled",
+    location: {
+      "@type": "AdministrativeArea",
+      name: stateName,
+      address: {
+        "@type": "PostalAddress",
+        addressCountry: "US",
+        addressRegion: data.state_abbr,
+      },
+    },
+    organizer: {
+      "@type": "Organization",
+      name: "WetherVane",
+      url: siteUrl,
+    },
+    additionalProperty: [
+      {
+        "@type": "PropertyValue",
+        name: "Race Type",
+        value: data.race_type,
+      },
+      {
+        "@type": "PropertyValue",
+        name: "Counties in Model",
+        value: data.n_counties,
+      },
+      ...(data.prediction !== null
+        ? [
+            {
+              "@type": "PropertyValue",
+              name: "Model Predicted Democratic Two-Party Vote Share",
+              value: data.prediction,
+            },
+            {
+              "@type": "PropertyValue",
+              name: "Political Lean",
+              value: lean.text,
+            },
+          ]
+        : []),
+    ],
+  };
+
   return (
     <article style={{
       maxWidth: 800,
       margin: "0 auto",
       padding: "40px 24px 80px",
     }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Breadcrumb */}
       <nav style={{
         fontSize: 13,

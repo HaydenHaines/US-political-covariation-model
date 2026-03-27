@@ -62,13 +62,35 @@ def test_prior_weight_one_is_default(mock_model):
     )
 
 
-def test_no_polls_prior_weight_irrelevant(mock_model):
-    """Without polls, prior_weight doesn't change output (no update to scale)."""
-    result_a = predict_race(race="test", prior_weight=0.5, **mock_model)
-    result_b = predict_race(race="test", prior_weight=1.0, **mock_model)
+def test_no_polls_prior_weight_blends_toward_type_baseline(mock_model):
+    """Without polls, lower prior_weight blends county priors toward type baseline.
+
+    The slider means 'how much to trust the ridge model refinement vs the raw
+    type-mean baseline.'  At pw=1, predictions use ridge county priors.  At
+    pw=0, predictions use type-weighted priors (the simpler baseline).
+    """
+    result_full = predict_race(race="test", prior_weight=1.0, **mock_model)
+    result_half = predict_race(race="test", prior_weight=0.5, **mock_model)
+    result_zero = predict_race(race="test", prior_weight=0.0, **mock_model)
+
+    # pw=1.0 should match county_priors exactly (no polls → no shift)
     np.testing.assert_array_almost_equal(
-        result_a["pred_dem_share"].values,
-        result_b["pred_dem_share"].values,
+        result_full["pred_dem_share"].values,
+        mock_model["county_priors"],
+    )
+    # pw=0.0 should match type-weighted baseline (no ridge influence)
+    scores = np.abs(mock_model["type_scores"])
+    wsums = scores.sum(axis=1)
+    type_baseline = (scores * mock_model["type_priors"][None, :]).sum(axis=1) / wsums
+    np.testing.assert_array_almost_equal(
+        result_zero["pred_dem_share"].values,
+        type_baseline,
+    )
+    # pw=0.5 should be halfway between
+    expected_half = 0.5 * mock_model["county_priors"] + 0.5 * type_baseline
+    np.testing.assert_array_almost_equal(
+        result_half["pred_dem_share"].values,
+        expected_half,
     )
 
 

@@ -292,8 +292,17 @@ def predict_race(
         type_shift = type_means - type_priors.astype(float)
         # 2. Each county's adjustment = score-weighted average of type shifts
         county_adjustment = (abs_scores * type_shift[None, :]).sum(axis=1) / weight_sums
-        # 3. Final prediction = county baseline + adjustment
-        pred_dem_share = county_priors.astype(float) + county_adjustment
+        # 3. Blend county baseline toward type-weighted baseline as prior_weight
+        #    decreases.  At pw=1, use ridge county priors (full model confidence).
+        #    At pw=0, use type-weighted priors so the prediction becomes the pure
+        #    Bayesian posterior from polls — the ridge model anchor is fully
+        #    released.  Without this blending, deweighting only affects the type
+        #    covariance precision but the county-level anchor never moves, making
+        #    the slider ineffective when ridge priors diverge from poll signal.
+        type_prior_baseline = (abs_scores * type_priors.astype(float)[None, :]).sum(axis=1) / weight_sums
+        effective_priors = prior_weight * county_priors.astype(float) + (1 - prior_weight) * type_prior_baseline
+        # 4. Final prediction = blended baseline + type shift adjustment
+        pred_dem_share = effective_priors + county_adjustment
     else:
         # Legacy: type-mean weighted predictions
         pred_dem_share = (abs_scores * type_means[None, :]).sum(axis=1) / weight_sums

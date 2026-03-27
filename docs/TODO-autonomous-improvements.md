@@ -61,6 +61,8 @@ KMeans at J=43 with r=0.818 is solid. These experiments may find marginal gains 
 
 - [x] **P3.5: Turnout as separate dimension** — DONE S186. Current x1.0 weight is optimal. Dropping turnout costs -0.021r; up-weighting trades partisan accuracy for turnout with no net gain. Turnout-only r=0.79. ALL P3.x experiments COMPLETE. See docs/turnout-dimension-experiment-S186.md.
 
+- [ ] **P3.6: PCA/dimensionality reduction before KMeans** — Recommended by external data scientist (2026-03-27). Currently KMeans runs on raw 33-dim shift vectors. PCA could reduce noise dimensions (presidential shifts across years are highly correlated) and concentrate signal. Experiment: run PCA on shift matrix, sweep n_components (5-25), re-run KMeans J=100 on reduced space, compare holdout r to baseline 0.698. The Economist model uses a factor model on shifts (similar concept). Also try UMAP as a nonlinear alternative.
+
 ---
 
 ## Priority 4 — Validation & Analysis

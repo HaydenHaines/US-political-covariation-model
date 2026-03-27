@@ -327,3 +327,65 @@ class TestCrosswalkTypesIntegration:
         result = build_district_types(crosswalk, county_types)
         # Should be pure type 0 (county 01003 has 0 overlap)
         assert abs(result["type_0"].iloc[0] - 1.0) < 1e-6
+
+    def test_unequal_overlap_weights_correctly(self) -> None:
+        """A district with 75/25 county overlap produces correct weighting."""
+        crosswalk = pd.DataFrame({
+            "county_fips": ["01001", "01003"],
+            "state_fips": ["01", "01"],
+            "district_id": ["01-01", "01-01"],
+            "overlap_votes": [7500, 2500],
+            "overlap_fraction": [0.75, 0.25],
+        })
+        type_data = {"county_fips": ["01001", "01003"]}
+        for j in range(N_TYPES):
+            if j == 0:
+                type_data[f"type_{j}"] = [1.0, 0.0]
+            elif j == 1:
+                type_data[f"type_{j}"] = [0.0, 1.0]
+            else:
+                type_data[f"type_{j}"] = [0.0, 0.0]
+        county_types = pd.DataFrame(type_data)
+
+        result = build_district_types(crosswalk, county_types)
+        # 75% of county_01001 (pure type_0) + 25% of county_01003 (pure type_1)
+        assert abs(result["type_0"].iloc[0] - 0.75) < 1e-6
+        assert abs(result["type_1"].iloc[0] - 0.25) < 1e-6
+
+    def test_missing_county_in_types_handled(self) -> None:
+        """Counties in crosswalk but missing from type assignments are skipped."""
+        crosswalk = pd.DataFrame({
+            "county_fips": ["01001", "99999"],
+            "state_fips": ["01", "99"],
+            "district_id": ["01-01", "99-01"],
+            "overlap_votes": [10000, 5000],
+            "overlap_fraction": [1.0, 1.0],
+        })
+        type_data = {"county_fips": ["01001"]}
+        for j in range(N_TYPES):
+            type_data[f"type_{j}"] = [1.0 if j == 0 else 0.0]
+        county_types = pd.DataFrame(type_data)
+
+        result = build_district_types(crosswalk, county_types)
+        # Only district 01-01 should appear (99-01's county has no types)
+        assert len(result) == 1
+        assert result["district_id"].iloc[0] == "01-01"
+
+
+class TestStateConstants:
+    """Test that state constants are internally consistent."""
+
+    def test_state_fips_bijectivity(self) -> None:
+        """FIPS-to-abbr and abbr-to-FIPS must be inverse mappings."""
+        from src.assembly.build_district_crosswalk import STATE_FIPS, STATE_ABBR_TO_FIPS
+        for fips, abbr in STATE_FIPS.items():
+            assert STATE_ABBR_TO_FIPS[abbr] == fips
+
+    def test_fifty_states_plus_dc(self) -> None:
+        from src.assembly.build_district_crosswalk import STATE_FIPS
+        assert len(STATE_FIPS) == 51  # 50 states + DC
+
+    def test_at_large_states_valid(self) -> None:
+        from src.assembly.build_district_crosswalk import AT_LARGE_STATES, STATE_FIPS
+        for st in AT_LARGE_STATES:
+            assert st in STATE_FIPS.values(), f"{st} not in STATE_FIPS"

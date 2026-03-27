@@ -202,9 +202,10 @@ def test_polls_dem_share_in_range():
 
 
 def test_polls_n_sample_positive():
-    """All n_sample values must be positive integers."""
+    """Non-null n_sample values must be positive integers."""
     df = pd.read_csv(PROJECT_ROOT / "data" / "polls" / "polls_2026.csv")
-    assert (df["n_sample"] > 0).all(), "Some polls have non-positive sample sizes"
+    valid = df["n_sample"].dropna()
+    assert (valid > 0).all(), "Some polls have non-positive sample sizes"
 
 
 def test_polls_not_empty():

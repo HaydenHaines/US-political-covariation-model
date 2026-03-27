@@ -126,6 +126,49 @@ def get_race_slugs(
     return [race_to_slug(r[0]) for r in rows]
 
 
+@router.get("/forecast/race-metadata")
+def get_race_metadata(
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> list[dict]:
+    """Return metadata for all defined races from the registry.
+
+    Includes whether predictions exist and how many polls are available,
+    enabling the frontend to render a complete races index page even for
+    races that haven't been predicted yet.
+    """
+    version_id = request.app.state.version_id
+    try:
+        rows = db.execute(
+            """
+            SELECT r.race_id, r.race_type, r.state, r.year,
+                   COALESCE((SELECT COUNT(*) FROM predictions p
+                             WHERE p.race = r.race_id AND p.version_id = ?), 0) AS n_predictions,
+                   COALESCE((SELECT COUNT(*) FROM polls pl
+                             WHERE pl.race = r.race_id), 0) AS n_polls
+            FROM races r
+            ORDER BY r.state, r.race_type
+            """,
+            [version_id],
+        ).fetchall()
+    except duckdb.CatalogException:
+        # races table may not exist in older databases
+        return []
+
+    return [
+        {
+            "race_id": row[0],
+            "slug": race_to_slug(row[0]),
+            "race_type": row[1],
+            "state": row[2],
+            "year": row[3],
+            "has_predictions": row[4] > 0,
+            "n_polls": row[5],
+        }
+        for row in rows
+    ]
+
+
 @router.get("/forecast/race/{slug}", response_model=RaceDetail)
 def get_race_detail(
     slug: str,
@@ -136,19 +179,30 @@ def get_race_detail(
     version_id = request.app.state.version_id
     race = slug_to_race(slug)
 
-    # Validate the race exists
+    # Look up race metadata from the races table (preferred) or fall back to
+    # slug parsing for backward compatibility with pre-registry predictions.
+    race_meta = db.execute(
+        "SELECT race_type, state, year FROM races WHERE race_id = ?",
+        [race],
+    ).fetchone()
+    if race_meta:
+        race_type = race_meta[0].capitalize()
+        state_abbr = race_meta[1]
+        year = race_meta[2]
+    else:
+        # Fallback: parse from slug (backward compat with old predictions)
+        parts = slug.split("-")
+        state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
+        race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
+        year = int(parts[0]) if parts[0].isdigit() else 2026
+
+    # Validate the race has predictions
     exists = db.execute(
         "SELECT COUNT(*) FROM predictions WHERE version_id = ? AND race = ?",
         [version_id, race],
     ).fetchone()
     if not exists or exists[0] == 0:
         raise HTTPException(status_code=404, detail=f"Race '{race}' not found")
-
-    # Parse state_abbr and race_type from slug parts
-    parts = slug.split("-")
-    state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
-    race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
-    year = int(parts[0]) if parts[0].isdigit() else 2026
 
     # State-level prediction: mean of county pred_dem_share for this race+state
     pred_row = db.execute(

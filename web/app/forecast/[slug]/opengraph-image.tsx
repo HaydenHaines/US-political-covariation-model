@@ -35,9 +35,9 @@ const STATE_NAMES: Record<string, string> = {
 function leanLabel(share: number | null): { text: string; color: string } {
   if (share === null) return { text: "No prediction", color: "#666666" };
   const margin = Math.abs(share - 0.5) * 100;
-  return share > 0.5
-    ? { text: `D+${margin.toFixed(0)}`, color: "#2166ac" }
-    : { text: `R+${margin.toFixed(0)}`, color: "#d73027" };
+  const text = margin < 0.5 ? "EVEN" : share > 0.5 ? `D+${margin.toFixed(0)}` : `R+${margin.toFixed(0)}`;
+  const color = share >= 0.5 ? "#2166ac" : "#d73027";
+  return { text, color };
 }
 
 export default async function Image({

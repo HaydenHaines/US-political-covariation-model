@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Plot from "@observablehq/plot";
 import { fetchTypeScatterData, type TypeScatterPoint } from "@/lib/api";
+import { formatMargin } from "@/lib/typeDisplay";
 import { PALETTE } from "@/components/MapShell";
 
 // ── Axis option configuration ─────────────────────────────────────────────────
@@ -23,7 +24,7 @@ const DEMO_KEYS: Array<{ key: string; label: string }> = [
   { key: "black_protestant_share", label: "Black Protestant" },
   { key: "congregations_per_1000", label: "Congregations/1K" },
   { key: "log_pop_density", label: "Pop density (log)" },
-  { key: "mean_pred_dem_share", label: "Predicted D share" },
+  { key: "mean_pred_dem_share", label: "Predicted margin" },
 ];
 
 // Keys that are shift columns (used to decide whether to draw zero rule)
@@ -112,6 +113,7 @@ function Tooltip({ state }: { state: TooltipState }) {
   function fmt(key: string, val: number | undefined): string {
     if (val == null) return "—";
     if (key.includes("income")) return `$${Math.round(val).toLocaleString()}`;
+    if (key === "mean_pred_dem_share") return formatMargin(val);
     if (key.startsWith("pct_") || key.endsWith("_share")) return `${(val * 100).toFixed(1)}%`;
     if (key.includes("_shift_")) return val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2);
     return val.toFixed(2);

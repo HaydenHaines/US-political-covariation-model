@@ -9,6 +9,7 @@ import {
   type PollRow,
 } from "@/lib/api";
 import { useMapContext } from "@/components/MapContext";
+import { formatMargin, formatMarginRange, marginColor } from "@/lib/typeDisplay";
 
 const LEAN_LABELS = [
   { threshold: 0.55, label: "Solid D", color: "var(--color-dem)" },
@@ -460,11 +461,11 @@ export function ForecastView() {
                 </span>
                 <span style={{
                   fontWeight: 600,
-                  color: poll.dem_share > 0.5 ? "var(--color-dem)" : "var(--color-rep)",
+                  color: marginColor(poll.dem_share),
                   minWidth: "40px",
                   textAlign: "right",
                 }}>
-                  {(poll.dem_share * 100).toFixed(1)}%
+                  {formatMargin(poll.dem_share)}
                 </span>
               </div>
             ))}
@@ -550,7 +551,7 @@ export function ForecastView() {
 
           {/* Secondary: projected share + source */}
           <div style={{ fontSize: "11px", color: "var(--color-text-muted)", borderTop: "1px solid var(--color-border)", paddingTop: "5px" }}>
-            {selectedState} avg Dem share: {(statePred * 100).toFixed(1)}%
+            {selectedState} avg margin: {formatMargin(statePred)}
             &nbsp;·&nbsp;
             {hasPollUpdate ? `${polls.length} poll${polls.length !== 1 ? "s" : ""} incorporated` : "model prior"}
           </div>
@@ -568,7 +569,7 @@ export function ForecastView() {
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
                   <th style={{ textAlign: "left", padding: "4px 6px", color: "var(--color-text-muted)", fontWeight: "normal" }}>County</th>
-                  <th style={{ textAlign: "right", padding: "4px 6px", color: "var(--color-text-muted)", fontWeight: "normal" }}>Dem %</th>
+                  <th style={{ textAlign: "right", padding: "4px 6px", color: "var(--color-text-muted)", fontWeight: "normal" }}>Margin</th>
                   {hasPollUpdate && (
                     <th style={{ textAlign: "right", padding: "4px 6px", color: "var(--color-text-muted)", fontWeight: "normal" }}>Δ</th>
                   )}
@@ -587,10 +588,10 @@ export function ForecastView() {
                         <td style={{ padding: "5px 6px" }}>{row.county_name ?? row.county_fips}</td>
                         <td style={{
                           padding: "5px 6px", textAlign: "right",
-                          color: share > 0.5 ? "var(--color-dem)" : "var(--color-rep)",
+                          color: marginColor(share),
                           fontWeight: 600,
                         }}>
-                          {(share * 100).toFixed(1)}%
+                          {formatMargin(share)}
                         </td>
                         {hasPollUpdate && (
                           <td style={{
@@ -606,7 +607,7 @@ export function ForecastView() {
                         )}
                         <td style={{ padding: "5px 6px", textAlign: "right", color: "var(--color-text-muted)" }}>
                           {row.pred_lo90 !== null && row.pred_hi90 !== null
-                            ? `${(row.pred_lo90 * 100).toFixed(0)}–${(row.pred_hi90 * 100).toFixed(0)}%`
+                            ? formatMarginRange(row.pred_lo90, row.pred_hi90, 0)
                             : "—"}
                         </td>
                       </tr>

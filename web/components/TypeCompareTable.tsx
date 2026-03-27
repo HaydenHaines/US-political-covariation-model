@@ -7,8 +7,8 @@ import {
   formatDemoValue,
   prettifyKey,
   inferFormat,
-  formatLean,
-  leanColor,
+  formatMargin,
+  marginColor,
 } from "@/lib/typeDisplay";
 import { useMapContext } from "@/components/MapContext";
 
@@ -337,9 +337,9 @@ export function TypeCompareTable() {
                       padding: "4px 4px",
                       fontWeight: "700",
                       fontSize: "12px",
-                      color: leanColor(d?.mean_pred_dem_share ?? null),
+                      color: marginColor(d?.mean_pred_dem_share ?? null),
                     }}>
-                      {formatLean(d?.mean_pred_dem_share ?? null)}
+                      {formatMargin(d?.mean_pred_dem_share ?? null)}
                     </td>
                   );
                 })}

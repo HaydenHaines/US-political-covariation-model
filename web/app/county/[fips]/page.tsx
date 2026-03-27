@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { marginLabel } from "@/lib/typeDisplay";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -46,12 +47,7 @@ function stripCountySuffix(name: string | null): string {
 }
 
 function formatLean(demShare: number | null): { text: string; color: string } {
-  if (demShare === null) return { text: "N/A", color: "var(--color-text-muted)" };
-  const margin = Math.abs(demShare - 0.5) * 100;
-  if (demShare > 0.5) {
-    return { text: `D+${margin.toFixed(1)}`, color: "var(--color-dem)" };
-  }
-  return { text: `R+${margin.toFixed(1)}`, color: "var(--color-rep)" };
+  return marginLabel(demShare, 1, "N/A");
 }
 
 function formatPct(val: number): string {

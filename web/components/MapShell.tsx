@@ -4,6 +4,7 @@ import DeckGL from "@deck.gl/react";
 import { WebMercatorViewport } from "@deck.gl/core";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import { fetchCounties, fetchSuperTypes, fetchTypes, type CountyRow, type TypeSummary } from "@/lib/api";
+import { formatMargin } from "@/lib/typeDisplay";
 import { useMapContext } from "@/components/MapContext";
 import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
@@ -12,11 +13,9 @@ import { TractPanel, type TractFeatureProps } from "@/components/TractPanel";
 // ── Tooltip helpers ──────────────────────────────────────────────────────────
 
 /** Format dem share as political lean: "D+5.2" or "R+3.1" */
-function formatLean(share: number | null | undefined): string {
+function formatLeanLocal(share: number | null | undefined): string {
   if (share == null) return "";
-  const pct = share * 100;
-  if (pct >= 50) return `D+${(pct - 50).toFixed(1)}`;
-  return `R+${(50 - pct).toFixed(1)}`;
+  return formatMargin(share);
 }
 
 /** Format income as "$XX,XXX" */
@@ -372,7 +371,7 @@ export default function MapShell() {
                   // Enrich with predictions and type demographics
                   const county = countyMap[fips];
                   const typeInfo = typeDataMap.get(dt);
-                  const lean = formatLean(county?.pred_dem_share);
+                  const lean = formatLeanLocal(county?.pred_dem_share);
                   const income = formatIncome(typeInfo?.median_hh_income);
                   const college = formatPct(typeInfo?.pct_bachelors_plus);
                   const white = formatPct(typeInfo?.pct_white_nh);
@@ -585,11 +584,11 @@ export default function MapShell() {
           }}
         >
           {[
-            { label: "Strong D (60%+)", color: choroplethColor(0.65) },
-            { label: "Lean D (50–60%)", color: choroplethColor(0.55) },
-            { label: "Toss-up (~50%)", color: choroplethColor(0.50) },
-            { label: "Lean R (40–50%)", color: choroplethColor(0.45) },
-            { label: "Strong R (<40%)", color: choroplethColor(0.35) },
+            { label: "Strong D (D+10+)", color: choroplethColor(0.65) },
+            { label: "Lean D (D+0 to D+10)", color: choroplethColor(0.55) },
+            { label: "Toss-up (EVEN)", color: choroplethColor(0.50) },
+            { label: "Lean R (R+0 to R+10)", color: choroplethColor(0.45) },
+            { label: "Strong R (R+10+)", color: choroplethColor(0.35) },
           ].map(({ label, color }) => (
             <div key={label} className="map-legend-item" style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "2px" }}>
               <div style={{ width: 12, height: 12, borderRadius: 2, background: `rgba(${color[0]},${color[1]},${color[2]},${color[3] / 255})` }} />

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { feedPoll, type ForecastRow } from "@/lib/api";
+import { formatMargin } from "@/lib/typeDisplay";
 
 interface Props {
   state: string;
@@ -52,7 +53,7 @@ export function FeedAPoll({ state, race, onUpdate, onReset }: Props) {
               onChange={(e) => setDemShare(parseFloat(e.target.value))}
               style={{ width: "120px" }}
             />
-            <span style={{ fontWeight: "600", minWidth: "36px" }}>{(demShare * 100).toFixed(0)}%</span>
+            <span style={{ fontWeight: "600", minWidth: "36px" }}>{formatMargin(demShare, 0)}</span>
           </div>
         </label>
 

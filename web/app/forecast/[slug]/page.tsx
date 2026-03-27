@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { marginLabel, formatMargin } from "@/lib/typeDisplay";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -113,17 +114,8 @@ async function fetchRaceSlugs(): Promise<string[]> {
   }
 }
 
-function formatLean(demShare: number | null): { text: string; color: string } {
-  if (demShare === null) return { text: "No prediction yet", color: "var(--color-text-muted)" };
-  const margin = Math.abs(demShare - 0.5) * 100;
-  if (demShare > 0.5) {
-    return { text: `D+${margin.toFixed(1)}`, color: "var(--color-dem)" };
-  }
-  return { text: `R+${margin.toFixed(1)}`, color: "var(--color-rep)" };
-}
-
-function formatPct(val: number): string {
-  return `${(val * 100).toFixed(1)}%`;
+function raceMarginLabel(demShare: number | null): { text: string; color: string } {
+  return marginLabel(demShare, 1, "No prediction yet");
 }
 
 function formatDate(dateStr: string | null): string {
@@ -151,7 +143,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   }
 
   const stateName = STATE_NAMES[data.state_abbr] ?? data.state_abbr;
-  const lean = formatLean(data.prediction);
+  const lean = raceMarginLabel(data.prediction);
   const title = `${data.year} ${stateName} ${data.race_type} | WetherVane`;
   const description = data.prediction !== null
     ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race at ${lean.text}. Based on ${data.n_counties} counties and electoral type modeling.`
@@ -210,7 +202,7 @@ export default async function RaceDetailPage({ params }: PageProps) {
   }
 
   const stateName = STATE_NAMES[data.state_abbr] ?? data.state_abbr;
-  const lean = formatLean(data.prediction);
+  const lean = raceMarginLabel(data.prediction);
 
   const siteUrl = "https://wethervane.hhaines.duckdns.org";
   const raceDescription =
@@ -372,9 +364,9 @@ export default async function RaceDetailPage({ params }: PageProps) {
             borderRadius: 6,
           }}>
             <p style={{ fontSize: 16, margin: "0 0 8px", color: "var(--color-text)" }}>
-              Our model predicts Democrats will win{" "}
-              <strong style={{ color: lean.color }}>{formatPct(data.prediction)}</strong>{" "}
-              of the two-party vote in the {data.year} {stateName} {data.race_type} race.
+              Our model predicts a{" "}
+              <strong style={{ color: lean.color }}>{lean.text}</strong>{" "}
+              margin in the {data.year} {stateName} {data.race_type} race.
             </p>
             <p style={{ fontSize: 14, margin: 0, color: "var(--color-text-muted)" }}>
               Based on electoral type modeling across {data.n_counties} counties.
@@ -408,14 +400,13 @@ export default async function RaceDetailPage({ params }: PageProps) {
                 <tr style={{ borderBottom: "2px solid var(--color-border)" }}>
                   <th style={{ textAlign: "left", padding: "8px 12px 8px 0", color: "var(--color-text-muted)", fontWeight: 600 }}>Date</th>
                   <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--color-text-muted)", fontWeight: 600 }}>Pollster</th>
-                  <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-dem)", fontWeight: 600 }}>D%</th>
-                  <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-rep)", fontWeight: 600 }}>R%</th>
+                  <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-text-muted)", fontWeight: 600 }}>Margin</th>
                   <th style={{ textAlign: "right", padding: "8px 0 8px 12px", color: "var(--color-text-muted)", fontWeight: 600 }}>Sample</th>
                 </tr>
               </thead>
               <tbody>
                 {data.polls.map((poll, i) => {
-                  const repShare = 1 - poll.dem_share;
+                  const pollMargin = marginLabel(poll.dem_share);
                   return (
                     <tr key={i} style={{ borderBottom: "1px solid var(--color-bg)" }}>
                       <td style={{ padding: "8px 12px 8px 0", color: "var(--color-text-muted)" }}>
@@ -424,11 +415,8 @@ export default async function RaceDetailPage({ params }: PageProps) {
                       <td style={{ padding: "8px 12px" }}>
                         {poll.pollster ?? "Unknown"}
                       </td>
-                      <td style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-dem)", fontWeight: 600 }}>
-                        {formatPct(poll.dem_share)}
-                      </td>
-                      <td style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-rep)", fontWeight: 600 }}>
-                        {formatPct(repShare)}
+                      <td style={{ textAlign: "right", padding: "8px 12px", color: pollMargin.color, fontWeight: 600 }}>
+                        {pollMargin.text}
                       </td>
                       <td style={{ textAlign: "right", padding: "8px 0 8px 12px", color: "var(--color-text-muted)" }}>
                         {poll.n_sample !== null ? poll.n_sample.toLocaleString("en-US") : "—"}
@@ -465,7 +453,7 @@ export default async function RaceDetailPage({ params }: PageProps) {
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {data.type_breakdown.map((t) => {
-              const typeLean = formatLean(t.mean_pred_dem_share);
+              const typeLean = marginLabel(t.mean_pred_dem_share);
               return (
                 <div key={t.type_id} style={{
                   display: "flex",

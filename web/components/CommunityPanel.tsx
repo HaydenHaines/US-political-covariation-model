@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import * as Plot from "@observablehq/plot";
 import { fetchCommunityDetail, type CommunityDetail, type CommunityDemographics } from "@/lib/api";
+import { formatMargin, marginColor } from "@/lib/typeDisplay";
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -226,7 +227,6 @@ export function CommunityPanel({ communityId, onClose }: Props) {
             </p>
             {detail.counties.map((county) => {
               const share = county.pred_dem_share;
-              const isD = share !== null && share > 0.5;
               return (
                 <div key={county.county_fips} style={{
                   display: "flex",
@@ -237,8 +237,8 @@ export function CommunityPanel({ communityId, onClose }: Props) {
                 }}>
                   <span>{county.county_name ?? county.county_fips}</span>
                   {share !== null && (
-                    <span style={{ color: isD ? "var(--color-dem)" : "var(--color-rep)", fontWeight: "600" }}>
-                      {isD ? "D" : "R"} {Math.abs(share * 100 - 50).toFixed(1)}
+                    <span style={{ color: marginColor(share), fontWeight: "600" }}>
+                      {formatMargin(share)}
                     </span>
                   )}
                 </div>

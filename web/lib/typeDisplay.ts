@@ -59,14 +59,70 @@ export function inferFormat(key: string): "pct" | "dollar" | "num" {
   return "num";
 }
 
-/** Format dem share as D+X / R+X label */
-export function formatLean(share: number | null): string {
-  if (share === null) return "—";
-  const pct = Math.round(Math.abs(share - 0.5) * 100);
-  return share >= 0.5 ? `D+${pct}` : `R+${pct}`;
+/**
+ * Format a dem share (0–1) as a partisan margin string.
+ *
+ * Examples: 0.532 → "D+3.2", 0.468 → "R+3.2", 0.5 → "EVEN", null → "—"
+ *
+ * @param demShare - Democratic two-party vote share (0–1 scale)
+ * @param decimals - Number of decimal places (default 1)
+ * @param nullText - Text to show when demShare is null (default "—")
+ */
+export function formatMargin(
+  demShare: number | null,
+  decimals = 1,
+  nullText = "—",
+): string {
+  if (demShare === null) return nullText;
+  const margin = Math.abs(demShare - 0.5) * 100;
+  if (margin < 0.05) return "EVEN";
+  return demShare > 0.5
+    ? `D+${margin.toFixed(decimals)}`
+    : `R+${margin.toFixed(decimals)}`;
 }
 
+/**
+ * Format a confidence interval as a partisan margin range.
+ *
+ * Examples: (0.48, 0.55) → "R+2.0 to D+5.0"
+ */
+export function formatMarginRange(
+  lo: number | null,
+  hi: number | null,
+  decimals = 1,
+): string {
+  if (lo === null || hi === null) return "—";
+  return `${formatMargin(lo, decimals)} to ${formatMargin(hi, decimals)}`;
+}
+
+/**
+ * Return { text, color } for a dem share — convenience for components that
+ * need both the formatted string and the partisan color.
+ */
+export function marginLabel(
+  demShare: number | null,
+  decimals = 1,
+  nullText = "—",
+): { text: string; color: string } {
+  return {
+    text: formatMargin(demShare, decimals, nullText),
+    color: marginColor(demShare),
+  };
+}
+
+/** Return the partisan color for a dem share value. */
+export function marginColor(demShare: number | null): string {
+  if (demShare === null) return "var(--color-text-muted)";
+  return demShare >= 0.5 ? "var(--color-dem)" : "var(--color-rep)";
+}
+
+// Legacy aliases — kept for backward compatibility with TypeCompareTable
+/** @deprecated Use formatMargin instead */
+export function formatLean(share: number | null): string {
+  return formatMargin(share, 0);
+}
+
+/** @deprecated Use marginColor instead */
 export function leanColor(share: number | null): string {
-  if (share === null) return "var(--color-text-muted)";
-  return share >= 0.5 ? "var(--color-dem)" : "var(--color-rep)";
+  return marginColor(share);
 }

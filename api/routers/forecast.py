@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.db import get_db
 from api.models import (
+    EmbedResponse,
     ForecastRow,
     MultiPollInput,
     MultiPollResponse,
@@ -229,6 +230,83 @@ def get_race_detail(
         n_counties=n_counties,
         polls=polls,
         type_breakdown=type_breakdown,
+    )
+
+
+@router.get("/embed/{slug}", response_model=EmbedResponse, tags=["embed"])
+def get_embed_metadata(
+    slug: str,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> EmbedResponse:
+    """Return embed metadata for a single race, including a ready-to-paste iframe snippet.
+
+    Callers that only need the raw prediction data should use
+    ``GET /forecast/race/{slug}`` instead.  This endpoint is purpose-built for
+    CMS integrations that want a fully-formed iframe snippet without
+    constructing the URL themselves.
+    """
+    site_url = "https://wethervane.hhaines.duckdns.org"
+    version_id = request.app.state.version_id
+    race = slug_to_race(slug)
+
+    exists = db.execute(
+        "SELECT COUNT(*) FROM predictions WHERE version_id = ? AND race = ?",
+        [version_id, race],
+    ).fetchone()
+    if not exists or exists[0] == 0:
+        raise HTTPException(status_code=404, detail=f"Race '{race}' not found")
+
+    parts = slug.split("-")
+    state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
+    race_type = " ".join(p.capitalize() for p in parts[2:]) if len(parts) >= 3 else "Unknown"
+    year = int(parts[0]) if parts[0].isdigit() else 2026
+
+    pred_row = db.execute(
+        """
+        SELECT AVG(p.pred_dem_share) AS state_pred, COUNT(*) AS n_counties
+        FROM predictions p
+        JOIN counties c ON p.county_fips = c.county_fips
+        WHERE p.version_id = ? AND p.race = ? AND c.state_abbr = ?
+        """,
+        [version_id, race, state_abbr],
+    ).fetchone()
+
+    dem_pct = None if (pred_row is None or pred_row[0] is None) else float(pred_row[0])
+    n_counties = int(pred_row[1]) if pred_row else 0
+
+    # Partisan lean label and color
+    if dem_pct is not None:
+        margin = abs(dem_pct - 0.5) * 100
+        if dem_pct > 0.5:
+            lean_label = f"D+{margin:.1f}"
+            lean_color = "#2166ac"
+        else:
+            lean_label = f"R+{margin:.1f}"
+            lean_color = "#d73027"
+    else:
+        lean_label = "No prediction"
+        lean_color = "#666666"
+
+    race_title = f"{year} {state_abbr} {race_type}"
+    embed_url = f"{site_url}/embed/{slug}"
+    iframe_snippet = (
+        f'<iframe src="{embed_url}" '
+        f'width="400" height="200" frameborder="0" '
+        f'style="border:none;max-width:100%;" '
+        f'title="{race_title} forecast — WetherVane">'
+        f"</iframe>"
+    )
+
+    return EmbedResponse(
+        slug=slug,
+        race_title=race_title,
+        lean_label=lean_label,
+        lean_color=lean_color,
+        dem_pct=dem_pct,
+        rep_pct=(1.0 - dem_pct) if dem_pct is not None else None,
+        n_counties=n_counties,
+        iframe_snippet=iframe_snippet,
     )
 
 

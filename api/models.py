@@ -232,6 +232,20 @@ class RaceDetail(BaseModel):
     type_breakdown: list[TypeBreakdown]
 
 
+# ── Embed widget ─────────────────────────────────────────────────────────
+
+class EmbedResponse(BaseModel):
+    """Metadata for the embed widget.  Includes a ready-to-paste iframe snippet."""
+    slug: str
+    race_title: str          # e.g. "2026 FL Senate"
+    lean_label: str          # e.g. "D+4.2" or "R+11.7"
+    lean_color: str          # hex color for the lean label
+    dem_pct: float | None    # 0–1 two-party Dem share
+    rep_pct: float | None    # 0–1 two-party Rep share
+    n_counties: int
+    iframe_snippet: str      # ready-to-paste HTML
+
+
 # ── County detail (SEO page) ──────────────────────────────────────────────
 
 class SiblingCounty(BaseModel):

@@ -84,6 +84,18 @@ CREATE TABLE IF NOT EXISTS poll_notes (
 """
 
 
+_INSERT_VIEW = "_tmp_insert_view"
+
+
+def _insert_via_parquet(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> None:
+    """Insert DataFrame using register/unregister to avoid heap corruption."""
+    con.register(_INSERT_VIEW, df)
+    try:
+        con.execute(f"INSERT INTO {table} SELECT * FROM {_INSERT_VIEW}")
+    finally:
+        con.unregister(_INSERT_VIEW)
+
+
 def _cross_compliance(con: duckdb.DuckDBPyConnection, cycle: str) -> None:
     """Validate state-level poll geography values against known US abbreviations."""
     state_geos = con.execute(
@@ -186,7 +198,7 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
 
     if poll_rows:
         df = pd.DataFrame(poll_rows)
-        con.execute("INSERT INTO polls SELECT * FROM df")
+        _insert_via_parquet(con, "polls", df)
         log.info("polls: ingested %d rows for cycle=%s", len(poll_rows), cycle)
 
     # Cross-compliance: validate state geography values
@@ -196,5 +208,5 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
 
     if note_rows:
         ndf = pd.DataFrame(note_rows)
-        con.execute("INSERT INTO poll_notes SELECT * FROM ndf")
+        _insert_via_parquet(con, "poll_notes", ndf)
         log.info("poll_notes: ingested %d rows", len(note_rows))

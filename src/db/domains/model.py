@@ -112,6 +112,23 @@ CREATE TABLE IF NOT EXISTS hac_county_weights (
 # Helpers
 # ---------------------------------------------------------------------------
 
+_INSERT_VIEW = "_tmp_insert_view"
+
+
+def _insert_via_parquet(con: duckdb.DuckDBPyConnection, table: str, df: pd.DataFrame) -> None:
+    """Insert DataFrame using register/unregister to avoid heap corruption.
+
+    The implicit Python-DataFrame bridge (``INSERT INTO t SELECT * FROM df``)
+    corrupts the DuckDB heap after many large inserts in a single process run.
+    ``con.register()`` / ``con.unregister()`` bypasses the bridge entirely.
+    """
+    con.register(_INSERT_VIEW, df)
+    try:
+        con.execute(f"INSERT INTO {table} SELECT * FROM {_INSERT_VIEW}")
+    finally:
+        con.unregister(_INSERT_VIEW)
+
+
 def _validate_rows(schema_class, rows: list[dict], source: str) -> None:
     for i, row in enumerate(rows):
         try:
@@ -224,23 +241,48 @@ def _ingest_type_scores(con, version_id, path):
     if not path.exists():
         log.warning("type_assignments.parquet not found; skipping type_scores")
         return
-    ta = pd.read_parquet(path)
-    ta["county_fips"] = ta["county_fips"].astype(str).str.zfill(5)
-    score_cols = sorted([c for c in ta.columns if c.endswith("_score")])
+
+    # Discover score columns from the parquet schema — no DataFrame needed yet
+    sample = pd.read_parquet(path, columns=["county_fips"])
+    n_counties = len(sample)
+
+    # Read column names from parquet schema without loading all data
+    import pyarrow.parquet as pq
+    schema = pq.read_schema(str(path))
+    all_cols = [f.name for f in schema]
+    score_cols = sorted([c for c in all_cols if c.endswith("_score")])
     if not score_cols:
         raise DomainIngestionError("model", str(path), "no *_score columns found")
 
-    rows = []
-    for col in score_cols:
-        type_id = int(col.split("_")[1])  # "type_7_score" → 7
-        for fips, score in zip(ta["county_fips"], ta[col]):
-            rows.append({"county_fips": fips, "type_id": type_id, "score": float(score)})
+    # Validate score range via DuckDB parquet scan before inserting.
+    p = str(path)
+    score_col_list = ", ".join(score_cols)
+    # Quick range check: any score outside [0, 1]?
+    range_check_parts = " OR ".join(
+        f"CAST({col} AS DOUBLE) < 0 OR CAST({col} AS DOUBLE) > 1.0"
+        for col in score_cols
+    )
+    bad = duckdb.execute(
+        f"SELECT COUNT(*) FROM read_parquet('{p}') WHERE {range_check_parts}"
+    ).fetchone()[0]
+    if bad > 0:
+        raise DomainIngestionError(
+            "model", str(path), f"{bad} rows have score(s) outside [0, 1]"
+        )
 
-    _validate_rows(TypeScoreRow, rows, str(path))
-    df = pd.DataFrame(rows)
-    df["version_id"] = version_id
-    con.execute("INSERT INTO type_scores SELECT * FROM df")
-    log.info("type_scores: %d rows (%d counties × %d types)", len(rows), len(ta), len(score_cols))
+    # Use DuckDB's UNION ALL to transform wide→long format entirely within
+    # DuckDB's native parquet reader — no Python-DataFrame bridge.
+    log.info("_ingest_type_scores: building via SQL UNION (%d types × %d counties)...", len(score_cols), n_counties)
+    parts = [
+        f"SELECT LPAD(CAST(county_fips AS VARCHAR), 5, '0') AS county_fips, "
+        f"{col.split('_')[1]} AS type_id, CAST({col} AS FLOAT) AS score, "
+        f"'{version_id}' AS version_id FROM read_parquet('{p}')"
+        for col in score_cols
+    ]
+    union_sql = "\nUNION ALL\n".join(parts)
+    con.execute(f"INSERT INTO type_scores\n{union_sql}")
+    n = len(score_cols) * n_counties
+    log.info("type_scores: %d rows (%d counties × %d types)", n, n_counties, len(score_cols))
 
 
 def _ingest_type_covariance(con, version_id, path):
@@ -253,12 +295,17 @@ def _ingest_type_covariance(con, version_id, path):
     if not np.allclose(mat, mat.T, atol=COVARIANCE_SYMMETRY_TOL):
         raise DomainIngestionError("model", str(path), "covariance matrix is not symmetric")
 
-    rows = [{"type_i": i, "type_j": j, "value": float(mat[i, j])} for i in range(J) for j in range(J)]
-    _validate_rows(TypeCovarianceRow, rows, str(path))
-    df = pd.DataFrame(rows)
-    df["version_id"] = version_id
-    con.execute("INSERT INTO type_covariance SELECT * FROM df")
-    log.info("type_covariance: %d×%d (%d rows)", J, J, len(rows))
+    log.info("_ingest_type_covariance: building via SQL UNION (%d×%d)...", J, J)
+    # Build long-format via numpy (J²=10K rows — small enough to avoid bridge issues).
+    i_idx, j_idx = np.meshgrid(np.arange(J), np.arange(J), indexing="ij")
+    df = pd.DataFrame({
+        "type_i": i_idx.ravel().astype(int),
+        "type_j": j_idx.ravel().astype(int),
+        "value": mat.ravel(),
+        "version_id": version_id,
+    })
+    _insert_via_parquet(con, "type_covariance", df)
+    log.info("type_covariance: %d×%d (%d rows)", J, J, len(df))
 
 
 def _ingest_type_priors(con, version_id, path):
@@ -299,7 +346,7 @@ def _ingest_type_priors(con, version_id, path):
     _validate_rows(TypePriorRow, rows, str(path))
     df = pd.DataFrame(rows)
     df["version_id"] = version_id
-    con.execute("INSERT INTO type_priors SELECT * FROM df")
+    _insert_via_parquet(con, "type_priors", df)
     log.info("type_priors: %d rows", len(rows))
 
 
@@ -309,15 +356,10 @@ def _ingest_ridge_priors(con, version_id, path):
         return
     rf = pd.read_parquet(path)
     rf["county_fips"] = rf["county_fips"].astype(str).str.zfill(5)
-    rows = [
-        {"county_fips": row["county_fips"], "ridge_pred_dem_share": float(row["ridge_pred_dem_share"])}
-        for _, row in rf.iterrows()
-    ]
-    _validate_rows(RidgeCountyPriorRow, rows, str(path))
-    df = pd.DataFrame(rows)
+    df = rf[["county_fips", "ridge_pred_dem_share"]].copy()
     df["version_id"] = version_id
-    con.execute("INSERT INTO ridge_county_priors SELECT * FROM df")
-    log.info("ridge_county_priors: %d rows", len(rows))
+    _insert_via_parquet(con, "ridge_county_priors", df)
+    log.info("ridge_county_priors: %d rows", len(df))
 
 
 def _ingest_hac_state_weights(con, version_id, path):
@@ -326,15 +368,18 @@ def _ingest_hac_state_weights(con, version_id, path):
         return
     sw = pd.read_parquet(path)
     comm_cols = sorted([c for c in sw.columns if c.startswith("community_")])
-    rows = [
-        {"state_abbr": row["state_abbr"], "community_id": int(col.split("_")[1]), "weight": float(row[col])}
-        for _, row in sw.iterrows()
-        for col in comm_cols
-    ]
-    df = pd.DataFrame(rows)
+    # Use pandas melt to avoid Python list-of-dicts construction
+    df = sw[["state_abbr"] + comm_cols].melt(
+        id_vars="state_abbr",
+        value_vars=comm_cols,
+        var_name="community_col",
+        value_name="weight",
+    )
+    df["community_id"] = df["community_col"].str.split("_").str[1].astype(int)
+    df = df[["state_abbr", "community_id", "weight"]].copy()
     df["version_id"] = version_id
-    con.execute("INSERT INTO hac_state_weights SELECT * FROM df")
-    log.info("hac_state_weights: %d rows", len(rows))
+    _insert_via_parquet(con, "hac_state_weights", df)
+    log.info("hac_state_weights: %d rows", len(df))
 
 
 def _ingest_hac_county_weights(con, version_id, path):
@@ -342,21 +387,27 @@ def _ingest_hac_county_weights(con, version_id, path):
         log.warning("community_weights_county_hac.parquet not found; skipping hac_county_weights")
         return
     cw = pd.read_parquet(path)
-    comm_cols = sorted([c for c in cw.columns if c.startswith("community_")])
+    # Exclude 'community_id' — it's a long-format identifier, not a weight column.
+    # Weight columns are named 'community_0', 'community_1', etc.
+    comm_cols = sorted([
+        c for c in cw.columns
+        if c.startswith("community_") and c != "community_id"
+    ])
 
-    if "community_id" in cw.columns and not comm_cols:
-        # Long format: already has community_id column
-        cw["county_fips"] = cw["county_fips"].astype(str).str.zfill(5)
-        # No weight column in this format — skip
-        log.info("hac_county_weights: long format, no weight column — skipping")
+    if not comm_cols:
+        # Long format: only has community_id, no weight columns — skip
+        log.info("hac_county_weights: long format (no weight columns) — skipping")
         return
 
-    rows = [
-        {"county_fips": str(row["county_fips"]).zfill(5), "community_id": int(col.split("_")[1]), "weight": float(row[col])}
-        for _, row in cw.iterrows()
-        for col in comm_cols
-    ]
-    df = pd.DataFrame(rows)
+    cw["county_fips"] = cw["county_fips"].astype(str).str.zfill(5)
+    df = cw[["county_fips"] + comm_cols].melt(
+        id_vars="county_fips",
+        value_vars=comm_cols,
+        var_name="community_col",
+        value_name="weight",
+    )
+    df["community_id"] = df["community_col"].str.split("_").str[1].astype(int)
+    df = df[["county_fips", "community_id", "weight"]].copy()
     df["version_id"] = version_id
-    con.execute("INSERT INTO hac_county_weights SELECT * FROM df")
-    log.info("hac_county_weights: %d rows", len(rows))
+    _insert_via_parquet(con, "hac_county_weights", df)
+    log.info("hac_county_weights: %d rows", len(df))

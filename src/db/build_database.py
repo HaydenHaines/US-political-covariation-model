@@ -22,6 +22,7 @@ Usage
 from __future__ import annotations
 
 import argparse
+import gc
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -371,6 +372,39 @@ def validate_contract(con: duckdb.DuckDBPyConnection) -> list[str]:
     return errors
 
 
+def _insert_via_parquet(
+    con: duckdb.DuckDBPyConnection,
+    table: str,
+    df: pd.DataFrame,
+    *,
+    mode: str = "insert",
+) -> None:
+    """Insert a DataFrame into a DuckDB table using register/unregister.
+
+    Using ``con.register()`` + ``con.unregister()`` instead of the implicit
+    Python-DataFrame bridge (``INSERT INTO t SELECT * FROM df``) avoids the
+    heap corruption that accumulates when many large DataFrames are transferred
+    through the bridge in a single process run.
+
+    Args:
+        con: Active DuckDB connection.
+        table: Target table name (must already exist for ``mode='insert'``).
+        df: DataFrame to insert.
+        mode: ``'insert'`` (INSERT INTO ... SELECT) or ``'create'``
+            (CREATE TABLE AS SELECT — drops and recreates the table).
+    """
+    _VIEW = "_tmp_insert_view"
+    con.register(_VIEW, df)
+    try:
+        if mode == "create":
+            con.execute(f"DROP TABLE IF EXISTS {table}")
+            con.execute(f"CREATE TABLE {table} AS SELECT * FROM {_VIEW}")
+        else:
+            con.execute(f"INSERT INTO {table} SELECT * FROM {_VIEW}")
+    finally:
+        con.unregister(_VIEW)
+
+
 def build(db_path: Path, reset: bool = False, project_root: Path | None = None) -> None:
     """Build or update wethervane.duckdb from current pipeline artifacts."""
 
@@ -449,7 +483,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
     if shifts is not None:
         counties_df = _build_counties(shifts, crosswalk_path=_crosswalk_path)
         con.execute("DELETE FROM counties")
-        con.execute("INSERT INTO counties SELECT * FROM counties_df")
+        _insert_via_parquet(con, "counties", counties_df)
         log.info("Ingested %d counties", len(counties_df))
 
     # ── Ingest model versions ──────────────────────────────────────────────────
@@ -497,27 +531,17 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         # Drop existing shifts for this version and rebuild
         con.execute(f"DELETE FROM county_shifts WHERE version_id = '{current_version_id}'")
 
-        # DuckDB can't ingest a wide parquet with dynamic columns via the fixed schema.
-        # Instead we use duckdb's native parquet reader + CREATE OR REPLACE TABLE pattern
-        # to handle the dynamic shift columns alongside the fixed ones.
-        import tempfile, os
-        with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
-            tmp_path = tmp.name
-        try:
-            shift_rows.to_parquet(tmp_path, index=False)
-            # Use REPLACE because the base CREATE TABLE only has county_fips + version_id columns;
-            # we store shifts in a dedicated wide table re-created from parquet.
-            con.execute("DROP TABLE IF EXISTS county_shifts")
-            con.execute(f"CREATE TABLE county_shifts AS SELECT * FROM read_parquet('{tmp_path}')")
-            log.info("Ingested county_shifts: %d rows × %d cols", len(shift_rows), len(shift_rows.columns))
-        finally:
-            os.unlink(tmp_path)
+        # county_shifts has dynamic columns (one per election shift dim) so the
+        # fixed CREATE TABLE schema doesn't match. Recreate the table from the
+        # DataFrame via register/unregister to handle arbitrary column sets.
+        _insert_via_parquet(con, "county_shifts", shift_rows, mode="create")
+        log.info("Ingested county_shifts: %d rows × %d cols", len(shift_rows), len(shift_rows.columns))
 
     # ── Ingest community assignments ───────────────────────────────────────────
     if assignments is not None:
         ca_rows = _build_community_assignments(assignments, current_version_id)
         con.execute(f"DELETE FROM community_assignments WHERE version_id = '{current_version_id}'")
-        con.execute("INSERT INTO community_assignments SELECT * FROM ca_rows")
+        _insert_via_parquet(con, "community_assignments", ca_rows)
         log.info(
             "Ingested community_assignments: %d rows, k=%d", len(ca_rows), ca_rows["k"].iloc[0]
         )
@@ -525,14 +549,22 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         # ── Ingest type assignments ────────────────────────────────────────────
         ta_rows = _build_type_assignments(type_df, assignments, current_version_id)
         con.execute(f"DELETE FROM type_assignments WHERE version_id = '{current_version_id}'")
-        con.execute("INSERT INTO type_assignments SELECT * FROM ta_rows")
+        _insert_via_parquet(con, "type_assignments", ta_rows)
         log.info("Ingested type_assignments: %d rows", len(ta_rows))
+
+    # ── Connection cycle (post-shifts) ─────────────────────────────────────────
+    # DuckDB develops heap corruption after several DataFrame INSERTs. Use
+    # `del con` (not close()) — close() itself crashes on a corrupted heap.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (post-shifts)")
 
     # ── Ingest predictions ─────────────────────────────────────────────────────
     if predictions is not None:
         pred_rows = _build_predictions(predictions, current_version_id)
         con.execute(f"DELETE FROM predictions WHERE version_id = '{current_version_id}'")
-        con.execute("INSERT INTO predictions SELECT * FROM pred_rows")
+        _insert_via_parquet(con, "predictions", pred_rows)
         log.info("Ingested predictions: %d rows", len(pred_rows))
     else:
         log.warning("No predictions file found; skipping predictions table")
@@ -545,7 +577,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         existing_races = set(con.execute("SELECT DISTINCT race FROM predictions").fetchdf()["race"])
         new_rows = pred_hac_rows[~pred_hac_rows["race"].isin(existing_races)]
         if len(new_rows):
-            con.execute("INSERT INTO predictions SELECT * FROM new_rows")
+            _insert_via_parquet(con, "predictions", new_rows)
             log.info("Ingested HAC predictions: %d rows", len(new_rows))
     else:
         log.info("No HAC predictions file found; skipping")
@@ -557,7 +589,6 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         pred_types_rows = _build_predictions(pred_types, current_version_id)
         existing_races = set(con.execute("SELECT DISTINCT race FROM predictions").fetchdf()["race"])
         # Types predictions take precedence: remove any overlapping (county, race) pairs first
-        new_races = set(pred_types_rows["race"].unique()) - existing_races
         overlap_races = set(pred_types_rows["race"].unique()) & existing_races
         if overlap_races:
             for r in overlap_races:
@@ -567,10 +598,18 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
                     f"DELETE FROM predictions WHERE race = ? AND county_fips IN ({placeholders}) AND version_id = ?",
                     [r] + overlap_fips + [current_version_id],
                 )
-        con.execute("INSERT INTO predictions SELECT * FROM pred_types_rows")
+        _insert_via_parquet(con, "predictions", pred_types_rows)
         log.info("Ingested types predictions: %d rows", len(pred_types_rows))
     else:
         log.info("No types predictions file found; skipping")
+
+    # ── Connection cycle (post-predictions) ────────────────────────────────────
+    # The types-predictions insert (~19K rows) frequently triggers heap
+    # corruption. Cycle immediately after to reset allocator state.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (post-predictions)")
 
     # ── Ingest community sigma ─────────────────────────────────────────────────
     if _sigma_path.exists():
@@ -586,10 +625,17 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
                 })
         sigma_long = pd.DataFrame(sigma_long_rows)
         con.execute(f"DELETE FROM community_sigma WHERE version_id = '{current_version_id}'")
-        con.execute("INSERT INTO community_sigma SELECT * FROM sigma_long")
+        _insert_via_parquet(con, "community_sigma", sigma_long)
         log.info("Ingested community_sigma: %d cells", len(sigma_long))
     else:
         log.info("No county_community_sigma.parquet found; skipping sigma table")
+
+    # ── Connection cycle (mid-build) ───────────────────────────────────────────
+    # Use `del con` (not close()) — close() itself crashes on a corrupted heap.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (mid-build)")
 
     # ── Ingest community profiles (demographics overlay) ───────────────────────
     if _community_profiles_path.exists():
@@ -606,7 +652,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
         ]
         cp_insert = cp_df[[c for c in profile_cols if c in cp_df.columns]].copy()
         con.execute("DELETE FROM community_profiles")
-        con.execute("INSERT INTO community_profiles SELECT * FROM cp_insert")
+        _insert_via_parquet(con, "community_profiles", cp_insert)
         log.info("Ingested community_profiles: %d rows", len(cp_insert))
     else:
         log.info("No community_profiles.parquet found; skipping")
@@ -615,11 +661,18 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
     if _county_acs_path.exists():
         cd_df = pd.read_parquet(_county_acs_path)
         cd_df["county_fips"] = cd_df["county_fips"].astype(str).str.zfill(5)
-        con.execute("DROP TABLE IF EXISTS county_demographics")
-        con.execute("CREATE TABLE county_demographics AS SELECT * FROM cd_df")
+        _insert_via_parquet(con, "county_demographics", cd_df, mode="create")
         log.info("Ingested county_demographics: %d rows (%d columns)", len(cd_df), len(cd_df.columns))
     else:
         log.info("No county_acs_features.parquet found; skipping")
+
+    # ── Connection cycle (post-demographics) ───────────────────────────────────
+    # county_demographics (3K rows × 15 cols) triggers heap corruption.
+    # Cycle before types/county_type_assignments to stay below threshold.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (post-demographics)")
 
     # ── Ingest type profiles (types table) ────────────────────────────────────
     if _type_profiles_path.exists():
@@ -642,19 +695,20 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
             log.info("Attached narratives to %d types", tp_df["narrative"].notna().sum())
         except Exception as exc:
             log.warning("Narrative generation failed (%s); types table will lack narrative column", exc)
-        con.execute("DROP TABLE IF EXISTS types")
-        con.execute("CREATE TABLE types AS SELECT * FROM tp_df")
+        _insert_via_parquet(con, "types", tp_df, mode="create")
         log.info("Ingested types: %d rows", len(tp_df))
     else:
         log.info("No type_profiles.parquet found; skipping types table")
 
     # ── Ingest county type assignments ─────────────────────────────────────────
+    # Use DuckDB's native parquet reader directly — avoids the Python bridge
+    # entirely, no DataFrame → DuckDB transfer needed since the file exists.
     if _county_type_assignments_path.exists():
-        cta_df = pd.read_parquet(_county_type_assignments_path)
-        cta_df["county_fips"] = cta_df["county_fips"].astype(str).str.zfill(5)
+        p = str(_county_type_assignments_path)
         con.execute("DROP TABLE IF EXISTS county_type_assignments")
-        con.execute("CREATE TABLE county_type_assignments AS SELECT * FROM cta_df")
-        log.info("Ingested county_type_assignments: %d rows", len(cta_df))
+        con.execute(f"CREATE TABLE county_type_assignments AS SELECT * FROM read_parquet('{p}')")
+        n_cta = con.execute("SELECT COUNT(*) FROM county_type_assignments").fetchone()[0]
+        log.info("Ingested county_type_assignments: %d rows", n_cta)
     else:
         log.info("No county_type_assignments_full.parquet found; skipping")
 
@@ -662,10 +716,17 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
     if _super_types_path.exists():
         st_df = pd.read_parquet(_super_types_path)
         con.execute("DELETE FROM super_types")
-        con.execute("INSERT INTO super_types SELECT * FROM st_df")
+        _insert_via_parquet(con, "super_types", st_df)
         log.info("Ingested super_types: %d rows", len(st_df))
     else:
         log.info("No super_types.parquet found; skipping")
+
+    # ── Connection cycle (pre-domain) ─────────────────────────────────────────
+    # Use `del con` (not close()) — close() itself crashes on a corrupted heap.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (pre-domain)")
 
     # ── Domain ingest ────────────────────────────────────────────────────────
     model_ddl(con)
@@ -674,17 +735,19 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
     ingest_model(con, current_version_id, _project_root)
     ingest_polling(con, POLL_INGEST_CYCLE, _project_root)
 
+    # ── Connection cycle (post-domain) ────────────────────────────────────────
+    # Domain ingest adds ~315K type_scores rows. Cycle before demographics to
+    # avoid heap corruption on the final large table.
+    del con
+    gc.collect()
+    con = duckdb.connect(str(db_path))
+    log.info("Connection cycled (post-domain)")
+
     # ── Ingest demographics interpolated ───────────────────────────────────────
-    # DuckDB develops heap corruption after many DataFrame INSERTs on a single
-    # connection. Flush to disk, open a fresh connection for the last large table.
     if _demographics_interpolated_path.exists():
         di_df = pd.read_parquet(_demographics_interpolated_path)
         di_df["county_fips"] = di_df["county_fips"].astype(str).str.zfill(5)
-        del con  # release without close() — avoids crash on corrupted heap
-        import gc; gc.collect()
-        con = duckdb.connect(str(db_path))
-        con.execute("DROP TABLE IF EXISTS demographics_interpolated")
-        con.execute("CREATE TABLE demographics_interpolated AS SELECT * FROM di_df")
+        _insert_via_parquet(con, "demographics_interpolated", di_df, mode="create")
         log.info("Ingested demographics_interpolated: %d rows", len(di_df))
     else:
         log.info("No demographics_interpolated.parquet found; skipping")
@@ -696,7 +759,7 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
                    "county_shifts", "predictions", "community_sigma", "community_profiles",
                    "county_demographics", "types", "county_type_assignments", "super_types",
                    "type_covariance", "demographics_interpolated",
-                   "type_scores", "type_priors", "ridge_priors", "polls", "pollsters"]:
+                   "type_scores", "type_priors", "ridge_county_priors", "polls", "poll_notes"]:
         try:
             n = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
             print(f"  {table}: {n:,} rows")
@@ -724,10 +787,48 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
 
 
 def main() -> None:
+    """Entry point for build_database.py.
+
+    DuckDB 1.5.x corrupts glibc's malloc heap after many large DataFrame
+    inserts, causing a SIGABRT crash mid-build. The fix is to use jemalloc
+    as the memory allocator (LD_PRELOAD). This function auto-detects jemalloc
+    and re-execs itself with LD_PRELOAD set if it's not already active.
+    """
+    import os
+    import subprocess
+    import shutil
+
     parser = argparse.ArgumentParser(description="Build wethervane.duckdb from pipeline artifacts")
     parser.add_argument("--db", type=Path, default=DEFAULT_DB, help="Output DuckDB path")
     parser.add_argument("--reset", action="store_true", help="Drop and rebuild the database")
     args = parser.parse_args()
+
+    # ── jemalloc auto-detection ────────────────────────────────────────────────
+    # If LD_PRELOAD doesn't already include jemalloc, try to find it and re-exec.
+    jemalloc_paths = [
+        "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2",
+        "/usr/lib/libjemalloc.so.2",
+        "/usr/local/lib/libjemalloc.so.2",
+    ]
+    current_preload = os.environ.get("LD_PRELOAD", "")
+    jemalloc_active = any(p in current_preload for p in jemalloc_paths)
+
+    if not jemalloc_active:
+        jemalloc_lib = next((p for p in jemalloc_paths if os.path.exists(p)), None)
+        if jemalloc_lib:
+            log.info(
+                "DuckDB 1.5.x malloc bug: re-executing with LD_PRELOAD=%s to avoid SIGABRT",
+                jemalloc_lib,
+            )
+            env = os.environ.copy()
+            env["LD_PRELOAD"] = (current_preload + ":" + jemalloc_lib).lstrip(":")
+            result = subprocess.run([sys.executable] + sys.argv, env=env)
+            sys.exit(result.returncode)
+        else:
+            log.warning(
+                "jemalloc not found — DuckDB 1.5.x may crash with SIGABRT on large builds. "
+                "Install libjemalloc2 (apt install libjemalloc2) to fix this."
+            )
 
     build(db_path=args.db, reset=args.reset)
 

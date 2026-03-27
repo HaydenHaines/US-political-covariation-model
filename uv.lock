@@ -4212,7 +4212,7 @@ requires-dist = [
     { name = "beautifulsoup4", specifier = ">=4.12" },
     { name = "cenpy", specifier = ">=1.0" },
     { name = "cmdstanpy", specifier = ">=1.2" },
-    { name = "duckdb", specifier = ">=0.10" },
+    { name = "duckdb", specifier = "==1.5.0" },
     { name = "fastapi", marker = "extra == 'api'", specifier = ">=0.110.0" },
     { name = "geopandas", specifier = ">=0.14" },
     { name = "hdbscan", specifier = ">=0.8.41" },

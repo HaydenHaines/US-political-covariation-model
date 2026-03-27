@@ -1,0 +1,17 @@
+{
+  "cycle": 2026,
+  "in_party": "D",
+  "approval_net_oct": -12.0,
+  "gdp_q2_growth_pct": 1.8,
+  "unemployment_oct": 4.1,
+  "cpi_yoy_oct": 3.2,
+  "consumer_sentiment": 68.5,
+  "source_notes": {
+    "approval": "Placeholder — update from RCP average ~2026-10-15",
+    "gdp": "Placeholder — update from BEA advance estimate ~2026-07-25",
+    "unemployment": "Placeholder — update from BLS LAUS ~2026-11-06",
+    "cpi": "Placeholder — update from BLS CPI ~2026-10-10",
+    "consumer_sentiment": "Placeholder — update from U. Michigan monthly release",
+    "last_updated": "2026-03-27"
+  }
+}

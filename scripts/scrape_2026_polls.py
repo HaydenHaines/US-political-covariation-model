@@ -42,11 +42,21 @@ RACE_CONFIG = {
         # Known general-election candidate last names.
         # Multiple possible D/R nominees listed; scraper matches any.
         "dem_candidates": [
-            "jolly", "demings", "cava", "levine cava", "daniella levine cava",
-            "gwen graham", "graham",
+            "jolly",
+            "demings",
+            "cava",
+            "levine cava",
+            "daniella levine cava",
+            "gwen graham",
+            "graham",
         ],
         "rep_candidates": [
-            "donalds", "desantis", "collins", "renner", "fishback", "simpson",
+            "donalds",
+            "desantis",
+            "collins",
+            "renner",
+            "fishback",
+            "simpson",
             "casey desantis",
         ],
     },
@@ -55,10 +65,14 @@ RACE_CONFIG = {
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_special_election_in_Florida",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/florida",
         "dem_candidates": [
-            "grayson", "nixon", "moskowitz", "vindman",
+            "grayson",
+            "nixon",
+            "moskowitz",
+            "vindman",
         ],
         "rep_candidates": [
-            "moody", "lang",
+            "moody",
+            "lang",
         ],
     },
     "2026 GA Governor": {
@@ -66,10 +80,16 @@ RACE_CONFIG = {
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Georgia_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/georgia",
         "dem_candidates": [
-            "bottoms", "keisha lance bottoms", "duncan",
+            "bottoms",
+            "keisha lance bottoms",
+            "duncan",
         ],
         "rep_candidates": [
-            "jones", "burt jones", "mike collins", "collins", "jackson",
+            "jones",
+            "burt jones",
+            "mike collins",
+            "collins",
+            "jackson",
         ],
     },
     "2026 GA Senate": {
@@ -77,10 +97,15 @@ RACE_CONFIG = {
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Georgia",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/georgia",
         "dem_candidates": [
-            "ossoff", "jon ossoff",
+            "ossoff",
+            "jon ossoff",
         ],
         "rep_candidates": [
-            "carter", "buddy carter", "mike collins", "collins", "dooley",
+            "carter",
+            "buddy carter",
+            "mike collins",
+            "collins",
+            "dooley",
             "rich dooley",
         ],
     },
@@ -89,10 +114,15 @@ RACE_CONFIG = {
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Alabama_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/alabama",
         "dem_candidates": [
-            "jones", "doug jones", "flowers", "yolanda flowers",
+            "jones",
+            "doug jones",
+            "flowers",
+            "yolanda flowers",
         ],
         "rep_candidates": [
-            "tuberville", "tommy tuberville", "mcfeeters",
+            "tuberville",
+            "tommy tuberville",
+            "mcfeeters",
         ],
     },
     "2026 AL Senate": {
@@ -100,12 +130,104 @@ RACE_CONFIG = {
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Alabama",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/alabama",
         "dem_candidates": [
-            "figures", "shomari figures",
+            "figures",
+            "shomari figures",
         ],
         "rep_candidates": [
-            "marshall", "steve marshall", "moore", "barry moore", "hudson",
-            "jared hudson", "dobson", "caroleene dobson",
+            "marshall",
+            "steve marshall",
+            "moore",
+            "barry moore",
+            "hudson",
+            "jared hudson",
+            "dobson",
+            "caroleene dobson",
         ],
+    },
+    # ── National competitive races (added S213) ──────────────────
+    "2026 IA Senate": {
+        "state": "IA",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Iowa",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/iowa",
+        "dem_candidates": ["franken", "michael franken"],
+        "rep_candidates": ["ernst", "joni ernst"],
+    },
+    "2026 ME Senate": {
+        "state": "ME",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Maine",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/maine",
+        "dem_candidates": ["gideon", "sara gideon", "pingree", "chellie pingree"],
+        "rep_candidates": ["collins", "susan collins"],
+    },
+    "2026 MI Governor": {
+        "state": "MI",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_Michigan_gubernatorial_election",
+        "ttw_url": "https://www.270towin.com/2026-governor-polls/michigan",
+        "dem_candidates": ["gilchrist", "garlin gilchrist"],
+        "rep_candidates": ["james", "john james", "soldano", "garrett soldano"],
+    },
+    "2026 MI Senate": {
+        "state": "MI",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Michigan",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/michigan",
+        "dem_candidates": ["peters", "gary peters", "slotkin", "elissa slotkin"],
+        "rep_candidates": ["james", "john james", "kelley", "tudor dixon"],
+    },
+    "2026 MN Senate": {
+        "state": "MN",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Minnesota",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/minnesota",
+        "dem_candidates": ["smith", "tina smith"],
+        "rep_candidates": ["jensen", "scott jensen", "birk", "matt birk"],
+    },
+    "2026 NC Senate": {
+        "state": "NC",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_North_Carolina",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/north-carolina",
+        "dem_candidates": ["jackson", "jeff jackson"],
+        "rep_candidates": ["tillis", "thom tillis"],
+    },
+    "2026 NH Senate": {
+        "state": "NH",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_New_Hampshire",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/new-hampshire",
+        "dem_candidates": ["shaheen", "jeanne shaheen"],
+        "rep_candidates": ["morse", "chuck morse", "sununu", "chris sununu"],
+    },
+    "2026 OH Governor": {
+        "state": "OH",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_Ohio_gubernatorial_election",
+        "ttw_url": "https://www.270towin.com/2026-governor-polls/ohio",
+        "dem_candidates": ["whaley", "nan whaley"],
+        "rep_candidates": ["husted", "jon husted"],
+    },
+    "2026 OR Senate": {
+        "state": "OR",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Oregon",
+        "ttw_url": "https://www.270towin.com/2026-senate-polls/oregon",
+        "dem_candidates": ["merkley", "jeff merkley"],
+        "rep_candidates": ["drazan", "christine drazan"],
+    },
+    "2026 PA Governor": {
+        "state": "PA",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_Pennsylvania_gubernatorial_election",
+        "ttw_url": "https://www.270towin.com/2026-governor-polls/pennsylvania",
+        "dem_candidates": ["shapiro", "josh shapiro"],
+        "rep_candidates": ["mastriano", "mccormick", "dave mccormick"],
+    },
+    "2026 TX Governor": {
+        "state": "TX",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_Texas_gubernatorial_election",
+        "ttw_url": "https://www.270towin.com/2026-governor-polls/texas",
+        "dem_candidates": ["allred", "colin allred", "casar", "greg casar"],
+        "rep_candidates": ["patrick", "dan patrick", "paxton", "ken paxton"],
+    },
+    "2026 WI Governor": {
+        "state": "WI",
+        "wiki_url": "https://en.wikipedia.org/wiki/2026_Wisconsin_gubernatorial_election",
+        "ttw_url": "https://www.270towin.com/2026-governor-polls/wisconsin",
+        "dem_candidates": ["evers", "tony evers"],
+        "rep_candidates": ["kleefisch", "rebecca kleefisch", "michels", "tim michels"],
     },
 }
 
@@ -240,7 +362,9 @@ def two_party_share(dem_pct: float, rep_pct: float) -> float | None:
     if total < 30:
         logger.warning(
             "D+R total %.1f%% too low for two-party conversion (D=%.1f, R=%.1f)",
-            total, dem_pct, rep_pct,
+            total,
+            dem_pct,
+            rep_pct,
         )
         return None
     share = dem_pct / total
@@ -493,8 +617,14 @@ def _parse_poll_table(
         if any(
             kw in pollster_raw.lower()
             for kw in [
-                "polling", "average", "rcp", "aggregate", "final result",
-                "270towin", "realclearpolitics", "race to the wh",
+                "polling",
+                "average",
+                "rcp",
+                "aggregate",
+                "final result",
+                "270towin",
+                "realclearpolitics",
+                "race to the wh",
             ]
         ):
             continue
@@ -705,8 +835,16 @@ def build_output_df(polls: list[dict]) -> pd.DataFrame:
     if df.empty:
         # Return empty DataFrame with correct schema
         return pd.DataFrame(
-            columns=["race", "geography", "geo_level", "dem_share", "n_sample",
-                      "date", "pollster", "notes"]
+            columns=[
+                "race",
+                "geography",
+                "geo_level",
+                "dem_share",
+                "n_sample",
+                "date",
+                "pollster",
+                "notes",
+            ]
         )
     # Sort by race then date
     df = df.sort_values(["race", "date"], ascending=[True, True]).reset_index(drop=True)

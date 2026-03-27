@@ -598,10 +598,17 @@ class TestRaceConfig:
             assert len(cfg["dem_candidates"]) > 0, f"{label} has empty dem_candidates"
             assert len(cfg["rep_candidates"]) > 0, f"{label} has empty rep_candidates"
 
-    def test_six_races_configured(self):
-        assert len(RACE_CONFIG) == 6
+    def test_races_configured(self):
+        assert len(RACE_CONFIG) >= 6  # At least the original 6 + national races
 
     def test_states_are_valid(self):
-        valid_states = {"FL", "GA", "AL"}
+        valid_states = {
+            "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "FL", "GA",
+            "HI", "ID", "IL", "IN", "IA", "KS", "KY", "LA", "ME", "MD",
+            "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ",
+            "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC",
+            "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WV", "WI", "WY",
+            "DC",
+        }
         for label, cfg in RACE_CONFIG.items():
             assert cfg["state"] in valid_states, f"{label} has invalid state {cfg['state']}"

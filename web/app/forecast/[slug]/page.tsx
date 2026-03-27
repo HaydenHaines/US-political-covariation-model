@@ -165,9 +165,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       type: "article",
       siteName: "WetherVane",
+      images: [
+        {
+          url: `/forecast/${slug}/opengraph-image`,
+          width: 1200,
+          height: 630,
+          alt: `${data.year} ${stateName} ${data.race_type} forecast — WetherVane`,
+        },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
     },

@@ -148,9 +148,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description,
       type: "article",
       siteName: "WetherVane",
+      images: [
+        {
+          url: `/type/${id}/opengraph-image`,
+          width: 1200,
+          height: 630,
+          alt: `${data.display_name} — WetherVane electoral type`,
+        },
+      ],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title: `Type ${data.type_id}: ${data.display_name} | WetherVane`,
       description,
     },

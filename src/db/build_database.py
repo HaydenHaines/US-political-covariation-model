@@ -322,6 +322,9 @@ def validate_contract(con: duckdb.DuckDBPyConnection) -> list[str]:
         "type_scores": ["county_fips", "type_id", "score"],
         "type_priors": ["type_id", "mean_dem_share"],
         "polls": ["poll_id", "race", "geography", "dem_share"],
+        # poll_crosstabs is required so the crosstab-adjusted W pipeline can
+        # always query it — it will simply be empty when no crosstab data exists.
+        "poll_crosstabs": ["poll_id", "demographic_group", "group_value", "pct_of_sample"],
     }
 
     optional = {

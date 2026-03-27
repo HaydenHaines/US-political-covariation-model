@@ -112,6 +112,118 @@ def test_health_reports_contract_status(real_client):
     assert data["contract"] in ("ok", "degraded")
 
 
+def test_poll_crosstabs_in_contract(real_db):
+    """poll_crosstabs table exists with required columns (may be empty)."""
+    n = real_db.execute(
+        "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'poll_crosstabs'"
+    ).fetchone()[0]
+    assert n == 1, "poll_crosstabs table not found in wethervane.duckdb"
+
+    cols = set(real_db.execute("SELECT * FROM poll_crosstabs LIMIT 0").fetchdf().columns)
+    for required_col in ("poll_id", "demographic_group", "group_value", "pct_of_sample"):
+        assert required_col in cols, f"poll_crosstabs missing column '{required_col}'"
+
+
+def test_crosstab_w_row_differs_from_baseline(tmp_path):
+    """A poll with xt_education_college=0.55 should produce a different W row
+    than one without crosstabs, when meaningful type-demographic affinity exists.
+
+    This test exercises the full path from construct_w_row() through the affinity
+    index to confirm the crosstab signal propagates into the W vector.
+    """
+    import numpy as np
+    from src.propagation.crosstab_w_builder import (
+        build_affinity_index,
+        compute_state_baseline_w,
+        construct_w_row,
+    )
+
+    rng = np.random.default_rng(42)
+    J = 10
+    N = 20
+
+    # Build synthetic type profiles with enough spread that affinity is non-trivial.
+    type_profiles = _make_synthetic_type_profiles(J=J, rng=rng)
+    county_demographics = _make_synthetic_county_demographics(N=N, rng=rng)
+
+    affinity_index = build_affinity_index(type_profiles, county_demographics)
+
+    # State baseline W: uniform population, all counties in one state
+    type_scores = rng.uniform(0.0, 1.0, size=(N, J))
+    county_populations = rng.integers(10_000, 500_000, size=N).astype(float)
+    state_mask = np.ones(N, dtype=bool)
+    w_baseline = compute_state_baseline_w(type_scores, county_populations, state_mask)
+
+    # State demographic means: 35% college (realistic US state average)
+    state_means = {k: float(np.average(county_demographics[col].to_numpy(), weights=county_demographics["pop_total"].to_numpy()))
+                   for k, col in [("education_college", "pct_bachelors_plus")]
+                   if col in county_demographics.columns}
+    # Fill in remaining dimensions at their national means
+    pop_weights = county_demographics["pop_total"].to_numpy(dtype=float)
+    from src.propagation.crosstab_w_builder import CROSSTAB_DIMENSION_MAP
+    for dim_key, feature in CROSSTAB_DIMENSION_MAP.items():
+        if feature is not None and feature in county_demographics.columns and dim_key not in state_means:
+            state_means[dim_key] = float(np.average(county_demographics[feature].to_numpy(), weights=pop_weights))
+
+    # Poll with college oversample (55% vs ~35% state mean) — strong signal
+    crosstabs_with_xt = [
+        {"demographic_group": "education", "group_value": "college", "pct_of_sample": 0.55},
+    ]
+    w_with_xt = construct_w_row(crosstabs_with_xt, w_baseline, affinity_index, state_means)
+
+    # Poll without crosstabs must return baseline unchanged
+    w_without_xt = construct_w_row([], w_baseline, affinity_index, state_means)
+
+    # The crosstab-adjusted W must differ from the baseline
+    assert not np.allclose(w_with_xt, w_without_xt), (
+        "W vector with xt_education_college=0.55 should differ from baseline W "
+        "(poll college % deviates significantly from state mean)"
+    )
+
+    # Both must be valid probability vectors
+    assert abs(w_with_xt.sum() - 1.0) < 1e-9
+    assert abs(w_without_xt.sum() - 1.0) < 1e-9
+    assert (w_with_xt >= 0.0).all()
+
+
+def _make_synthetic_type_profiles(J: int, rng: "np.random.Generator") -> "pd.DataFrame":
+    """Synthetic type_profiles for integration test helpers."""
+    import numpy as np
+    import pandas as pd
+
+    return pd.DataFrame({
+        "type_id":            np.arange(J),
+        "pop_total":          rng.integers(50_000, 500_000, size=J).astype(float),
+        "pct_bachelors_plus": np.linspace(0.15, 0.65, J),   # strong spread for signal
+        "pct_white_nh":       rng.uniform(0.30, 0.90, size=J),
+        "pct_black":          rng.uniform(0.02, 0.40, size=J),
+        "pct_hispanic":       rng.uniform(0.02, 0.45, size=J),
+        "pct_asian":          rng.uniform(0.01, 0.20, size=J),
+        "log_pop_density":    rng.uniform(1.5, 4.5, size=J),
+        "median_age":         rng.uniform(30.0, 55.0, size=J),
+        "evangelical_share":  rng.uniform(0.05, 0.80, size=J),
+    })
+
+
+def _make_synthetic_county_demographics(N: int, rng: "np.random.Generator") -> "pd.DataFrame":
+    """Synthetic county demographics for integration test helpers."""
+    import numpy as np
+    import pandas as pd
+
+    return pd.DataFrame({
+        "county_fips":        [f"{i:05d}" for i in range(N)],
+        "pop_total":          rng.integers(5_000, 800_000, size=N).astype(float),
+        "pct_bachelors_plus": rng.uniform(0.10, 0.60, size=N),
+        "pct_white_nh":       rng.uniform(0.20, 0.95, size=N),
+        "pct_black":          rng.uniform(0.01, 0.50, size=N),
+        "pct_hispanic":       rng.uniform(0.01, 0.50, size=N),
+        "pct_asian":          rng.uniform(0.01, 0.20, size=N),
+        "log_pop_density":    rng.uniform(1.0, 5.5, size=N),
+        "median_age":         rng.uniform(28.0, 60.0, size=N),
+        "evangelical_share":  rng.uniform(0.03, 0.85, size=N),
+    })
+
+
 def test_app_state_reconstruction_shapes(tmp_path):
     """Verify app.state arrays have correct shapes after loading from DuckDB."""
     import duckdb

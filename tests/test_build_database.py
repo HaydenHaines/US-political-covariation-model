@@ -20,6 +20,18 @@ def _make_valid_db() -> duckdb.DuckDBPyConnection:
     con.execute("CREATE TABLE type_scores (county_fips VARCHAR, type_id INTEGER, score FLOAT, version_id VARCHAR)")
     con.execute("CREATE TABLE type_priors (type_id INTEGER, mean_dem_share FLOAT, version_id VARCHAR)")
     con.execute("CREATE TABLE polls (poll_id VARCHAR, race VARCHAR, geography VARCHAR, geo_level VARCHAR, dem_share FLOAT, n_sample INTEGER, cycle VARCHAR)")
+    # poll_crosstabs is required so the crosstab W pipeline can always query it
+    # (table may be empty — that is valid)
+    con.execute("""
+        CREATE TABLE poll_crosstabs (
+            poll_id           VARCHAR NOT NULL,
+            demographic_group VARCHAR NOT NULL,
+            group_value       VARCHAR NOT NULL,
+            dem_share         FLOAT,
+            n_sample          INTEGER,
+            pct_of_sample     FLOAT
+        )
+    """)
     return con
 
 

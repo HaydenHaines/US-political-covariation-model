@@ -403,7 +403,7 @@ def main() -> None:
     log.info("Nesting %d types into super-types via demographic profiles ...", best_j)
     demo_profiles = build_demographic_profiles(df_filt, labels, best_j)
     nesting_features = demo_profiles if demo_profiles is not None else centroids
-    nesting = nest_types(nesting_features, s_candidates=[5, 6, 7, 8])
+    nesting = nest_types(nesting_features, s_candidates=[6, 7, 8, 9, 10, 11, 12])
     log.info(
         "Best super-types: S=%d (silhouette=%.4f)",
         nesting.best_s,

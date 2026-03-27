@@ -115,24 +115,24 @@ def load_super_type_names() -> dict[int, str]:
 
     # Descriptive names for 8 tract super-types.
     # Derived from Ward HAC on ACS demographic profiles of 100 fine types.
-    # Profile summary (ACS 2022, 81,129 tracts):
-    # ST 0: Mixed-race diverse, 60% White NH, 18% Black, 14% Hispanic, moderate income, evangelical
-    # ST 1: White rural retiree, 85% White NH, old (58), modest income, high evangelical
-    # ST 2: White mainstream, 82% White NH, 56% evangelical, middle-income homeowner
-    # ST 3: Asian-Pacific affluent, 43% Asian, high edu, very high income (>$130K)
-    # ST 4: Educated suburban, 68% White NH, 9% Asian, high edu ($126K), low evangelical
-    # ST 5: White working class, 75% White NH, lower edu, modest income
-    # ST 6: Hispanic working, 59% Hispanic, young, low income
-    # ST 7: Black urban, 67% Black, low income (<$54K), low homeownership
+    # Profile summary (ACS 2022, 81,129 tracts, S=8, silhouette=0.350):
+    # ST 0: 65% Hispanic, 18% no-hs, low income ($63K), high Catholic, D+37%
+    # ST 1: 62% Black, low income ($52K), high poverty, high Black-Protestant, D+64%
+    # ST 2: 84% White, avg age 57 (retirement peak), 38% over-65, swing D+0%
+    # ST 3: 82% White, heavy evangelical (43%), rural, working class, R+33%
+    # ST 4: 54% White/16% Black/20% Hispanic, mixed suburb, moderate income, D+8%
+    # ST 5: 48% Asian, highest income ($122K), 49% college, high Catholic, D+35%
+    # ST 6: 76% White, $134K income, 57% college, high WFH, affluent suburb, D+3%
+    # ST 7: 56% White/11% Black/18% Hispanic, $100K income, 56% college, D+41%
     return {
-        0: "Diverse Mixed",
-        1: "White Rural Retiree",
-        2: "White Evangelical",
-        3: "Asian-Pacific Affluent",
-        4: "Educated Suburban",
-        5: "White Working Class",
-        6: "Hispanic Working",
-        7: "Black Urban",
+        0: "Hispanic Working Community",
+        1: "Black Urban Neighborhood",
+        2: "White Retirement Town",
+        3: "Rural Evangelical Heartland",
+        4: "Multiracial Outer Suburb",
+        5: "Asian-American Professional",
+        6: "Affluent White Suburb",
+        7: "Urban Knowledge District",
     }
 
 

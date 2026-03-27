@@ -41,24 +41,26 @@ function formatPct(val: number | null | undefined): string {
   return `${Math.round(val * 100)}%`;
 }
 
-// 15-color perceptually-distinct palette. Assigned by super_type_id.
-// Purely a visual concern — the model does not know about colors.
+// Semantically assigned palette for the 8 tract super-types.
+// Colors chosen to be perceptually distinct, non-partisan, and readable on both light and dark backgrounds.
+// Indices correspond to tract super_type_id values 0–7; additional slots retained for safety.
 export const PALETTE: [number, number, number][] = [
-  [31, 119, 180],   // 0: blue
-  [255, 127, 14],   // 1: orange
-  [44, 160, 44],    // 2: green
-  [214, 39, 40],    // 3: red
-  [148, 103, 189],  // 4: purple
-  [140, 86, 75],    // 5: brown
-  [227, 119, 194],  // 6: pink
-  [127, 127, 127],  // 7: gray
-  [188, 189, 34],   // 8: olive
-  [23, 190, 207],   // 9: teal
-  [174, 199, 232],  // 10: light blue
-  [255, 187, 120],  // 11: light orange
-  [152, 223, 138],  // 12: light green
-  [255, 152, 150],  // 13: light red
-  [197, 176, 213],  // 14: light purple
+  [220, 120,  55],  // 0: Hispanic Working Community       — warm amber-orange
+  [115,  45, 140],  // 1: Black Urban Neighborhood          — deep violet-purple
+  [220, 110, 110],  // 2: White Retirement Town             — muted rose-salmon
+  [170,  35,  50],  // 3: Rural Evangelical Heartland       — deep crimson (distinct from partisan red)
+  [ 38, 145, 145],  // 4: Multiracial Outer Suburb          — teal-cyan
+  [195, 155,  25],  // 5: Asian-American Professional       — deep gold-amber
+  [ 65, 140, 210],  // 6: Affluent White Suburb             — sky blue (lighter than slate)
+  [ 40, 140,  85],  // 7: Urban Knowledge District          — emerald green
+  // Overflow slots (defensive — model currently uses 0–7 only)
+  [140,  86,  75],  // 8
+  [227, 119, 194],  // 9
+  [188, 189,  34],  // 10
+  [ 23, 190, 207],  // 11
+  [174, 199, 232],  // 12
+  [255, 187, 120],  // 13
+  [152, 223, 138],  // 14
 ];
 
 export function getColorForSuperType(superTypeId: number): [number, number, number] {

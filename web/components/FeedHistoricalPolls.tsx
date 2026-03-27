@@ -98,7 +98,8 @@ export function FeedHistoricalPolls({ state, race, onUpdate, onReset }: Props) {
                 border: "1px solid var(--color-border)",
                 borderRadius: "3px",
                 fontSize: "13px",
-                background: "white",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
               }}
             >
               {CYCLES.map((c) => (
@@ -212,7 +213,7 @@ export function FeedHistoricalPolls({ state, race, onUpdate, onReset }: Props) {
           style={{
             marginTop: "10px",
             padding: "8px 12px",
-            background: "#f8f9fa",
+            background: "var(--color-bg)",
             borderRadius: "3px",
             fontSize: "12px",
             color: "var(--color-text-muted)",

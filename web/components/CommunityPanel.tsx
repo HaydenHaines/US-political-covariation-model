@@ -154,7 +154,7 @@ export function CommunityPanel({ communityId, onClose }: Props) {
       right: 0,
       width: "320px",
       height: "100%",
-      background: "white",
+      background: "var(--color-surface)",
       borderLeft: "1px solid var(--color-border)",
       display: "flex",
       flexDirection: "column",

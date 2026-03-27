@@ -123,7 +123,7 @@ function Tooltip({ state }: { state: TooltipState }) {
         position: "fixed",
         left: x + 12,
         top: y - 8,
-        background: "white",
+        background: "var(--color-surface)",
         border: "1px solid var(--color-border)",
         borderRadius: 4,
         padding: "8px 10px",
@@ -406,6 +406,7 @@ export function ShiftExplorer() {
                 value={xKey}
                 onChange={(e) => setXKey(e.target.value)}
                 style={selectStyle}
+                aria-label="X-axis variable"
               >
                 <optgroup label="Demographics">
                   {DEMO_KEYS.map(({ key, label }) => (
@@ -427,6 +428,7 @@ export function ShiftExplorer() {
                 value={resolvedYKey}
                 onChange={(e) => setYKey(e.target.value)}
                 style={selectStyle}
+                aria-label="Y-axis variable"
               >
                 {shiftKeys.length > 0 && (
                   <optgroup label="Shifts">

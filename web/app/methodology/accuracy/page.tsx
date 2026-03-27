@@ -284,6 +284,7 @@ export default function AccuracyPage() {
 
   return (
     <article
+      id="main-content"
       style={{
         maxWidth: "720px",
         margin: "0 auto",

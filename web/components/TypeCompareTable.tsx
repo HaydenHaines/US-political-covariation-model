@@ -74,6 +74,7 @@ function TypeSelect({ types, value, onChange, placeholder }: TypeSelectProps) {
     <select
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      aria-label={placeholder}
       style={{
         width: "100%",
         padding: "5px 8px",
@@ -81,7 +82,7 @@ function TypeSelect({ types, value, onChange, placeholder }: TypeSelectProps) {
         borderRadius: "3px",
         fontSize: "12px",
         fontFamily: "var(--font-sans)",
-        background: "white",
+        background: "var(--color-surface)",
         color: "var(--color-text)",
         cursor: "pointer",
       }}
@@ -260,7 +261,7 @@ export function TypeCompareTable() {
               style={{
                 alignSelf: "flex-start",
                 border: "1px solid var(--color-border)",
-                background: "white",
+                background: "var(--color-surface)",
                 borderRadius: "3px",
                 padding: "4px 10px",
                 fontSize: "12px",
@@ -324,7 +325,7 @@ export function TypeCompareTable() {
                 })}
               </tr>
               {/* Lean row */}
-              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "#fafafa" }}>
+              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
                 <td style={{ padding: "4px 4px", color: "var(--color-text-muted)", fontSize: "11px" }}>
                   Partisan lean
                 </td>
@@ -344,7 +345,7 @@ export function TypeCompareTable() {
                 })}
               </tr>
               {/* County count row */}
-              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "#fafafa" }}>
+              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
                 <td style={{ padding: "4px 4px", color: "var(--color-text-muted)", fontSize: "11px" }}>
                   Counties
                 </td>

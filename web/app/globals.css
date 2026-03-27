@@ -1,17 +1,50 @@
 *, *::before, *::after { box-sizing: border-box; }
 
+/* ── Light theme (default) ────────────────────────────────────── */
 :root {
   --color-bg: #f7f8fa;
   --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
   --color-border: #e0e0e0;
   --color-text: #222222;
   --color-text-muted: #666666;
   --color-dem: #2166ac;
   --color-rep: #d73027;
+  --color-focus: #2166ac;
   --color-panel-width: 420px;
   --font-serif: Georgia, "Times New Roman", serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
+
+/* ── Dark theme ───────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg: #1a1b1e;
+  --color-surface: #25262b;
+  --color-surface-raised: #2c2e33;
+  --color-border: #3d3f44;
+  --color-text: #e0e0e0;
+  --color-text-muted: #a0a0a0;
+  --color-dem: #5b9bd5;
+  --color-rep: #e8746a;
+  --color-focus: #5b9bd5;
+}
+
+/* Auto-detect system preference when no explicit choice stored */
+@media (prefers-color-scheme: dark) {
+  [data-theme="system"] {
+    --color-bg: #1a1b1e;
+    --color-surface: #25262b;
+    --color-surface-raised: #2c2e33;
+    --color-border: #3d3f44;
+    --color-text: #e0e0e0;
+    --color-text-muted: #a0a0a0;
+    --color-dem: #5b9bd5;
+    --color-rep: #e8746a;
+    --color-focus: #5b9bd5;
+  }
+}
+
+/* ── Base styles ──────────────────────────────────────────────── */
 
 body {
   margin: 0;
@@ -19,9 +52,221 @@ body {
   font-family: var(--font-sans);
   color: var(--color-text);
   overflow: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 h1, h2, h3 { font-family: var(--font-serif); }
+
+/* ── Accessibility ────────────────────────────────────────────── */
+
+/* Skip navigation link — visible only on focus */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--color-dem);
+  color: #ffffff;
+  padding: 8px 16px;
+  z-index: 10000;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 14px;
+  border-radius: 0 0 4px 0;
+  transition: top 0.15s ease;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Focus-visible ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* Remove outline for mouse clicks */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Ensure sufficient contrast for links */
+a {
+  color: var(--color-dem);
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Theme toggle button ──────────────────────────────────────── */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  background: var(--color-bg);
+  border-color: var(--color-text-muted);
+}
+
+.theme-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ── Methodology: Table of Contents ───────────────────────────── */
+
+.methodology-layout {
+  display: flex;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  gap: 48px;
+}
+
+.methodology-toc {
+  position: sticky;
+  top: 24px;
+  flex-shrink: 0;
+  width: 200px;
+  align-self: flex-start;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.methodology-toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.methodology-toc-item {
+  margin-bottom: 2px;
+}
+
+.methodology-toc-link {
+  display: block;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+  line-height: 1.4;
+}
+
+.methodology-toc-link:hover {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.methodology-toc-link.active {
+  color: var(--color-text);
+  border-left-color: var(--color-dem);
+  font-weight: 600;
+}
+
+.methodology-content {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Smooth scrolling for anchor links */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Anchor link offset for fixed headers */
+.methodology-content section[id] {
+  scroll-margin-top: 24px;
+}
+
+/* Anchor link icon on section headings */
+.section-anchor {
+  display: inline-block;
+  margin-left: 8px;
+  color: var(--color-border);
+  text-decoration: none;
+  font-size: 0.7em;
+  vertical-align: middle;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+h2:hover .section-anchor,
+.section-anchor:focus {
+  opacity: 1;
+  color: var(--color-text-muted);
+}
+
+/* Expandable section toggle */
+.expandable-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 0;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.expandable-header:hover {
+  color: var(--color-dem);
+}
+
+.expand-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  transition: transform 0.2s ease;
+  color: var(--color-text-muted);
+}
+
+.expand-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.expandable-body {
+  overflow: hidden;
+  transition: max-height 0.3s ease, opacity 0.2s ease;
+}
+
+.expandable-body.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.expandable-body.expanded {
+  max-height: 2000px;
+  opacity: 1;
+}
 
 /* ── Mobile layout (< 768px) ───────────────────────────────────── */
 @media (max-width: 767px) {
@@ -127,7 +372,7 @@ h1, h2, h3 { font-family: var(--font-serif); }
   .forecast-county-table-wrap thead th {
     position: sticky;
     top: 0;
-    background: white;
+    background: var(--color-surface);
     z-index: 1;
   }
 
@@ -148,6 +393,21 @@ h1, h2, h3 { font-family: var(--font-serif); }
     grid-template-columns: 1fr !important;
   }
 
+  /* ── Methodology: hide TOC on mobile, full-width content ── */
+  .methodology-layout {
+    flex-direction: column;
+    padding: 24px 16px 60px;
+    gap: 0;
+  }
+
+  .methodology-toc {
+    display: none;
+  }
+
+  .methodology-content {
+    width: 100%;
+  }
+
   /* ── Generic touch targets ── */
   button,
   select,
@@ -159,7 +419,21 @@ h1, h2, h3 { font-family: var(--font-serif); }
   button[aria-label="Close panel"],
   button[aria-label="Expand panel"],
   button[aria-label="Collapse panel"],
-  button[title="Remove"] {
+  button[title="Remove"],
+  .theme-toggle,
+  .expandable-header {
     min-height: unset;
+  }
+}
+
+/* ── Tablet TOC breakpoint (< 1024px but >= 768px) ─────────── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .methodology-toc {
+    width: 160px;
+  }
+
+  .methodology-toc-link {
+    font-size: 12px;
+    padding: 5px 10px;
   }
 }

@@ -415,7 +415,11 @@ def run() -> None:
     all_predictions = []
     for race, race_group in poll_agg.groupby("race"):
         race_polls = [
-            (float(row["dem_share"]), int(row["n_sample"]), str(row["state"]))
+            (
+                float(row["dem_share"]),
+                int(row["n_sample"]) if pd.notna(row["n_sample"]) else 600,
+                str(row["state"]),
+            )
             for _, row in race_group.iterrows()
             if row.get("geo_level", "state") == "state"
         ]

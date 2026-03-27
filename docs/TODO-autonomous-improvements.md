@@ -37,7 +37,14 @@ These are the highest-impact improvements. The prediction pipeline has known str
 
 - [x] **P2.2: Urbanicity feature (Economist-style)** — DONE (pre-S164). `log_pop_density`, `land_area_sq_mi`, `pop_per_sq_mi` already integrated into type_profiles.parquet. The Economist-style `avg_log_pop_within_5_miles` is unnecessary — raw log density already distinguishes urban/suburban/rural effectively.
 
-- [ ] **P2.6: LDS/Mormon adherents feature** — Current RCMS fetch uses "Major Religious Groups" (rt=2) which lumps LDS into "Other." ARDA has denomination-level data — need to find the LDS-specific denomination code and fetch county-level LDS adherent counts separately. Politically distinctive: UT/ID/NV/AZ/WY LDS populations create unique shift patterns (anti-Trump 2016, snap-back 2020+). McMullin 2016 is the canonical signal. Feature: `lds_share = lds_adherents / total_pop`. May also want to check ARDA's denomination-level download (CSV export) for RCMS 2020 which lists 366 individual denominations including "Church of Jesus Christ of Latter-day Saints." Hayden's data scientist friend flagged Mormonism as important (2026-03-27).
+- [ ] **P2.6: Denomination-level religion features (break out "Other")** — Current RCMS fetch uses "Major Religious Groups" (rt=2) which lumps LDS, Muslim, Jewish, Hindu, Buddhist, Jehovah's Witness, etc. into "Other." ARDA has denomination-level data (RCMS 2020, 366 denominations). Fetch county-level adherent counts for each politically distinct group within "Other" and create per-capita features. Priority groups and why they matter electorally:
+  - **LDS/Mormon**: UT/ID/NV/AZ/WY corridor. Anti-Trump 2016 (McMullin), snap-back 2020+. Distinctive shift pattern likely blurred into "rural conservative."
+  - **Muslim**: Concentrated in Dearborn MI, parts of NJ/NY/VA/TX/MN. Shifted sharply R in 2024 (Gaza). Small-n but high-signal where concentrated.
+  - **Jewish**: NY metro, S. FL, parts of PA/MD. Consistently high-D but with notable 2024 movement. Captures Boca/Broward type signal.
+  - **Hindu/Sikh**: Northern NJ, parts of TX/CA. Proxy for South Asian professional suburbs.
+  - **Buddhist**: Minimal electoral signal, skip unless data shows otherwise.
+  - **Jehovah's Witness**: Low voter participation, unlikely to help.
+  Implementation: Fetch ARDA denomination-level CSV export for RCMS 2020. Compute `{group}_share = adherents / total_pop` per county. Add as ensemble features. Test each for holdout r improvement — drop any that don't help. Hayden's data scientist friend flagged Mormonism specifically (2026-03-27); expanded to all electorally distinct "Other" denominations.
 
 - [ ] **P2.3: FEC donor density feature** — Requires FEC_API_KEY (free from api.data.gov/signup/). Fetcher exists at `src/assembly/fetch_fec_contributions.py` (29 tests in worktree). Microdonation rate per county as a type discriminator. **BLOCKED on API key — ask Hayden via Telegram if not set.**
 

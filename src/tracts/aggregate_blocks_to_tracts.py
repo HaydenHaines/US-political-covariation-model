@@ -14,6 +14,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 import numpy as np
@@ -26,24 +27,68 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DRA_DIR = PROJECT_ROOT / "data" / "raw" / "dra-block-data"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "tracts"
 
-# Map DRA column prefixes to standardized race/year
-# Format: E_{year}_{race}_{party} → (year, race)
-RACE_COLUMNS = {
-    "E_08_PRES": (2008, "president"),
-    "E_12_PRES": (2012, "president"),
-    "E_16_PRES": (2016, "president"),
-    "E_20_PRES": (2020, "president"),
-    "E_24_PRES": (2024, "president"),
-    "E_16_SEN": (2016, "senate"),
-    "E_18_SEN": (2018, "senate"),
-    "E_22_SEN": (2022, "senate"),
-    "E_24_SEN": (2024, "senate"),
-    "E_18_GOV": (2018, "governor"),
-    "E_22_GOV": (2022, "governor"),
-    "E_18_AG": (2018, "ag"),
-    "E_22_AG": (2022, "ag"),
-    "E_22_CONG": (2022, "congress"),
+# Regex to detect DRA race columns: E_{2-digit year}_{race type}_Total
+# Captures year prefix and race code. Excludes COMP (synthetic composite averages),
+# AG (attorney general), and CONG (congressional) — we only want presidential,
+# gubernatorial, and Senate races for the behavior layer.
+_RACE_RE = re.compile(
+    r"^E_(\d{2})_(PRES|GOV|SEN(?:_SPEC|_ROFF|_SPECROFF)?)_Total$"
+)
+_RACE_TYPE_MAP = {"PRES": "president", "GOV": "governor"}
+_YEAR_PREFIX_TO_FULL = {
+    "08": 2008, "10": 2010, "12": 2012, "14": 2014, "16": 2016,
+    "18": 2018, "20": 2020, "21": 2021, "22": 2022, "24": 2024,
 }
+
+
+def detect_race_columns(columns: list[str]) -> list[tuple[str, int, str]]:
+    """Detect available race columns from DRA CSV headers.
+
+    Scans column names for the pattern E_{YY}_{RACE}_Total and returns
+    metadata for each detected race, provided the corresponding _Dem
+    column also exists.
+
+    Returns:
+        List of (prefix, year, race_type) tuples, e.g.
+        [("E_08_PRES", 2008, "president"), ("E_20_SEN_SPEC", 2020, "senate")]
+    """
+    col_set = set(columns)
+    results = []
+    for col in columns:
+        m = _RACE_RE.match(col)
+        if not m:
+            continue
+        yr_str, race_code = m.group(1), m.group(2)
+        year = _YEAR_PREFIX_TO_FULL.get(yr_str)
+        if year is None:
+            continue
+        # All SEN variants (SEN, SEN_SPEC, SEN_ROFF, SEN_SPECROFF) → "senate"
+        race_type = _RACE_TYPE_MAP.get(race_code, "senate")
+        prefix = col.rsplit("_Total", 1)[0]
+        # Only include if _Dem column exists (sanity check for usable data)
+        if f"{prefix}_Dem" not in col_set:
+            continue
+        results.append((prefix, year, race_type))
+    return results
+
+
+# Legacy hardcoded map — kept for reference during migration.
+# RACE_COLUMNS = {
+#     "E_08_PRES": (2008, "president"),
+#     "E_12_PRES": (2012, "president"),
+#     "E_16_PRES": (2016, "president"),
+#     "E_20_PRES": (2020, "president"),
+#     "E_24_PRES": (2024, "president"),
+#     "E_16_SEN": (2016, "senate"),
+#     "E_18_SEN": (2018, "senate"),
+#     "E_22_SEN": (2022, "senate"),
+#     "E_24_SEN": (2024, "senate"),
+#     "E_18_GOV": (2018, "governor"),
+#     "E_22_GOV": (2022, "governor"),
+#     "E_18_AG": (2018, "ag"),
+#     "E_22_AG": (2022, "ag"),
+#     "E_22_CONG": (2022, "congress"),
+# }
 
 STATE_FIPS = {
     "AL": "01", "FL": "12", "GA": "13",
@@ -84,15 +129,14 @@ def aggregate_state(state: str) -> pd.DataFrame:
     log.info("  %s: %d blocks → %d tracts", state, len(df), df["tract_geoid"].nunique())
 
     records = []
-    available_cols = set(df.columns)
+    detected_races = detect_race_columns(list(df.columns))
+    log.info("  %s: detected %d races: %s", state, len(detected_races),
+             ", ".join(f"{p}({y})" for p, y, _ in detected_races))
 
-    for prefix, (year, race) in RACE_COLUMNS.items():
+    for prefix, year, race in detected_races:
         dem_col = f"{prefix}_Dem"
         rep_col = f"{prefix}_Rep"
         total_col = f"{prefix}_Total"
-
-        if dem_col not in available_cols or total_col not in available_cols:
-            continue
 
         tract_agg = df.groupby("tract_geoid").agg(
             votes_dem=(dem_col, "sum"),

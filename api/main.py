@@ -278,6 +278,20 @@ async def lifespan(app: FastAPI):
         app.state.crosstab_affinity = None
         app.state.crosstab_state_means = {}
 
+    # ── Behavior layer (τ + δ) ────────────────────────────────────────────────
+    behavior_dir = data_dir / "behavior"
+    tau_path = behavior_dir / "tau.npy"
+    delta_path = behavior_dir / "delta.npy"
+    if tau_path.exists() and delta_path.exists():
+        app.state.behavior_tau = np.load(tau_path)
+        app.state.behavior_delta = np.load(delta_path)
+        log.info("Loaded behavior layer: τ shape=%s, δ shape=%s",
+                 app.state.behavior_tau.shape, app.state.behavior_delta.shape)
+    else:
+        app.state.behavior_tau = None
+        app.state.behavior_delta = None
+        log.warning("Behavior layer not found — predictions will use presidential baseline")
+
     # ── Contract check ─────────────────────────────────────────────────────────
     contract_ok = True
     for table_name in ["super_types", "types", "county_type_assignments"]:

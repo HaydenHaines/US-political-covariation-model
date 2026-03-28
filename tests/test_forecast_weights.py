@@ -161,3 +161,32 @@ def test_higher_prior_weight_anchors_closer(mock_model):
     shift_high = abs(result_high["pred_dem_share"].mean() - mean_prior)
     # Higher prior weight → less shift from baseline
     assert shift_high < shift_low
+
+
+def test_offcycle_behavior_adjustment_shifts_prediction(mock_model):
+    """Off-cycle behavior adjustment should shift predictions vs presidential baseline."""
+    from src.behavior.voter_behavior import apply_behavior_adjustment
+
+    priors = mock_model["county_priors"]
+    scores = mock_model["type_scores"]
+    tau = np.array([0.65, 0.85])
+    delta = np.array([0.02, -0.01])
+
+    adjusted = apply_behavior_adjustment(priors, scores, tau, delta, is_offcycle=True)
+    unadjusted = apply_behavior_adjustment(priors, scores, tau, delta, is_offcycle=False)
+
+    np.testing.assert_array_equal(unadjusted, priors)
+    assert not np.allclose(adjusted, priors), "Behavior adjustment had no effect"
+
+
+def test_offcycle_behavior_preserves_bounds(mock_model):
+    """Behavior-adjusted predictions must stay in [0, 1]."""
+    from src.behavior.voter_behavior import apply_behavior_adjustment
+
+    priors = np.array([0.02, 0.98, 0.50])
+    scores = mock_model["type_scores"]
+    tau = np.array([0.5, 0.9])
+    delta = np.array([0.05, -0.05])
+
+    adjusted = apply_behavior_adjustment(priors, scores, tau, delta, is_offcycle=True)
+    assert (adjusted >= 0.0).all() and (adjusted <= 1.0).all()

@@ -225,37 +225,32 @@ def _make_synthetic_county_demographics(N: int, rng: "np.random.Generator") -> "
 
 
 def test_app_state_reconstruction_shapes(tmp_path):
-    """Verify app.state arrays have correct shapes after loading from DuckDB."""
-    import duckdb
+    """Verify app.state arrays have correct shapes after loading from parquet/npy."""
     import numpy as np
-    from api.main import _load_type_data_from_db
+    import pandas as pd
+    from api.main import _load_tract_type_data
 
     J = 4
     N = 3
 
-    con = duckdb.connect(":memory:")
-    con.execute("""
-        CREATE TABLE type_scores (county_fips VARCHAR, type_id INTEGER, score FLOAT, version_id VARCHAR)
-    """)
-    for fips in ["12001", "12003", "13001"]:
+    tracts_dir = tmp_path / "data" / "tracts"
+    tracts_dir.mkdir(parents=True)
+
+    # Build a minimal assignments parquet with duplicates to test dedup
+    rows = []
+    for geoid in ["01001000100", "01001000200", "01001000300", "01001000100"]:
+        row = {"GEOID": geoid, "dominant_type": 0, "super_type": 0}
         for j in range(J):
-            con.execute("INSERT INTO type_scores VALUES (?,?,?,?)", [fips, j, 1.0/J, "v1"])
+            row[f"type_{j}_score"] = 1.0 / J
+        rows.append(row)
+    pd.DataFrame(rows).to_parquet(tracts_dir / "national_tract_assignments.parquet")
 
-    con.execute("""
-        CREATE TABLE type_covariance (type_i INTEGER, type_j INTEGER, value FLOAT, version_id VARCHAR)
-    """)
-    for i in range(J):
-        for j in range(J):
-            con.execute("INSERT INTO type_covariance VALUES (?,?,?,?)", [i, j, float(i==j)*0.01, "v1"])
+    # Covariance and priors as npy
+    np.save(tracts_dir / "tract_type_covariance.npy", np.eye(J) * 0.01)
+    np.save(tracts_dir / "tract_type_priors.npy", np.full(J, 0.45))
 
-    con.execute("""
-        CREATE TABLE type_priors (type_id INTEGER, mean_dem_share FLOAT, version_id VARCHAR)
-    """)
-    for j in range(J):
-        con.execute("INSERT INTO type_priors VALUES (?,?,?)", [j, 0.45, "v1"])
-
-    scores, fips_list, covariance, priors = _load_type_data_from_db(con, "v1")
-    assert scores.shape == (N, J)
+    scores, fips_list, covariance, priors = _load_tract_type_data(tmp_path)
+    assert scores.shape == (N, J)  # deduplicated: 4 rows → 3
     assert covariance.shape == (J, J)
     assert priors.shape == (J,)
     assert len(fips_list) == N

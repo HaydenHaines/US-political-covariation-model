@@ -434,17 +434,10 @@ def _forecast_poll_types(
     """Type-based Bayesian update using predict_race from predict_2026_types."""
     from src.prediction.predict_2026_types import predict_race
 
-    # Get county names from DB
-    county_info = db.execute(
-        """SELECT c.county_fips, c.county_name, c.state_abbr
-           FROM counties c ORDER BY c.county_fips""",
-        [],
-    ).fetchdf()
-    name_map = dict(zip(county_info["county_fips"], county_info["county_name"]))
-    state_map = dict(zip(county_info["county_fips"], county_info["state_abbr"]))
-
-    states = [state_map.get(f, f[:2]) for f in type_county_fips]
-    county_names = [name_map.get(f, "") for f in type_county_fips]
+    # Tract-level lookups from app.state (no DuckDB query needed)
+    tract_states = getattr(request.app.state, "tract_states", {})
+    states = [tract_states.get(f, f[:2]) for f in type_county_fips]
+    county_names = [f"Tract {f}" for f in type_county_fips]
 
     # Build county-level priors from Ridge predictions (if loaded at startup)
     ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
@@ -488,12 +481,8 @@ def _forecast_poll_types(
     state_rows = result_df[result_df["state"] == poll.state]
     state_pred_val = None
     if not state_rows.empty:
-        votes_df = db.execute(
-            "SELECT county_fips, total_votes_2024 FROM counties WHERE state_abbr = ?",
-            [poll.state],
-        ).fetchdf()
-        vote_map = dict(zip(votes_df["county_fips"], votes_df["total_votes_2024"]))
-        weights = state_rows["county_fips"].map(lambda f: vote_map.get(f, 0)).values.astype(float)
+        tract_votes = getattr(request.app.state, "tract_votes", {})
+        weights = state_rows["county_fips"].map(lambda f: tract_votes.get(f, 0)).values.astype(float)
         total_w = weights.sum()
         if total_w > 0:
             state_pred_val = float(
@@ -676,15 +665,11 @@ def update_forecast_with_multi_polls(
     if all(x is not None for x in [type_scores, type_covariance, type_priors, type_county_fips]):
         from src.prediction.predict_2026_types import predict_race
 
-        county_info = db.execute(
-            "SELECT county_fips, county_name, state_abbr FROM counties ORDER BY county_fips"
-        ).fetchdf()
-        name_map = dict(zip(county_info["county_fips"], county_info["county_name"]))
-        state_map = dict(zip(county_info["county_fips"], county_info["state_abbr"]))
-
+        # Tract-level lookups from app.state (no DuckDB query needed)
+        tract_states = getattr(request.app.state, "tract_states", {})
         fips_list = type_county_fips
-        states_list = [state_map.get(f, f[:2]) for f in fips_list]
-        names_list = [name_map.get(f, "") for f in fips_list]
+        states_list = [tract_states.get(f, f[:2]) for f in fips_list]
+        names_list = [f"Tract {f}" for f in fips_list]
 
         ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
         county_priors = (
@@ -724,13 +709,8 @@ def update_forecast_with_multi_polls(
             state_rows = result_df[result_df["state"] == body.state]
             if not state_rows.empty:
                 # Vote-weighted average: SUM(pred * votes) / SUM(votes).
-                # Falls back to simple mean if vote data unavailable.
-                votes_df = db.execute(
-                    "SELECT county_fips, total_votes_2024 FROM counties WHERE state_abbr = ?",
-                    [body.state],
-                ).fetchdf()
-                vote_map = dict(zip(votes_df["county_fips"], votes_df["total_votes_2024"]))
-                weights = state_rows["county_fips"].map(lambda f: vote_map.get(f, 0)).values.astype(float)
+                tract_votes = getattr(request.app.state, "tract_votes", {})
+                weights = state_rows["county_fips"].map(lambda f: tract_votes.get(f, 0)).values.astype(float)
                 total_w = weights.sum()
                 if total_w > 0:
                     state_pred_val = float(

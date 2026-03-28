@@ -70,51 +70,33 @@ def _load_mu_prior(db: duckdb.DuckDBPyConnection, version_id: str, K: int) -> np
     return mu
 
 
-def _load_type_data_from_db(
-    db: duckdb.DuckDBPyConnection, version_id: str
-) -> tuple[np.ndarray, list[str], np.ndarray, np.ndarray] | tuple[None, None, None, None]:
-    """Load type scores, fips list, covariance, and priors from DuckDB.
+def _load_tract_type_data(
+    project_root: Path,
+) -> tuple[np.ndarray, list[str], np.ndarray, np.ndarray]:
+    """Load tract-level type data directly from parquet/npy files.
 
-    Returns (type_scores, type_county_fips, type_covariance, type_priors)
-    or (None, None, None, None) if the tables are empty for this version.
+    Returns (type_scores, tract_fips, type_covariance, type_priors).
+    type_scores: (N_tracts, J) numpy array of soft membership scores.
+    tract_fips: list of N_tracts GEOID strings.
+    type_covariance: (J, J) Ledoit-Wolf regularized covariance.
+    type_priors: (J,) mean Dem share per type.
     """
-    scores_df = db.execute(
-        "SELECT county_fips, type_id, score FROM type_scores WHERE version_id=? ORDER BY county_fips, type_id",
-        [version_id],
-    ).fetchdf()
-    if scores_df.empty:
-        return None, None, None, None
+    tracts_dir = project_root / "data" / "tracts"
 
-    # Pivot: rows=county_fips, cols=type_id (0-indexed contiguous)
-    pivot = scores_df.pivot(index="county_fips", columns="type_id", values="score").sort_index()
-    pivot = pivot[sorted(pivot.columns)]  # ensure column order 0..J-1
-    type_scores = pivot.values.astype(float)
-    type_county_fips = pivot.index.tolist()
-    J = type_scores.shape[1]
+    # Assignments: deduplicated tract GEOIDs with J=130 soft membership scores
+    assignments = pd.read_parquet(tracts_dir / "national_tract_assignments.parquet")
+    assignments = assignments.drop_duplicates(subset="GEOID")
+    score_cols = sorted(
+        [c for c in assignments.columns if c.startswith("type_") and c.endswith("_score")]
+    )
+    type_scores = assignments[score_cols].values.astype(float)  # (N, J)
+    tract_fips = assignments["GEOID"].tolist()
 
-    # Covariance J×J
-    cov_df = db.execute(
-        "SELECT type_i, type_j, value FROM type_covariance WHERE version_id=? ORDER BY type_i, type_j",
-        [version_id],
-    ).fetchdf()
-    if cov_df.empty:
-        log.warning("No type_covariance rows in DB for version %s", version_id)
-        return None, None, None, None
-    cov_pivot = cov_df.pivot(index="type_i", columns="type_j", values="value").sort_index()
-    cov_pivot = cov_pivot[sorted(cov_pivot.columns)]
-    type_covariance = cov_pivot.values[:J, :J].astype(float)
+    # Covariance and priors from npy (faster than parquet pivot)
+    type_covariance = np.load(tracts_dir / "tract_type_covariance.npy")
+    type_priors = np.load(tracts_dir / "tract_type_priors.npy")
 
-    # Priors J-vector
-    priors_df = db.execute(
-        "SELECT type_id, mean_dem_share FROM type_priors WHERE version_id=? ORDER BY type_id",
-        [version_id],
-    ).fetchdf()
-    if priors_df.empty:
-        log.warning("No type_priors rows in DB for version %s", version_id)
-        return None, None, None, None
-    type_priors = priors_df["mean_dem_share"].values[:J].astype(float)
-
-    return type_scores, type_county_fips, type_covariance, type_priors
+    return type_scores, tract_fips, type_covariance, type_priors
 
 
 def _load_ridge_priors_from_db(db: duckdb.DuckDBPyConnection, version_id: str) -> dict[str, float]:
@@ -188,33 +170,46 @@ async def lifespan(app: FastAPI):
 
     db = startup_db
 
-    # ── Type-primary model data ─────────────────────────────────────────────
+    # ── Type-primary model data (tract-level) ────────────────────────────────
+    project_root = Path(os.environ.get("WETHERVANE_PROJECT_ROOT", "."))
+    tracts_dir = project_root / "data" / "tracts"
     try:
         (
             app.state.type_scores,
             app.state.type_county_fips,
             app.state.type_covariance,
             app.state.type_priors,
-        ) = _load_type_data_from_db(db, version_id)
-        if app.state.type_scores is not None:
-            J = app.state.type_scores.shape[1]
-            log.info("Loaded type data: %d counties × %d types", app.state.type_scores.shape[0], J)
-        else:
-            log.warning("No type data in DB for version %s", version_id)
+        ) = _load_tract_type_data(project_root)
+        J = app.state.type_scores.shape[1]
+        log.info(
+            "Loaded tract type data: %d tracts × %d types",
+            app.state.type_scores.shape[0], J,
+        )
     except Exception as exc:
-        log.warning("Could not load type data from DB: %s", exc)
+        log.warning("Could not load tract type data: %s", exc)
         app.state.type_scores = None
         app.state.type_county_fips = None
         app.state.type_covariance = None
         app.state.type_priors = None
 
-    # ── Ridge county priors ──────────────────────────────────────────────────
+    # ── Tract priors (replaces ridge county priors) ─────────────────────────
     try:
-        app.state.ridge_priors = _load_ridge_priors_from_db(db, version_id)
-        log.info("Loaded ridge priors: %d counties", len(app.state.ridge_priors))
+        tract_priors_df = pd.read_parquet(tracts_dir / "tract_priors.parquet")
+        app.state.ridge_priors = dict(
+            zip(tract_priors_df["tract_geoid"], tract_priors_df["tract_prior"])
+        )
+        app.state.tract_states = dict(
+            zip(tract_priors_df["tract_geoid"], tract_priors_df["state_abbr"])
+        )
+        app.state.tract_votes = dict(
+            zip(tract_priors_df["tract_geoid"], tract_priors_df["total_votes"])
+        )
+        log.info("Loaded tract priors: %d tracts", len(app.state.ridge_priors))
     except Exception as exc:
-        log.warning("Could not load ridge priors from DB: %s", exc)
+        log.warning("Could not load tract priors: %s", exc)
         app.state.ridge_priors = {}
+        app.state.tract_states = {}
+        app.state.tract_votes = {}
 
     # ── HAC fallback weights ─────────────────────────────────────────────────
     try:

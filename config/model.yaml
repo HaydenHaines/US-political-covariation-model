@@ -234,7 +234,7 @@ types:
   holdout_r_target: 0.90
   temperature: 10.0
   presidential_weight: 8.0
-  pca_components: 15
+  # pca_components: 15  # PCA tested (99.4% var retained at 15 dims) but hurts coherence 0.783→0.613. New features alone improve Ridge+Demo LOO r 0.671→0.674.
 census:
   decennial_years:
   - 2000

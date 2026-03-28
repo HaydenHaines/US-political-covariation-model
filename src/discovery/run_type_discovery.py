@@ -224,7 +224,11 @@ def main() -> None:
             )
 
     temperature = float(config["types"].get("temperature", 10.0))
-    pca_components = args.pca or config["types"].get("pca_components")
+    # --pca CLI overrides config; --pca 0 explicitly disables PCA
+    if args.pca is not None:
+        pca_components = args.pca if args.pca > 0 else None
+    else:
+        pca_components = config["types"].get("pca_components")
     if pca_components is not None:
         pca_components = int(pca_components)
 

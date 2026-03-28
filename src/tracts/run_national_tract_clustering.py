@@ -47,33 +47,54 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # ── Feature selection ─────────────────────────────────────────────────────────
 
-# Training features: presidential shifts across 3 cycles (2008→2012, 2012→2016, 2016→2020).
-# 2020→2024 is the holdout -- excluded from training.
-# Gov shifts excluded: 54% coverage causes massive NaN imputation bias.
-# Earlier presidential pairs (08→12, 12→16) have 97-99% coverage.
-TRAINING_FEATURES = [
-    # Presidential shifts (3 training pairs)
-    "pres_d_shift_08_12",
-    "pres_r_shift_08_12",
-    "pres_turnout_shift_08_12",
-    "pres_d_shift_12_16",
-    "pres_r_shift_12_16",
-    "pres_turnout_shift_12_16",
-    "pres_d_shift_16_20",
-    "pres_r_shift_16_20",
-    "pres_turnout_shift_16_20",
-    # Presidential levels
+# Training features: presidential shifts (3 training pairs) + state-centered
+# off-cycle shifts (gov, Senate) as separate dimensions.
+# 2020→2024 presidential shift is the holdout — excluded from training.
+#
+# Off-cycle shifts let the model distinguish communities that behave identically
+# in presidential years but differently off-cycle (e.g., military communities
+# with stable turnout vs college towns with variable turnout).
+# See spec: docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md
+#
+# Coverage threshold: columns with <10% non-NaN values after population filter
+# are excluded — median imputation on >90% NaN columns injects noise, not signal.
+COVERAGE_THRESHOLD = 0.10
+
+TRAINING_FEATURES_PRES = [
+    # Presidential Dem-share shifts (3 training pairs)
+    "pres_shift_2008_2012",
+    "pres_shift_2012_2016",
+    "pres_shift_2016_2020",
+    # Presidential turnout shifts
+    "pres_turnout_shift_2008_2012",
+    "pres_turnout_shift_2012_2016",
+    "pres_turnout_shift_2016_2020",
+    # Presidential levels (anchor absolute position)
     "pres_dem_share_2016",
     "pres_dem_share_2020",
-    # Turnout shift
-    "turnout_shift_16_20",
 ]
 
-# Holdout: 2020→2024 presidential shifts (excluded from training)
+TRAINING_FEATURES_OFFCYCLE = [
+    # Governor shifts (state-centered)
+    "gov_shift_2014_2016",
+    "gov_shift_2016_2018",
+    "gov_shift_2018_2020",
+    "gov_shift_2020_2021",
+    "gov_shift_2021_2022",
+    "gov_shift_2022_2024",
+    # Senate shifts (state-centered)
+    "sen_shift_2014_2016",
+    "sen_shift_2016_2018",
+    "sen_shift_2018_2020",
+    "sen_shift_2020_2021",
+    "sen_shift_2021_2022",
+    "sen_shift_2022_2024",
+]
+
+# Holdout: 2020→2024 presidential shift (excluded from training)
 HOLDOUT_FEATURES = [
-    "pres_d_shift_20_24",
-    "pres_r_shift_20_24",
-    "pres_turnout_shift_20_24",
+    "pres_shift_2020_2024",
+    "pres_turnout_shift_2020_2024",
 ]
 
 # Demographic features for combined-feature run
@@ -108,8 +129,8 @@ POPULATION_MIN_VOTES = 500
 def load_and_filter_features(
     features_path: Path,
     use_demographics: bool = False,
-    presidential_weight: float = 2.5,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    presidential_weight: float = 8.0,
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, int]:
     """Load tract features, filter, impute NaN, scale.
 
     Returns
@@ -120,6 +141,8 @@ def load_and_filter_features(
         Scaled training feature matrix.
     X_holdout : ndarray of shape (N, D_holdout)
         Raw (unscaled) holdout matrix for validation.
+    n_input : int
+        Number of tracts before population filter.
     """
     df = pd.read_parquet(features_path)
     log.info("Loaded %d tracts × %d columns from %s", len(df), len(df.columns), features_path)
@@ -133,15 +156,31 @@ def load_and_filter_features(
         POPULATION_MIN_VOTES, len(df), before, dropped,
     )
 
-    # Select training features
-    train_cols = [c for c in TRAINING_FEATURES if c in df.columns]
+    # Select training features: presidential (always included) + off-cycle
+    # (included only if coverage exceeds threshold after pop filter).
+    train_cols = [c for c in TRAINING_FEATURES_PRES if c in df.columns]
+    missing_pres = [c for c in TRAINING_FEATURES_PRES if c not in df.columns]
+    if missing_pres:
+        log.warning("Missing presidential training columns: %s", missing_pres)
+
+    # Off-cycle columns: filter by coverage threshold to avoid injecting noise
+    # from columns that are >90% NaN (median imputation on sparse data).
+    n_rows = len(df)
+    for col in TRAINING_FEATURES_OFFCYCLE:
+        if col not in df.columns:
+            log.info("Off-cycle column %s not in data — skipped", col)
+            continue
+        coverage = df[col].notna().sum() / n_rows
+        if coverage >= COVERAGE_THRESHOLD:
+            train_cols.append(col)
+            log.info("Off-cycle column %s: %.1f%% coverage — included", col, 100 * coverage)
+        else:
+            log.info("Off-cycle column %s: %.1f%% coverage — excluded (threshold %.0f%%)",
+                     col, 100 * coverage, 100 * COVERAGE_THRESHOLD)
+
     if use_demographics:
         demo_cols = [c for c in DEMOGRAPHIC_FEATURES if c in df.columns]
         train_cols = train_cols + demo_cols
-
-    missing_train = [c for c in TRAINING_FEATURES if c not in df.columns]
-    if missing_train:
-        log.warning("Missing training columns: %s", missing_train)
 
     log.info("Training features: %d columns", len(train_cols))
 
@@ -184,7 +223,7 @@ def load_and_filter_features(
             holdout_nan_count,
         )
 
-    return df.reset_index(drop=True), X_train, X_holdout
+    return df.reset_index(drop=True), X_train, X_holdout, before
 
 
 def compute_holdout_r(
@@ -311,7 +350,7 @@ def main() -> None:
     )
 
     parser = argparse.ArgumentParser(description="National tract KMeans clustering")
-    parser.add_argument("--j", type=int, default=40, help="Number of types (default: 40)")
+    parser.add_argument("--j", type=int, default=100, help="Number of types (default: 100)")
     parser.add_argument(
         "--j-sweep",
         action="store_true",
@@ -325,8 +364,8 @@ def main() -> None:
     parser.add_argument(
         "--presidential-weight",
         type=float,
-        default=2.5,
-        help="Weight multiplier for presidential features (default: 2.5)",
+        default=8.0,
+        help="Weight multiplier for presidential features (default: 8.0)",
     )
     parser.add_argument(
         "--temperature",
@@ -353,7 +392,7 @@ def main() -> None:
     log.info("=" * 60)
 
     # Load and prepare
-    df_filt, X_train, X_holdout = load_and_filter_features(
+    df_filt, X_train, X_holdout, n_tracts_input = load_and_filter_features(
         features_path,
         use_demographics=args.with_demographics,
         presidential_weight=args.presidential_weight,
@@ -425,7 +464,7 @@ def main() -> None:
     # Save validation metrics
     val_path = out_path.parent / "national_tract_validation.json"
     validation = {
-        "n_tracts_input": 84415,
+        "n_tracts_input": int(n_tracts_input),
         "n_tracts_after_pop_filter": int(n_tracts),
         "pop_filter_threshold": POPULATION_MIN_VOTES,
         "j": int(best_j),
@@ -451,7 +490,7 @@ def main() -> None:
     print("=" * 60)
     print("NATIONAL TRACT CLUSTERING COMPLETE")
     print("=" * 60)
-    print(f"  Tracts clustered:  {n_tracts:,} (of 84,415 input)")
+    print(f"  Tracts clustered:  {n_tracts:,} (of {n_tracts_input:,} input)")
     print(f"  J (types):         {best_j}")
     print(f"  Holdout r:         {final_r:.4f}")
     print(f"  Super-types (S):   {nesting.best_s}")

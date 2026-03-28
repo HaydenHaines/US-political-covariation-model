@@ -28,6 +28,13 @@ A political modeling platform that discovers electoral communities directly from
 - Trust the standard holdout r without checking LOO. Standard metric inflates by ~0.22 due to type self-prediction.
 - Feed governor/Senate results into type discovery dimensions. They are training data for the behavior layer only.
 
+## Gotchas
+
+- **GeoJSON must be rebuilt after retraining.** The tract community polygon GeoJSON (`web/public/tracts-us.geojson`) embeds type_id and super_type from the model. After any retrain that changes J, type assignments, or super-types, run `uv run python scripts/build_national_tract_geojson.py`. Failure to rebuild causes choropleth color mismatch — polygons reference stale type IDs that don't match API predictions. (Source: S245, stale J=100 GeoJSON vs J=130 model.)
+- **Religious adherence rate is per-1,000, not a fraction.** RCMS data uses "adherents per 1,000 population" convention. Display as `value / 10` with "%" suffix. Do NOT pass through formatPct (which multiplies by 100). (Source: S245, Type 66 showed 53,383%.)
+- **Hardcoded model parameters in frontend/data artifacts are a recurring source of bugs.** When J changes, super-type count changes, or column naming changes, stale artifacts break silently. Schedule periodic audits using the hardcoded-values skill. (Source: S245, also S243 column naming mismatch.)
+- **DRA tract assignments have duplicate GEOIDs.** The clustering pipeline may produce 112K rows for 81K unique tracts. Always `drop_duplicates(subset="GEOID")` before using as an index. (Source: S245.)
+
 **BASELINE METRICS (beat these or don't merge):**
 - County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)
 - County holdout LOO r: 0.448 (type-mean baseline, S196; honest generalization metric)

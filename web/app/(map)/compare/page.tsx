@@ -1,5 +1,5 @@
-import { TypeCompareTable } from "@/components/TypeCompareTable";
+import { redirect } from "next/navigation";
 
 export default function ComparePage() {
-  return <TypeCompareTable />;
+  redirect("/explore");
 }

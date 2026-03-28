@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as Plot from "@observablehq/plot";
 import { fetchTypeScatterData, type TypeScatterPoint } from "@/lib/api";
 import { formatMargin } from "@/lib/typeDisplay";
 import { PALETTE } from "@/components/MapShell";
+import { useMapContext } from "@/components/MapContext";
 
 // ── Axis option configuration ─────────────────────────────────────────────────
 
@@ -154,16 +155,22 @@ function Tooltip({ state }: { state: TooltipState }) {
 
 // ── Scatter plot ──────────────────────────────────────────────────────────────
 
+const PLOT_HEIGHT = 400;
+
 function ScatterPlot({
   data,
   xKey,
   yKey,
   onHover,
+  onClick,
+  selectedIds,
 }: {
   data: TypeScatterPoint[];
   xKey: string;
   yKey: string;
   onHover: (state: TooltipState | null, event?: MouseEvent) => void;
+  onClick?: (typeId: number) => void;
+  selectedIds?: Set<number>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -195,13 +202,29 @@ function ScatterPlot({
     if (isShiftKey(yKey)) marks.push(Plot.ruleY([0], { stroke: "#ccc", strokeDasharray: "3,3" }));
     if (isShiftKey(xKey)) marks.push(Plot.ruleX([0], { stroke: "#ccc", strokeDasharray: "3,3" }));
 
+    // Draw selected rings behind the dots
+    const selectedData = selectedIds ? plotData.filter((d) => selectedIds.has(d.type_id)) : [];
+    if (selectedData.length > 0) {
+      marks.push(
+        Plot.dot(selectedData, {
+          x: "xVal",
+          y: "yVal",
+          r: (d) => 5 + 8 * Math.sqrt(d.n_counties / maxN),
+          fill: "none",
+          stroke: "var(--color-text, #333)",
+          strokeWidth: 2.5,
+          tip: false,
+        })
+      );
+    }
+
     marks.push(
       Plot.dot(plotData, {
         x: "xVal",
         y: "yVal",
         r: (d) => 3 + 8 * Math.sqrt(d.n_counties / maxN),
         fill: (d) => `rgb(${(d.color as [number,number,number]).join(",")})`,
-        fillOpacity: 0.8,
+        fillOpacity: (d) => (selectedIds && selectedIds.size > 0 && !selectedIds.has(d.type_id) ? 0.35 : 0.8),
         stroke: "white",
         strokeWidth: 0.5,
         tip: false,
@@ -212,7 +235,7 @@ function ScatterPlot({
 
     const plot = Plot.plot({
       width: effectiveWidth,
-      height: 300,
+      height: PLOT_HEIGHT,
       marginLeft: 48,
       marginRight: 8,
       marginTop: 12,
@@ -261,7 +284,7 @@ function ScatterPlot({
         const plotLeft = 48;
         const plotRight = effectiveWidth - 8;
         const plotTop = 12;
-        const plotBottom = 300 - 40;
+        const plotBottom = PLOT_HEIGHT - 40;
 
         const xVals = plotData.map((d) => d.xVal as number);
         const yVals = plotData.map((d) => d.yVal as number);
@@ -299,12 +322,55 @@ function ScatterPlot({
 
       const handleMouseLeave = () => onHover(null);
 
+      const handleClick = (e: MouseEvent) => {
+        if (!onClick) return;
+        const svgRect = svg.getBoundingClientRect();
+        const mx = e.clientX - svgRect.left;
+        const my = e.clientY - svgRect.top;
+
+        const plotLeft = 48;
+        const plotRight = effectiveWidth - 8;
+        const plotTop = 12;
+        const plotBottom = PLOT_HEIGHT - 40;
+
+        const xVals = plotData.map((d) => d.xVal as number);
+        const yVals = plotData.map((d) => d.yVal as number);
+        const xMin = Math.min(...xVals);
+        const xMax = Math.max(...xVals);
+        const yMin = Math.min(...yVals);
+        const yMax = Math.max(...yVals);
+
+        const xScale = (val: number) =>
+          plotLeft + ((val - xMin) / (xMax - xMin || 1)) * (plotRight - plotLeft);
+        const yScale = (val: number) =>
+          plotBottom - ((val - yMin) / (yMax - yMin || 1)) * (plotBottom - plotTop);
+
+        let closest: typeof plotData[0] | null = null;
+        let minDist = Infinity;
+        for (const d of plotData) {
+          const px = xScale(d.xVal as number);
+          const py = yScale(d.yVal as number);
+          const dist = Math.hypot(mx - px, my - py);
+          if (dist < minDist) {
+            minDist = dist;
+            closest = d;
+          }
+        }
+
+        if (closest && minDist < 30) {
+          onClick(closest.type_id);
+        }
+      };
+
       svg.addEventListener("mousemove", handleMouseMove as EventListener);
       svg.addEventListener("mouseleave", handleMouseLeave);
+      svg.addEventListener("click", handleClick as EventListener);
+      svg.style.cursor = "pointer";
 
       return () => {
         svg.removeEventListener("mousemove", handleMouseMove as EventListener);
         svg.removeEventListener("mouseleave", handleMouseLeave);
+        svg.removeEventListener("click", handleClick as EventListener);
         ref.current?.removeChild(plot);
       };
     }
@@ -312,7 +378,7 @@ function ScatterPlot({
     return () => {
       if (ref.current?.contains(plot)) ref.current.removeChild(plot);
     };
-  }, [data, xKey, yKey, onHover, plotWidth]);
+  }, [data, xKey, yKey, onHover, onClick, selectedIds, plotWidth]);
 
   return (
     <div ref={containerRef} style={{ width: "100%" }}>
@@ -324,12 +390,19 @@ function ScatterPlot({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ShiftExplorer() {
+  const { compareTypeIds, addToComparison } = useMapContext();
   const [data, setData] = useState<TypeScatterPoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [xKey, setXKey] = useState("pct_bachelors_plus");
   const [yKey, setYKey] = useState("pres_d_shift_20_24");
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
+  const selectedIds = new Set(compareTypeIds);
+
+  const handleClick = useCallback((typeId: number) => {
+    addToComparison(typeId);
+  }, [addToComparison]);
 
   useEffect(() => {
     fetchTypeScatterData()
@@ -383,7 +456,7 @@ export function ShiftExplorer() {
         Shift Explorer
       </h3>
       <p style={{ margin: "0 0 12px", fontSize: "12px", color: "var(--color-text-muted)" }}>
-        Each dot is one of the 100 electoral types. Size = county count.
+        Each dot is one of the 100 electoral types. Size = county count. Click a dot to compare.
       </p>
 
       {loading && (
@@ -448,12 +521,14 @@ export function ShiftExplorer() {
             </div>
           </div>
 
-          {/* Scatter plot */}
+          {/* Scatter plot — click a dot to add it to comparison */}
           <ScatterPlot
             data={data}
             xKey={xKey}
             yKey={resolvedYKey}
             onHover={handleHover}
+            onClick={handleClick}
+            selectedIds={selectedIds}
           />
 
           {/* Legend */}

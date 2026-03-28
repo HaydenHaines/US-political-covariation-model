@@ -461,7 +461,9 @@ def _forecast_poll_types(
     race_str = (poll.race or "").lower()
     is_offcycle = not any(kw in race_str for kw in ["president", "pres"])
 
-    if behavior_tau is not None and behavior_delta is not None and county_priors is not None and is_offcycle:
+    if (behavior_tau is not None and behavior_delta is not None
+            and county_priors is not None and is_offcycle
+            and type_scores.shape[1] == len(behavior_tau)):
         from src.behavior.voter_behavior import apply_behavior_adjustment
         county_priors = apply_behavior_adjustment(
             county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True
@@ -696,7 +698,9 @@ def update_forecast_with_multi_polls(
         race_str = (body.race or "").lower()
         is_offcycle = not any(kw in race_str for kw in ["president", "pres"])
 
-        if behavior_tau is not None and behavior_delta is not None and county_priors is not None and is_offcycle:
+        if (behavior_tau is not None and behavior_delta is not None
+                and county_priors is not None and is_offcycle
+                and type_scores.shape[1] == len(behavior_tau)):
             from src.behavior.voter_behavior import apply_behavior_adjustment
             county_priors = apply_behavior_adjustment(
                 county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True

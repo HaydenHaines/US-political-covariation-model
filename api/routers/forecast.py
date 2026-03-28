@@ -277,7 +277,7 @@ def get_race_detail(
 
     # Type breakdown: top 5 types by county count in this state for this race
     breakdown_df = db.execute(
-        """
+        f"""
         SELECT
             cta.dominant_type AS type_id,
             t.display_name,

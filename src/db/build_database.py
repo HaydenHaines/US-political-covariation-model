@@ -359,7 +359,7 @@ def _build_predictions(preds: pd.DataFrame, version_id: str) -> pd.DataFrame:
     ]
     for c in cols:
         if c not in df.columns:
-            df[c] = None
+            df[c] = "local" if c == "forecast_mode" else None
     return df[cols]
 
 

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { getColorForSuperType } from "@/components/MapShell";
+import { useMapContext } from "@/components/MapContext";
 import { formatLean, leanColor } from "@/lib/typeDisplay";
 import type { TractFeatureProps } from "@/components/TractPanel";
 
@@ -43,6 +44,7 @@ function densityLabel(nTracts: number, areaSqkm: number): string {
 }
 
 export function TractPopup({ data, nCounties, meanDemShare, onClose }: Props) {
+  const { setSelectedTypeId } = useMapContext();
   const { feature, x, y } = data;
   const superColor = getColorForSuperType(feature.super_type);
   const lean = formatLean(meanDemShare);
@@ -143,22 +145,41 @@ export function TractPopup({ data, nCounties, meanDemShare, onClose }: Props) {
         <DemoStat label="Density" value={densityLabel(feature.n_tracts, feature.area_sqkm)} />
       </div>
 
-      {/* Link to full type profile */}
-      <Link
-        href={`/type/${feature.type_id}`}
-        style={{
-          display: "inline-block",
-          color: "#6baed6",
-          fontSize: 12,
-          fontWeight: 500,
-          textDecoration: "none",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-          paddingTop: 8,
-          width: "100%",
-        }}
-      >
-        View full type profile &rarr;
-      </Link>
+      {/* View type details inline (opens TypePanel in sidebar) */}
+      <div style={{ borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 8 }}>
+        <button
+          onClick={() => {
+            setSelectedTypeId(feature.type_id);
+            onClose();
+          }}
+          style={{
+            display: "block",
+            color: "#6baed6",
+            fontSize: 12,
+            fontWeight: 500,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            width: "100%",
+            textAlign: "left",
+          }}
+        >
+          View type details &rarr;
+        </button>
+        <Link
+          href={`/type/${feature.type_id}`}
+          style={{
+            display: "inline-block",
+            color: "rgba(176,190,197,0.6)",
+            fontSize: 11,
+            textDecoration: "none",
+            marginTop: 4,
+          }}
+        >
+          Full type profile page
+        </Link>
+      </div>
     </div>
   );
 }

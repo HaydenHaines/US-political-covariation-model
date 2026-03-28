@@ -17,15 +17,17 @@ function MapLayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell" style={{
       display: "flex",
+      flexDirection: isDashboard ? "row" : "column",
       height: "100vh",
       overflow: "hidden",
     }}>
-      {/* Map pane — full width in dashboard mode, flex-1 in content mode */}
+      {/* Map pane — full viewport in dashboard mode, compact strip in content mode */}
       <div
         className="map-pane"
         style={{
-          flex: isDashboard ? "none" : 1,
-          width: isDashboard ? "100%" : undefined,
+          ...(isDashboard
+            ? { width: "100%", flex: "none" }
+            : { height: "40vh", flexShrink: 0 }),
           position: "relative",
           minWidth: 0,
         }}
@@ -52,15 +54,16 @@ function MapLayoutInner({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/* Right panel — hidden in dashboard mode */}
+      {/* Content panel — hidden in dashboard mode, scrollable below map in content mode */}
       {!isDashboard && (
         <aside className="panel-pane" style={{
-          width: "var(--color-panel-width)",
+          flex: 1,
           display: "flex",
           flexDirection: "column",
-          borderLeft: "1px solid var(--color-border)",
+          borderTop: "1px solid var(--color-border)",
           background: "var(--color-surface)",
           overflow: "hidden",
+          width: "100%",
         }}
           role="complementary"
           aria-label="Data panel"

@@ -81,3 +81,6 @@ __pycache__/
 *.egg-info/
 web/tsconfig.tsbuildinfo
 .claude/worktrees/
+
+# Per-state tract GeoJSON splits (generated, too large for git)
+web/public/tracts/

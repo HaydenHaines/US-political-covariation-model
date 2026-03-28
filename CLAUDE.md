@@ -4,13 +4,15 @@ A political modeling platform that discovers electoral communities directly from
 
 **Core insight:** beneath the noise of individual elections is a structural landscape of communities that move together politically. Those communities cross administrative boundaries, persist across decades, and can be discovered purely from how places shift. Understanding this structure — not just the surface results — is what makes prediction defensible.
 
-**Governing principles (updated 2026-03-26):**
+**Governing principles (updated 2026-03-27):**
 - Build it right, not fast. Use the correct model even if it takes longer.
 - Build it expandable. Every component has a clear interface.
-- Types are primary. KMeans on shift vectors discovers J types. Counties/tracts get soft membership. Types carry covariance and prediction.
-- Governor/Senate shifts must be state-centered before cross-state clustering. Presidential shifts carry cross-state signal.
+- **Types are structural and permanent.** KMeans on shift vectors discovers J types. Tracts get soft membership. Types carry covariance and prediction. Everything downstream is inference *conditioned on* types — types are the nouns, everything else is verbs and adjectives.
+- **The model models community behavior, not elections.** Type discovery answers "who moves together." The voter behavior layer answers "how does each community express itself in different electoral contexts." Predictions are a downstream product of community behavior, not the primary object of modeling.
+- **Tracts are the sole unit of analysis.** County layer is being retired. DRA block data aggregated to tracts (~81K) provides the granularity needed for pure type signal. See spec: `docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md`.
+- Off-cycle shifts are state-centered before cross-state clustering (proxy for candidate effect removal — future improvement). Presidential shifts carry cross-state signal.
 - J selection must be principled (holdout accuracy), not heuristic.
-- **θ is the fundamental inference target.** Type means θ are what the model estimates. State/county outcomes are downstream products of θ, not the primary objects of inference.
+- **θ is the fundamental inference target.** Type means θ are what the model estimates. State/tract outcomes are downstream products of θ, not the primary objects of inference.
 - **Polls are observations of W·θ.** A poll tells us about the type composition of the polled geography. The model learns θ from it and propagates that inference everywhere those types exist — regardless of state lines.
 - **Deviations from expected θ are candidate effects.** Σ + fundamentals generate an expected θ. Posterior deviations are candidate-specific draws (Trump/Rust Belt, W/Hispanic). These are detectable from early polling and propagatable to unpolled geographies.
 - The public question is: *What will happen in 2026?* The 2028 question is: *What is each type doing, and why?*
@@ -19,11 +21,12 @@ A political modeling platform that discovers electoral communities directly from
 
 **DO NOT:**
 - Revert to SVD+varimax, NMF, or HAC as the primary clustering algorithm. KMeans is the production algorithm. See ADR-006.
-- Use raw (non-state-centered) governor/Senate shifts for cross-state clustering. This creates state-isolated types.
+- Use raw (non-state-centered) off-cycle shifts for cross-state clustering. This creates state-isolated types.
 - Use the old community_assignments or HAC K=10 model for anything except historical comparison.
-- Modify the county-level model without running `uv run python -m src.validation.validate_types` and comparing to baseline.
+- Delete county infrastructure until tract-primary model is validated and deployed. The county model is still production.
 - Run tract-level experiments without population weighting (tracts with <500 voters are noise).
 - Trust the standard holdout r without checking LOO. Standard metric inflates by ~0.22 due to type self-prediction.
+- Feed governor/Senate results into type discovery dimensions. They are training data for the behavior layer only.
 
 **BASELINE METRICS (beat these or don't merge):**
 - County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)
@@ -87,39 +90,33 @@ See `docs/ROADMAP.md` for the full path forward and `docs/TODO-autonomous-improv
 
 ## Architecture
 
-Two-resolution electoral model (ADR-006):
+> **⚠️ MIGRATION IN PROGRESS (2026-03-27):** Migrating from county-primary to tract-primary architecture with new voter behavior layer. See spec: `docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md`. Until migration is complete, the county model remains the production system. Do not delete county infrastructure until tract model is validated and deployed.
 
-### County-Level Model (production, live at wethervane.hhaines.duckdns.org)
+### Target Architecture (IN PROGRESS)
+
+Four-layer tract-primary model:
+
+**Layer 1 — Type Discovery (run once):** KMeans on tract-level shift vectors from DRA block data (all 51 states, 2008-2024). Presidential shifts + state-centered off-cycle shifts as separate dimensions. Off-cycle state-centering is a proxy for candidate effect removal (future improvement). ~81K tracts, J=100, soft membership via temperature-scaled inverse distance (T=10).
+
+**Layer 2 — Voter Behavior Layer (NEW):** Per-type parameters learned from historical data:
+- τ (turnout ratio): off-cycle turnout / presidential turnout per type. Captures which communities don't show up in midterms.
+- δ (residual choice shift): off-cycle Dem share minus expected share from turnout reweighting alone. Captures genuine preference shifts beyond turnout composition.
+- Binary cycle type: presidential vs off-cycle (turnout is ballot-level, not race-level).
+- Governor/Senate results are training data for τ and δ, NOT inputs to type discovery.
+
+**Layer 3 — Covariance:** Ledoit-Wolf regularized covariance on observed tract-level presidential shifts. Same methodology, finer granularity.
+
+**Layer 4 — Prediction:** Ridge priors (tract-level) → behavior adjustment (τ + δ for cycle type) → Bayesian poll update through Σ → tract predictions → vote-weighted state aggregation.
+
+**Frontend:** Tract community polygons as sole map view. County layer removed.
+
+### Current Production (county-primary, being replaced)
 
 **Algorithm:** KMeans J=100 on StandardScaler-normalized shifts with presidential weight=8.0 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
-**Key insight:** Governor/Senate shifts are state-specific races — must be state-centered before cross-state clustering. Presidential shifts carry the cross-state signal. StandardScaler normalizes feature scales; presidential weight=8.0 amplifies the strongest cross-state signal (optimal via LOO sweep over pw=[2..12]).
-**Soft membership:** Temperature-scaled inverse distance (T=10, production default). T=10 reduces calibration MAE by ~37% vs T=1.
-**Holdout r:** 0.698 (type-mean prior), 0.672 (county-level prior). Coherence=0.783. Covariance val r=0.556. RMSE=0.073.
-**Super-types:** 5 super-types (Hispanic Urban, Rural Retiree, Catholic College, Evangelical Coalition, Asian-Pacific Exurban) via Ward HAC on demographic profiles (not centroids — centroids produce degenerate clustering at J=100).
+**Holdout r:** 0.698 (type-mean prior). Coherence=0.783. RMSE=0.073.
+**Known limitation:** No cycle-type awareness. Ridge priors trained on 2024 presidential outcomes. Off-cycle races predicted with presidential-shaped electorate, systematically overestimating R in midterms.
 
-### Tract-Level Model (experimental, toggle on frontend)
-
-**Algorithm:** KMeans J=100, combined features (31 dims: 12 electoral + 19 demographic). Presidential weight=1.0 (applied post-StandardScaler).
-**Data source:** DRA (Dave's Redistricting) block-level data aggregated to tracts via GEOID[:11] groupby — NO areal interpolation needed. 84,415 tracts national (all 50 states + DC), 867K tract-race rows.
-**Holdout r:** 0.632 (S192). Improved from 0.628 (S191) by adding 4 religion features (national RCMS, 100% coverage). S191: 0.586→0.628 from earlier pres shifts, ACS demographics, J=40→100.
-**Population weighting:** Tracts with <500 voters excluded (3,286 dropped → 81,129 tracts).
-**Super-types:** 5, derived from Ward HAC on ACS demographic profiles (not KMeans centroids — centroids produce degenerate clustering). Names: Black Urban, Hispanic & Diverse Working, White Mainstream, Urban Professional, Affluent Suburban.
-**Visualization:** Bubble dissolve merges adjacent same-type tracts into ~39,561 community polygons (17MB GeoJSON).
-**Key findings (S191):** Presidential weighting before StandardScaler has NO EFFECT (bug). Optimal pw=1.0 for combined features. Gov shifts at 54% coverage hurt (excluded). Electoral+Demo beats both electoral-only and demo-only. J keeps improving monotonically but plateaus ~J=100-150.
-
-### Full pipeline:
-1. **Data Assembly** -- Historical election returns (presidential 2000-2024, governor 2002-2022, Senate 2002-2022), Decennial Census (2000/2010/2020) with interpolation, ACS 2022, RCMS, IRS migration, FEC donor density. DRA block data for tract-level.
-2. **Shift Vector Computation** -- Log-odds shifts. County: 33 training dims (2008+). Tract: 31 dims (12 electoral + 19 demographic).
-3. **Type Discovery** -- KMeans clustering. County: presidential×2.5 weighted (J=55). Tract: combined features, pw=1.0 (J=100).
-4. **Hierarchical Nesting** -- County: Ward HAC on centroids → super-types. Tract: Ward HAC on demographic profiles (centroids are degenerate).
-5. **Type Description** -- Time-matched demographics overlaid on types. Named descriptively.
-6. **Type Covariance Construction** -- Observed Ledoit-Wolf regularized correlation from election shifts (primary). Demographic construction retained as fallback. LOEO val_r=0.995.
-7. **Poll Propagation** -- Gaussian Bayesian update via type covariance Σ.
-8. **Prediction** -- Type-level estimates × soft membership → county/tract predictions.
-9. **Validation** -- Leave-one-pair-out CV, calibration, type coherence, type stability.
-10. **Visualization** -- County: stained glass map (293 pieces). Tract: bubble dissolve (~2,500 community polygons).
-
-**Historical approaches (shelved, retained for comparison):**
+### Historical approaches (shelved, retained for comparison):
 - HAC community-primary (K=10, ADR-005): retained as `county_baseline` in model versioning
 - NMF-on-demographics (K=7): original two-stage approach, R²~0.66
 

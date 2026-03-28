@@ -1,8 +1,10 @@
 # Project Roadmap: Robust Path Forward
 
 **Status:** Active
-**Last updated:** 2026-03-21
+**Last updated:** 2026-03-27
 **Perspective shift:** Hobby proof-of-concept → publicly available political modeling platform
+
+> **⚠️ ACTIVE MIGRATION (2026-03-27):** Tract-primary architecture + voter behavior layer approved. See Phase T below. This supersedes the county-centric phases below (many of which are already complete). County infrastructure remains production until tract model is validated.
 
 ---
 
@@ -148,7 +150,61 @@ Each versioned dir contains:
 
 ---
 
-## Phase 0: Foundational Refactor
+## Phase T: Tract-Primary Migration + Voter Behavior Layer (ACTIVE — 2026-03-27)
+
+*The model models community behavior, not elections. Communities are permanent; their activation pattern varies by context.*
+
+**Design spec:** `docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md`
+
+### T.1 — DRA Block→Tract Ingestion
+- Ingest DRA block data for all 51 states (v06 + v07) → aggregate to tracts via GEOID[:11]
+- Normalize schema across v06/v07 differences
+- Output: tract-level election results (presidential + governor + Senate, 2008-2024) with total votes + Dem + Rep
+- Verify 2020 geography assumption (DRA allocates all years to 2020 tract boundaries)
+
+### T.2 — Tract Shift Vectors
+- Compute presidential shift pairs (2008→2012, ..., 2020→2024) at tract level
+- Compute off-cycle shift pairs (gov + Senate) at tract level, state-centered
+- Note: state-centering is a proxy for candidate effect removal (documented assumption)
+- Combine into shift matrix with presidential and off-cycle as separate dimensions
+- Population filter: exclude tracts with <500 voters
+
+### T.3 — Type Discovery (tract-level)
+- KMeans J=100 on tract shift matrix with StandardScaler + presidential weighting
+- Soft membership via temperature-scaled inverse distance (T=10)
+- Super-types via Ward HAC on demographic profiles
+- Validation: leave-one-pair-out CV, compare to county baseline (r=0.698)
+
+### T.4 — Voter Behavior Layer
+- Per-type τ: off-cycle turnout / presidential turnout, weighted by type membership
+- Per-type δ: residual choice shift after turnout reweighting
+- Binary cycle type: presidential vs off-cycle (ballot-level turnout)
+- Backtest: hold out 2022, train on 2010-2018, predict 2022
+
+### T.5 — Tract-Level Prediction Pipeline
+- Ridge model trained on tract-level features → tract priors
+- Behavior adjustment: apply τ + δ for off-cycle races
+- Bayesian poll update through tract-level type covariance
+- Vote-weighted state aggregation
+- Canary test: GA Senate should show competitive without poll input
+
+### T.6 — Frontend Migration
+- Tract community polygons as default and sole map view
+- Remove county choropleth layer and county toggle
+- Update forecast tab to use tract-level predictions
+- Redirect or remove county detail pages
+
+### T.7 — Validation & Cutover
+- Full test suite must pass
+- API contract tests pass
+- Holdout metrics meet or exceed county baseline (or behavior layer compensates)
+- Retire county model code (move to `_deprecated/`)
+
+---
+
+## Prior Phases (many complete, superseded by Phase T for remaining items)
+
+## Phase 0: Foundational Refactor (MOSTLY COMPLETE)
 
 *Must complete before any new feature work. This is the last time we build on the wrong foundation.*
 

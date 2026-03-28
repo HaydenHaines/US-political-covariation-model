@@ -2,8 +2,18 @@
 
 **Status:** Living document (last updated March 2026)
 **Scope:** Full technical specification for the type-primary electoral covariation model
-**Geography:** FL + GA + AL proof-of-concept (293 counties)
+**Geography:** National (all 50 states + DC)
 **Target:** Functional predictions by October 2026 midterms
+
+> **⚠️ MIGRATION IN PROGRESS (2026-03-27):** This document describes the current county-primary production architecture. A migration to **tract-primary architecture with a voter behavior layer** is approved and in progress. See `docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md` for the target design. Key changes:
+> - Unit of analysis: counties (3,154) → tracts (~81K)
+> - Data source: MEDSL + Algara/Amlani → DRA block data (all 51 states, 2008-2024)
+> - New Layer 2: Voter behavior layer with turnout ratio (τ) and residual choice shift (δ) per type, decomposing presidential vs off-cycle behavior
+> - Governor/Senate results move from type discovery inputs → behavior layer training data
+> - County frontend layer retired; tracts become sole map view
+> - State-centering of off-cycle shifts documented as proxy for candidate effect removal (future improvement)
+>
+> Until migration is complete, the county model described below remains production. Do not delete county infrastructure.
 
 ---
 
@@ -36,7 +46,7 @@ Four non-negotiable design principles govern every component of this system:
 
 **4. Falsification built in.** Types discovered from pre-2024 shifts are validated against held-out 2024 shifts. If types fail to predict the holdout, the model fails cleanly. Historical approaches (NMF on demographics, HAC geographic blobs) are retained as comparison baselines. Negative results are documented, not hidden.
 
-### Pipeline Overview
+### Pipeline Overview (current county production)
 
 ```
 [Data Assembly] --> [Shift Vectors] --> [Type Discovery] --> [Hierarchical Nesting] --> [Type Description]
@@ -46,6 +56,23 @@ Four non-negotiable design principles govern every component of this system:
 --> [Covariance Construction] --> [Poll Propagation] --> [Prediction] --> [Validation]
        src/covariance/              src/propagation/      src/prediction/   src/validation/
        Python                       Python                Python            Python
+```
+
+### Target Pipeline (tract-primary, IN PROGRESS)
+
+```
+[DRA Block→Tract] --> [Shift Vectors] --> [Type Discovery] --> [Behavior Layer] --> [Covariance]
+  src/assembly/        src/discovery/      src/discovery/       src/behavior/        src/covariance/
+  Block→tract agg      Pres + off-cycle    KMeans J=100         τ + δ per type       Ledoit-Wolf on
+  All 51 states        shifts (separate)   Run once             From pres vs         tract shifts
+                       Off-cycle state-                         off-cycle results
+                       centered
+
+--> [Prediction] --> [Validation] --> [Frontend]
+     src/prediction/   src/validation/     web/
+     Ridge priors +    LOPO CV +           Tract community
+     behavior adj +    backtest τ/δ        polygons only
+     Bayesian poll
 ```
 
 Components communicate through artifacts in `data/`:
@@ -66,7 +93,7 @@ data/
 
 An electoral type is a **latent archetype** discovered from how counties shift across elections. It is not a geographic region, not a demographic category, and not a political party proxy. It is a pattern of correlated electoral shifts -- counties that move similarly across multiple election pairs belong to the same type, even when geographically distant.
 
-Each county has a **soft membership vector** across J=20 types, computed as inverse-distance to KMeans centroids (row-normalized to sum to 1). A county is never "one thing." Types nest **hierarchically**: J=20 fine types group into 6-8 super-types via Ward HAC on centroids (no spatial constraint). Super-types are the public-facing "colors" of the stained glass map.
+Each tract (target architecture) or county (current production) has a **soft membership vector** across J=100 types, computed as temperature-scaled inverse-distance to KMeans centroids (T=10, row-normalized to sum to 1). A tract is never "one thing." Types nest **hierarchically**: J=100 fine types group into super-types via Ward HAC on demographic profiles (not centroids — centroids produce degenerate clustering at J=100). Super-types are the public-facing "colors" of the stained glass map.
 
 **Examples from the FL+GA+AL pilot:**
 - A cross-state rural type spans counties in AL, FL, and GA that share low density, older populations, and similar shift trajectories

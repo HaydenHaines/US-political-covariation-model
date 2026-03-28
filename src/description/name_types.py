@@ -865,7 +865,8 @@ def _compute_type_lean() -> dict[int, float]:
         shifts = pd.read_parquet(_SHIFTS_PATH)
         ta = pd.read_parquet(_TYPE_ASSIGNMENTS_PATH)
 
-        # Get presidential D-share shift columns
+        # DEBT: Uses old column naming convention (pres_d_shift_*). Update to
+        # pres_shift_YYYY_YYYY when tract-primary migration completes.
         pres_cols = [c for c in shifts.columns if c.startswith("pres_d_shift_")]
         if not pres_cols:
             return {}

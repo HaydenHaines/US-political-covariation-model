@@ -4,6 +4,7 @@ import DeckGL from "@deck.gl/react";
 import { WebMercatorViewport } from "@deck.gl/core";
 import { GeoJsonLayer } from "@deck.gl/layers";
 import { fetchCounties, fetchSuperTypes, fetchTypes, type CountyRow, type TypeSummary } from "@/lib/api";
+import { dustyInkChoropleth } from "@/lib/colors";
 import { useMapContext } from "@/components/MapContext";
 import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
@@ -70,29 +71,8 @@ const INITIAL_VIEW = {
   bearing: 0,
 };
 
-/** Partisan lean color scale: blue (D) → white (toss-up) → red (R). */
-function choroplethColor(demShare: number): [number, number, number, number] {
-  // Center at 0.5; map 0.3–0.7 to full color range (clip beyond that)
-  const t = Math.max(0, Math.min(1, (demShare - 0.3) / 0.4));
-  if (t >= 0.5) {
-    // 0.5→1.0: white→blue
-    const s = (t - 0.5) * 2;
-    return [
-      Math.round(255 * (1 - s * 0.75)),
-      Math.round(255 * (1 - s * 0.44)),
-      255,
-      200,
-    ];
-  }
-  // 0.0→0.5: red→white
-  const s = t * 2;
-  return [
-    255,
-    Math.round(255 * s),
-    Math.round(255 * s),
-    200,
-  ];
-}
+/** Partisan lean color scale: Dusty Ink muted academic palette. */
+const choroplethColor = dustyInkChoropleth;
 
 /** Extract all [lon, lat] pairs from a GeoJSON geometry. */
 function extractCoords(geometry: any): [number, number][] {

@@ -175,13 +175,16 @@ function stateFromRace(race: string): string | null {
   return null;
 }
 
-function buildChoropleth(rows: ForecastRow[]): Map<string, number> {
+function buildChoropleth(rows: ForecastRow[], stateFilter?: string): Map<string, number> {
   // Aggregate tract-level predictions to type_id for map coloring.
-  // The GeoJSON uses type_id (community polygons), not individual tract FIPS.
-  // Group by dominant_type, compute vote-weighted mean pred_dem_share.
+  // Filter to selected state so type colors reflect state-specific predictions,
+  // not national averages (a type's prediction varies by state due to poll updates).
+  const filtered = stateFilter
+    ? rows.filter((r) => r.state_abbr === stateFilter)
+    : rows;
   const typeSum = new Map<number, number>();
   const typeWeight = new Map<number, number>();
-  rows.forEach((r) => {
+  filtered.forEach((r) => {
     const typeId = (r as any).dominant_type;
     if (typeId !== undefined && typeId !== null && r.pred_dem_share !== null) {
       typeSum.set(typeId, (typeSum.get(typeId) ?? 0) + r.pred_dem_share);
@@ -279,7 +282,7 @@ export function ForecastView() {
         setStructuralRows(rows);
         setDisplayRows(rows);
         setPolls(pollRows);
-        setForecastChoropleth(buildChoropleth(rows));
+        setForecastChoropleth(buildChoropleth(rows, selectedState));
       })
       .finally(() => setLoading(false));
   }, [selectedRace]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -308,7 +311,7 @@ export function ForecastView() {
         setHasPollUpdate(false);
       }
       setDisplayRows(rows);
-      setForecastChoropleth(buildChoropleth(rows));
+      setForecastChoropleth(buildChoropleth(rows, selectedState));
     } finally {
       setLoading(false);
     }

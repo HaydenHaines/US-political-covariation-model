@@ -1,5 +1,9 @@
 "use client";
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect } from "react";
+
+export type LayoutMode = "content" | "dashboard";
+
+const LAYOUT_MODE_KEY = "wv-layout-mode";
 
 interface MapContextValue {
   selectedCommunityId: number | null;
@@ -17,6 +21,9 @@ interface MapContextValue {
   // Progressive map: zoomed-into state
   zoomedState: string | null;
   setZoomedState: (s: string | null) => void;
+  // Layout mode: content (split pane) or dashboard (full-viewport map)
+  layoutMode: LayoutMode;
+  setLayoutMode: (m: LayoutMode) => void;
 }
 
 const MapContext = createContext<MapContextValue>({
@@ -33,6 +40,8 @@ const MapContext = createContext<MapContextValue>({
   setForecastChoropleth: () => {},
   zoomedState: null,
   setZoomedState: () => {},
+  layoutMode: "content",
+  setLayoutMode: () => {},
 });
 
 export function MapProvider({ children }: { children: React.ReactNode }) {
@@ -42,6 +51,20 @@ export function MapProvider({ children }: { children: React.ReactNode }) {
   const [forecastState, setForecastState] = useState<string | null>(null);
   const [forecastChoropleth, setForecastChoropleth] = useState<Map<string, number> | null>(null);
   const [zoomedState, setZoomedState] = useState<string | null>(null);
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>("content");
+
+  // Hydrate layoutMode from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(LAYOUT_MODE_KEY);
+    if (stored === "content" || stored === "dashboard") {
+      setLayoutModeState(stored);
+    }
+  }, []);
+
+  const setLayoutMode = useCallback((mode: LayoutMode) => {
+    setLayoutModeState(mode);
+    localStorage.setItem(LAYOUT_MODE_KEY, mode);
+  }, []);
 
   const addToComparison = useCallback((id: number) => {
     setCompareTypeIds((prev) => {
@@ -59,6 +82,7 @@ export function MapProvider({ children }: { children: React.ReactNode }) {
       forecastState, setForecastState,
       forecastChoropleth, setForecastChoropleth,
       zoomedState, setZoomedState,
+      layoutMode, setLayoutMode,
     }}>
       {children}
     </MapContext.Provider>

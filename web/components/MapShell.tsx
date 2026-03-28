@@ -10,6 +10,7 @@ import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
 import { type TractFeatureProps } from "@/components/TractPanel";
 import { TractPopup, type TractPopupData } from "@/components/TractPopup";
+import { DashboardOverlay } from "@/components/DashboardOverlay";
 
 // ── Tooltip helpers ──────────────────────────────────────────────────────────
 
@@ -129,6 +130,7 @@ export default function MapShell() {
     selectedTypeId, setSelectedTypeId,
     forecastState, forecastChoropleth,
     zoomedState, setZoomedState,
+    layoutMode,
   } = useMapContext();
   const containerRef = useRef<HTMLDivElement>(null);
   const [viewState, setViewState] = useState<any>(INITIAL_VIEW);
@@ -644,6 +646,9 @@ export default function MapShell() {
           onClose={() => setTractPopup(null)}
         />
       )}
+
+      {/* Dashboard overlay panel — slides in from right when in dashboard mode */}
+      {layoutMode === "dashboard" && <DashboardOverlay />}
     </div>
   );
 }

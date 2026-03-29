@@ -529,10 +529,12 @@ export default function AccuracyPage() {
           2024). These limitations are documented, not hidden.
         </p>
         <p style={{ color: "var(--color-text-muted)", fontSize: "14px" }}>
-          The standard holdout r (0.698) is slightly higher than LOO (0.711) is
-          lower because the standard metric allows each county to predict its
-          own type mean. LOO excludes the county being predicted, which is the
-          correct evaluation. Both are reported for full transparency.
+          The LOO ensemble (0.711) outperforms the standard holdout (0.698)
+          because it uses 160 additional features beyond type scores. The basic
+          LOO type-mean baseline (0.448) is the honest structural-model-only
+          metric — the ensemble improvement from 0.448 to 0.711 comes from
+          demographic, economic, and social features. Both LOO and standard
+          holdout are reported for full transparency.
         </p>
       </Section>
 

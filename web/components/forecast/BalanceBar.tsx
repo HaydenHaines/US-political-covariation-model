@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SenateRaceData } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
   races: SenateRaceData[];
@@ -52,6 +53,18 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
 
   if (sorted.length === 0) return null;
 
+  // Summarize races by rating group for the mobile text summary
+  const ratingGroups = sorted.reduce<Record<string, SenateRaceData[]>>((acc, race) => {
+    const key = race.rating;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(race);
+    return acc;
+  }, {});
+
+  const tossups = ratingGroups["tossup"] ?? [];
+  const leanD = [...(ratingGroups["lean_d"] ?? []), ...(ratingGroups["likely_d"] ?? [])];
+  const leanR = [...(ratingGroups["lean_r"] ?? []), ...(ratingGroups["likely_r"] ?? [])];
+
   return (
     <TooltipProvider delay={100}>
       <div className="mb-6">
@@ -62,8 +75,35 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
           <span style={{ color: RATING_COLORS.safe_r }}>{gopSeats}R</span>
         </div>
 
-        {/* Stacked bar */}
-        <div className="flex h-8 rounded-md overflow-hidden border border-[rgb(var(--color-border))]">
+        {/* Mobile: text summary (<768px) */}
+        <div className="md:hidden space-y-1 text-sm py-2 px-3 rounded-md border border-[rgb(var(--color-border))] bg-[var(--color-surface)]">
+          {tossups.length > 0 && (
+            <p style={{ color: RATING_COLORS.tossup }}>
+              <span className="font-semibold">Tossup:</span>{" "}
+              {tossups.map((r) => r.state).join(", ")}
+            </p>
+          )}
+          {leanD.length > 0 && (
+            <p style={{ color: RATING_COLORS.lean_d }}>
+              <span className="font-semibold">Lean/Likely D:</span>{" "}
+              {leanD.map((r) => r.state).join(", ")}
+            </p>
+          )}
+          {leanR.length > 0 && (
+            <p style={{ color: RATING_COLORS.lean_r }}>
+              <span className="font-semibold">Lean/Likely R:</span>{" "}
+              {leanR.map((r) => r.state).join(", ")}
+            </p>
+          )}
+          {tossups.length === 0 && leanD.length === 0 && leanR.length === 0 && (
+            <p className="text-muted-foreground italic">No competitive races.</p>
+          )}
+        </div>
+
+        {/* Desktop: stacked bar (≥768px) */}
+        <div className={cn(
+          "hidden md:flex h-8 rounded-md overflow-hidden border border-[rgb(var(--color-border))]",
+        )}>
           {sorted.map((race) => (
             <Tooltip key={race.slug}>
               <TooltipTrigger
@@ -95,8 +135,8 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
           ))}
         </div>
 
-        {/* 50-seat midline indicator */}
-        <div className="relative h-0">
+        {/* 50-seat midline indicator (desktop only) */}
+        <div className="relative h-0 hidden md:block">
           <div
             className="absolute top-[-32px] h-8 w-px bg-foreground opacity-30"
             style={{ left: "50%" }}

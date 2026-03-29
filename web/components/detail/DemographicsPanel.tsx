@@ -4,6 +4,8 @@
  * Iterates Object.entries(demographics), looks up each field in getFieldConfig,
  * groups by section via groupFieldsBySection, and formats values with formatField.
  * New model features auto-display without code changes.
+ *
+ * Mobile (<768px): single column layout. Desktop (≥768px): two columns.
  */
 
 import { groupFieldsBySection } from "@/lib/config/display";
@@ -42,13 +44,8 @@ export function DemographicsPanel({ demographics }: DemographicsPanelProps) {
           >
             {label}
           </h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "4px 24px",
-            }}
-          >
+          {/* Single column on mobile, two columns on desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0">
             {fields.map(({ key, config }) => {
               const value = demographics[key];
               return (

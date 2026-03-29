@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useRef } from "react";
 import { scaleLinear } from "@visx/scale";
 import { AxisBottom, AxisLeft } from "@visx/axis";
 import { Group } from "@visx/group";
 import { useTooltip, TooltipWithBounds } from "@visx/tooltip";
+import { SlidersHorizontal, X } from "lucide-react";
 import { useTypeScatter } from "@/lib/hooks/use-type-scatter";
 import { getFieldConfig } from "@/lib/config/display";
 import { getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
@@ -71,16 +72,42 @@ interface ScatterPlotProps {
 /**
  * Interactive scatter plot for the types explorer.
  *
- * X and Y axes are user-selectable from a dropdown of demographic fields.
+ * X and Y axes are user-selectable from dropdowns.
+ * Desktop (≥768px): dropdowns inline above the chart.
+ * Mobile (<768px): dropdowns in a bottom sheet triggered by a floating button.
  * Dots are colored by super-type, sized by county count, with hover tooltips.
  */
 export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
   const { data: points, isLoading } = useTypeScatter();
   const [xField, setXField] = useState("pct_white_nh");
   const [yField, setYField] = useState("mean_pred_dem_share");
+  const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
   const { tooltipData, tooltipLeft, tooltipTop, showTooltip, hideTooltip } =
     useTooltip<TooltipData>();
+
+  // Long-press timer ref for touch-based tooltip activation (≥400ms hold)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTouchStart = useCallback(
+    (d: { p: TypeScatterPoint; xv: number; yv: number }, svgX: number, svgY: number) => {
+      longPressTimer.current = setTimeout(() => {
+        showTooltip({
+          tooltipData: { point: d.p, x: d.xv, y: d.yv },
+          tooltipLeft: svgX + MARGIN.left,
+          tooltipTop: svgY + MARGIN.top,
+        });
+      }, 400);
+    },
+    [showTooltip],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressTimer.current !== null) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
 
   const innerWidth = width - MARGIN.left - MARGIN.right;
   const innerHeight = height - MARGIN.top - MARGIN.bottom;
@@ -157,8 +184,8 @@ export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
 
   return (
     <div>
-      {/* Axis selection dropdowns */}
-      <div className="flex flex-wrap gap-4 mb-4 items-center text-sm">
+      {/* Desktop: axis selection dropdowns (≥768px) */}
+      <div className="hidden md:flex flex-wrap gap-4 mb-4 items-center text-sm">
         <label className="flex items-center gap-2">
           <span style={{ color: "var(--color-text-muted)" }}>X axis:</span>
           <select
@@ -199,6 +226,122 @@ export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
           </select>
         </label>
       </div>
+
+      {/* Mobile: current axis labels + button to open bottom sheet (<768px) */}
+      <div className="flex md:hidden items-center justify-between mb-3 text-sm">
+        <span style={{ color: "var(--color-text-muted)" }}>
+          X: <strong>{xLabel}</strong> · Y: <strong>{yLabel}</strong>
+        </span>
+        <button
+          onClick={() => setBottomSheetOpen(true)}
+          className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm min-h-[44px]"
+          style={{
+            borderColor: "var(--color-border)",
+            background: "var(--color-surface)",
+            color: "var(--color-text)",
+          }}
+          aria-label="Change chart axes"
+        >
+          <SlidersHorizontal size={14} aria-hidden />
+          Axes
+        </button>
+      </div>
+
+      {/* Mobile: bottom sheet overlay */}
+      {bottomSheetOpen && (
+        <div
+          className="fixed inset-0 z-50 md:hidden"
+          onClick={() => setBottomSheetOpen(false)}
+          aria-modal="true"
+          role="dialog"
+          aria-label="Axis selectors"
+        >
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/40" />
+
+          {/* Sheet */}
+          <div
+            className="absolute bottom-0 left-0 right-0 rounded-t-2xl p-6 space-y-5"
+            style={{
+              background: "var(--color-surface)",
+              boxShadow: "0 -4px 24px rgba(0,0,0,0.15)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="mx-auto w-10 h-1 rounded-full bg-[var(--color-border)]" />
+
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-base" style={{ color: "var(--color-text)" }}>
+                Chart Axes
+              </h3>
+              <button
+                onClick={() => setBottomSheetOpen(false)}
+                className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md"
+                style={{ color: "var(--color-text-muted)" }}
+                aria-label="Close axis selector"
+              >
+                <X size={18} aria-hidden />
+              </button>
+            </div>
+
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+                X axis
+              </span>
+              <select
+                value={xField}
+                onChange={(e) => setXField(e.target.value)}
+                className="block w-full rounded border px-3 py-2.5 text-sm min-h-[44px]"
+                style={{
+                  borderColor: "var(--color-border)",
+                  background: "var(--color-bg)",
+                  color: "var(--color-text)",
+                }}
+              >
+                {AXIS_FIELDS.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--color-text-muted)" }}>
+                Y axis
+              </span>
+              <select
+                value={yField}
+                onChange={(e) => setYField(e.target.value)}
+                className="block w-full rounded border px-3 py-2.5 text-sm min-h-[44px]"
+                style={{
+                  borderColor: "var(--color-border)",
+                  background: "var(--color-bg)",
+                  color: "var(--color-text)",
+                }}
+              >
+                {AXIS_FIELDS.map((f) => (
+                  <option key={f.key} value={f.key}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button
+              onClick={() => setBottomSheetOpen(false)}
+              className="w-full rounded-md py-3 text-sm font-semibold min-h-[44px]"
+              style={{
+                background: "var(--color-text)",
+                color: "var(--color-bg)",
+              }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* SVG plot */}
       <div style={{ position: "relative" }}>
@@ -254,6 +397,9 @@ export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
                     style={{ cursor: "pointer", transition: "r 0.1s" }}
                     onMouseEnter={() => handleMouseEnter({ p, xv, yv }, cx, cy)}
                     onMouseLeave={hideTooltip}
+                    onTouchStart={() => handleTouchStart({ p, xv, yv }, cx, cy)}
+                    onTouchEnd={handleTouchEnd}
+                    onTouchMove={handleTouchEnd}
                   />
                 );
               })}

@@ -525,11 +525,13 @@ export function ComparisonTable() {
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    padding: "2px",
+                    padding: "6px",
                     color: "var(--color-text-muted)",
                     flexShrink: 0,
                     display: "flex",
                     alignItems: "center",
+                    minWidth: 32,
+                    minHeight: 32,
                   }}
                 >
                   <X size={13} />
@@ -719,136 +721,149 @@ export function ComparisonTable() {
 
       {/* Comparison table */}
       {hasAnyDetail && tableRows.length > 0 && (
-        <div
-          style={{
-            overflowX: "auto",
-            border: "1px solid var(--color-border)",
-            borderRadius: 8,
-          }}
-        >
-          <table
+        <>
+          {/* Mobile notice: only showing first 2 types */}
+          {selectedIds.length > 2 && (
+            <p
+              className="md:hidden text-xs mb-2"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Showing 2 of {selectedIds.length} types. View on a wider screen to compare all.
+            </p>
+          )}
+
+          <div
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              tableLayout: "fixed",
-              fontSize: 13,
+              overflowX: "auto",
+              border: "1px solid var(--color-border)",
+              borderRadius: 8,
             }}
           >
-            <colgroup>
-              {/* Field name column */}
-              <col style={{ width: "180px" }} />
-              {/* Type value columns — equal width, min 140px each */}
-              {selectedIds.map((id) => (
-                <col key={id} style={{ minWidth: "140px" }} />
-              ))}
-            </colgroup>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                tableLayout: "fixed",
+                fontSize: 13,
+              }}
+            >
+              <colgroup>
+                {/* Field name column */}
+                <col style={{ width: "180px" }} />
+                {/* Type value columns — equal width, min 140px each.
+                    On mobile (<768px), hide columns beyond the first 2 types. */}
+                {selectedIds.map((id, colIdx) => (
+                  <col
+                    key={id}
+                    className={colIdx >= 2 ? "max-md:hidden" : undefined}
+                    style={{ minWidth: "140px" }}
+                  />
+                ))}
+              </colgroup>
 
-            <thead>
-              {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id}>
-                  {hg.headers.map((header, i) => (
-                    <th
-                      key={header.id}
-                      style={{
-                        padding: i === 0 ? "12px 16px 12px 16px" : "12px 12px",
-                        textAlign: i === 0 ? "left" : "left",
-                        fontWeight: 600,
-                        borderBottom: "2px solid var(--color-border)",
-                        background: "var(--color-surface)",
-                        verticalAlign: "bottom",
-                        position: "sticky",
-                        top: 0,
-                        zIndex: 1,
-                      }}
-                    >
-                      {flexRender(
-                        header.column.columnDef.header,
-                        header.getContext(),
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
-            </thead>
-
-            <tbody>
-              {table.getRowModel().rows.map((row, rowIdx) => {
-                const isSectionRow = row.original.isSectionHeader;
-                return (
-                  <tr
-                    key={row.id}
-                    style={{
-                      background: isSectionRow
-                        ? "var(--color-surface)"
-                        : rowIdx % 2 === 0
-                        ? "transparent"
-                        : "rgba(0,0,0,0.015)",
-                      borderTop: isSectionRow
-                        ? "1px solid var(--color-border)"
-                        : undefined,
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell, cellIdx) => {
-                      const isSectionCell =
-                        isSectionRow && cellIdx === 0;
-                      const isFieldLabel = !isSectionRow && cellIdx === 0;
-
-                      if (isSectionRow && cellIdx > 0) {
-                        // Empty cells on section header row (non-label columns)
-                        return (
-                          <td
-                            key={cell.id}
-                            style={{
-                              padding: "10px 12px 4px",
-                              background: "var(--color-surface)",
-                            }}
-                          />
-                        );
-                      }
-
+              <thead>
+                {table.getHeaderGroups().map((hg) => (
+                  <tr key={hg.id}>
+                    {hg.headers.map((header, i) => {
+                      // Column index 0 = field label, 1+ = type columns (1-indexed → typeColIdx = i-1)
+                      const typeColIdx = i - 1;
+                      const hiddenOnMobile = i > 0 && typeColIdx >= 2;
                       return (
-                        <td
-                          key={cell.id}
+                        <th
+                          key={header.id}
+                          className={hiddenOnMobile ? "max-md:hidden" : undefined}
                           style={{
-                            padding: isSectionCell
-                              ? "10px 16px 4px"
-                              : isFieldLabel
-                              ? "8px 16px"
-                              : "8px 12px",
-                            verticalAlign: "middle",
-                            color: isFieldLabel
-                              ? "var(--color-text-muted)"
-                              : "var(--color-text)",
-                            borderBottom: "1px solid var(--color-border)",
+                            padding: i === 0 ? "12px 16px 12px 16px" : "12px 12px",
+                            textAlign: i === 0 ? "left" : "left",
+                            fontWeight: 600,
+                            borderBottom: "2px solid var(--color-border)",
+                            background: "var(--color-surface)",
+                            verticalAlign: "bottom",
+                            position: "sticky",
+                            top: 0,
+                            zIndex: 1,
                           }}
                         >
                           {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext(),
+                            header.column.columnDef.header,
+                            header.getContext(),
                           )}
-                        </td>
+                        </th>
                       );
                     })}
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                ))}
+              </thead>
 
-      {/* Mobile hint */}
-      {hasAnyDetail && selectedIds.length > 2 && (
-        <p
-          className="sm:hidden"
-          style={{
-            fontSize: 12,
-            color: "var(--color-text-muted)",
-            marginTop: 8,
-          }}
-        >
-          Scroll horizontally to see all types.
-        </p>
+              <tbody>
+                {table.getRowModel().rows.map((row, rowIdx) => {
+                  const isSectionRow = row.original.isSectionHeader;
+                  return (
+                    <tr
+                      key={row.id}
+                      style={{
+                        background: isSectionRow
+                          ? "var(--color-surface)"
+                          : rowIdx % 2 === 0
+                          ? "transparent"
+                          : "rgba(0,0,0,0.015)",
+                        borderTop: isSectionRow
+                          ? "1px solid var(--color-border)"
+                          : undefined,
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell, cellIdx) => {
+                        const isSectionCell = isSectionRow && cellIdx === 0;
+                        const isFieldLabel = !isSectionRow && cellIdx === 0;
+                        // cellIdx 0 = field label, 1+ = type columns
+                        const typeColIdx = cellIdx - 1;
+                        const hiddenOnMobile = cellIdx > 0 && typeColIdx >= 2;
+
+                        if (isSectionRow && cellIdx > 0) {
+                          // Empty cells on section header row (non-label columns)
+                          return (
+                            <td
+                              key={cell.id}
+                              className={hiddenOnMobile ? "max-md:hidden" : undefined}
+                              style={{
+                                padding: "10px 12px 4px",
+                                background: "var(--color-surface)",
+                              }}
+                            />
+                          );
+                        }
+
+                        return (
+                          <td
+                            key={cell.id}
+                            className={hiddenOnMobile ? "max-md:hidden" : undefined}
+                            style={{
+                              padding: isSectionCell
+                                ? "10px 16px 4px"
+                                : isFieldLabel
+                                ? "8px 16px"
+                                : "8px 12px",
+                              verticalAlign: "middle",
+                              color: isFieldLabel
+                                ? "var(--color-text-muted)"
+                                : "var(--color-text)",
+                              borderBottom: "1px solid var(--color-border)",
+                            }}
+                          >
+                            {flexRender(
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

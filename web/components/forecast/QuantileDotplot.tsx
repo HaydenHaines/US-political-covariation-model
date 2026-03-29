@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Group } from "@visx/group";
 import { scaleLinear } from "@visx/scale";
+import { useMediaQuery } from "@/lib/hooks/use-media-query";
 
 // Normal distribution quantile (probit) via rational approximation.
 // Accurate to ~1e-5 for p in (0.0001, 0.9999).
@@ -68,8 +69,9 @@ const DOT_RADIUS = 5;
 const COLS = 20;
 
 /**
- * Quantile dotplot showing 100 scenarios from the model's predicted distribution.
+ * Quantile dotplot showing model-predicted outcome distribution.
  *
+ * Desktop (≥768px): 100 dots. Mobile (<768px): 50 dots to reduce visual density.
  * Each dot is one scenario (percentile); blue = Democrat wins (>0.5),
  * red = Republican wins (<0.5).
  */
@@ -80,20 +82,23 @@ export function QuantileDotplot({
   width = 400,
   height = 160,
 }: QuantileDotplotProps) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  // Reduce dot count on mobile to keep chart readable at smaller widths
+  const effectiveNDots = isMobile ? Math.min(nDots, 50) : nDots;
   const std = predStd ?? 0.08;
 
   const { quantiles, nDemWins } = useMemo(() => {
     const vals: number[] = [];
-    for (let i = 1; i <= nDots; i++) {
-      const p = i / (nDots + 1);
+    for (let i = 1; i <= effectiveNDots; i++) {
+      const p = i / (effectiveNDots + 1);
       vals.push(predDemShare + std * normalQuantile(p));
     }
     const nDem = vals.filter((v) => v > 0.5).length;
     return { quantiles: vals, nDemWins: nDem };
-  }, [predDemShare, std, nDots]);
+  }, [predDemShare, std, effectiveNDots]);
 
   // Layout: COLS columns, stacking rows from bottom up
-  const rows = Math.ceil(nDots / COLS);
+  const rows = Math.ceil(effectiveNDots / COLS);
   const padding = { top: 12, right: 12, bottom: 12, left: 12 };
   const dotSpacingX = (width - padding.left - padding.right) / COLS;
   const dotSpacingY = (height - padding.top - padding.bottom) / rows;
@@ -111,7 +116,7 @@ export function QuantileDotplot({
       <svg
         width={width}
         height={height}
-        aria-label={`Quantile dotplot: Democrat wins in ${nDemWins} of ${nDots} scenarios`}
+        aria-label={`Quantile dotplot: Democrat wins in ${nDemWins} of ${effectiveNDots} scenarios`}
         role="img"
       >
         <Group>
@@ -139,9 +144,9 @@ export function QuantileDotplot({
       {/* Caption */}
       <p className="text-sm text-muted-foreground mt-2">
         In{" "}
-        <strong style={{ color: DEM_COLOR }}>{nDemWins}</strong> of {nDots} scenarios,
+        <strong style={{ color: DEM_COLOR }}>{nDemWins}</strong> of {effectiveNDots} scenarios,
         the Democrat wins. In{" "}
-        <strong style={{ color: GOP_COLOR }}>{nDots - nDemWins}</strong>, the Republican wins.
+        <strong style={{ color: GOP_COLOR }}>{effectiveNDots - nDemWins}</strong>, the Republican wins.
       </p>
     </div>
   );

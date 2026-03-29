@@ -133,35 +133,33 @@ def get_senate_overview(
     _has_mode = "forecast_mode" in [
         row[0] for row in db.execute("DESCRIBE predictions").fetchall()
     ]
-    _mode_filter = "AND p.forecast_mode = 'national'" if _has_mode else ""
+    _mode_filter = "AND p.forecast_mode = 'local'" if _has_mode else ""
 
-    # Vote-weighted state prediction for all senate races at once,
-    # matching the same SQL used in forecast.py race detail endpoint.
-    senate_preds = db.execute(
-        f"""
-        SELECT
-            p.race,
-            c.state_abbr,
-            CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                 THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                      / SUM(COALESCE(c.total_votes_2024, 0))
-                 ELSE AVG(p.pred_dem_share)
-            END AS state_pred,
-            COUNT(*) AS n_counties
-        FROM predictions p
-        JOIN counties c ON p.county_fips = c.county_fips
-        WHERE p.version_id = ?
-          AND LOWER(p.race) LIKE '%senate%'
-          {_mode_filter}
-        GROUP BY p.race, c.state_abbr
-        """,
-        [version_id],
-    ).fetchall()
-
-    # Build lookup: race -> (state_abbr, state_pred)
+    # Vote-weighted state prediction per senate race.
+    # Each race is filtered to only include counties IN that state,
+    # matching the same SQL approach used in forecast.py race detail.
     pred_by_race: dict[str, tuple[str, float]] = {}
-    for race_str, state_abbr, state_pred, _n in senate_preds:
-        pred_by_race[race_str] = (state_abbr, float(state_pred))
+    for st in sorted(SENATE_2026_STATES):
+        race = f"2026 {st} Senate"
+        row = db.execute(
+            f"""
+            SELECT
+                CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
+                     THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
+                          / SUM(COALESCE(c.total_votes_2024, 0))
+                     ELSE AVG(p.pred_dem_share)
+                END AS state_pred
+            FROM predictions p
+            JOIN counties c ON p.county_fips = c.county_fips
+            WHERE p.version_id = ?
+              AND p.race = ?
+              AND c.state_abbr = ?
+              {_mode_filter}
+            """,
+            [version_id, race, st],
+        ).fetchone()
+        if row and row[0] is not None:
+            pred_by_race[race] = (st, float(row[0]))
 
     # Fetch poll counts per senate race
     try:

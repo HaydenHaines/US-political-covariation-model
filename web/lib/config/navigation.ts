@@ -20,8 +20,7 @@ export interface NavItem {
 /** Primary navigation items shown in the site header. */
 export const MAIN_NAV: NavItem[] = [
   { label: "Forecast",    href: "/forecast" },
-  { label: "Types",       href: "/types" },
-  { label: "Map",         href: "/" },
+  { label: "Explore",     href: "/types" },
   { label: "Methodology", href: "/methodology" },
 ];
 

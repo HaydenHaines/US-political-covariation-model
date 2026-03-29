@@ -6,6 +6,7 @@ import { RaceTicker } from "@/components/landing/RaceTicker";
 import { EntryPoints } from "@/components/landing/EntryPoints";
 import { FreshnessStamp } from "@/components/shared/FreshnessStamp";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
+import { BalanceBar } from "@/components/forecast/BalanceBar";
 
 export default function LandingPage() {
   const { data, error, isLoading, mutate } = useSenateOverview();
@@ -25,6 +26,17 @@ export default function LandingPage() {
       )}
 
       <HeroSection data={data} isLoading={isLoading} />
+
+      {data && (
+        <div className="max-w-4xl mx-auto px-4">
+          <BalanceBar
+            races={data.races}
+            demSeats={data.dem_seats_safe}
+            gopSeats={data.gop_seats_safe}
+          />
+        </div>
+      )}
+
       <RaceTicker races={data?.races} isLoading={isLoading} />
       <EntryPoints />
 

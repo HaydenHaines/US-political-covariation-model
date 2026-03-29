@@ -28,7 +28,7 @@ export function RaceTicker({ races, isLoading }: RaceTickerProps) {
         >
           Closest Races
         </h2>
-        <div className="flex gap-3 overflow-x-auto px-4 pb-2">
+        <div className="flex flex-wrap justify-center gap-3 px-4 pb-2">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-20 w-32 shrink-0 rounded-lg" />
           ))}
@@ -53,7 +53,7 @@ export function RaceTicker({ races, isLoading }: RaceTickerProps) {
         Closest Races
       </h2>
 
-      <div className="flex gap-3 overflow-x-auto px-4 pb-2">
+      <div className="flex flex-wrap justify-center gap-3 px-4 pb-2">
         {sorted.map((race) => (
           <Link
             key={race.slug}

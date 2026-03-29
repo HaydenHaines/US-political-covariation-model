@@ -19,6 +19,15 @@ const QuantileDotplot = dynamic(
   },
 );
 
+// Weight sliders — client-only interactivity, no SSR needed
+const SectionWeightSliders = dynamic(
+  () =>
+    import("@/components/forecast/SectionWeightSliders").then(
+      (m) => m.SectionWeightSliders,
+    ),
+  { ssr: false },
+);
+
 // Revalidate every 5 minutes — polls and forecast data update periodically
 export const revalidate = 300;
 
@@ -292,6 +301,29 @@ export default async function RaceDetailPage({ params }: PageProps) {
           <TypesBreakdown types={data.type_breakdown} stateName={stateName} />
         </section>
       )}
+
+      {/* Forecast blend controls */}
+      <section className="mb-10">
+        <h2 className="font-serif text-xl mb-4" style={{ fontFamily: "var(--font-serif)" }}>
+          Forecast Blend
+        </h2>
+        <p className="text-sm mb-3" style={{ color: "var(--color-text-muted)" }}>
+          Adjust how the forecast weights the structural model prior against available polling data.
+          {data.state_pred_local !== null && data.state_pred_local !== undefined && (
+            <> State-level model prior: <span className="font-mono">{((data.state_pred_local) * 100).toFixed(1)}% D</span>.</>
+          )}
+          {data.state_pred_national !== null && data.state_pred_national !== undefined && (
+            <> National-adjusted: <span className="font-mono">{((data.state_pred_national) * 100).toFixed(1)}% D</span>.</>
+          )}
+        </p>
+        <SectionWeightSliders
+          initial={{
+            model_prior: nPolls === 0 ? 80 : 60,
+            state_polls: nPolls === 0 ? 15 : 30,
+            national_polls: nPolls === 0 ? 5 : 10,
+          }}
+        />
+      </section>
 
       {/* Model notes */}
       <section

@@ -1,5 +1,18 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { ComparisonTable } from "@/components/explore/ComparisonTable";
+import { Skeleton } from "@/components/ui/skeleton";
+
+// visx is a large bundle — load it dynamically to keep the initial JS payload small
+const ScatterPlot = dynamic(
+  () => import("@/components/explore/ScatterPlot").then((m) => m.ScatterPlot),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-[420px]" />,
+  },
+);
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -243,6 +256,70 @@ export default async function TypesPage() {
           </p>
         </div>
       )}
+
+      {/* Scatter plot — explore types by demographic axes */}
+      <section style={{ marginBottom: 56 }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 22,
+            fontWeight: 700,
+            margin: "0 0 16px",
+          }}
+        >
+          Explore by Demographics
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--color-text-muted)",
+            margin: "0 0 20px",
+            lineHeight: 1.6,
+          }}
+        >
+          Each dot is one electoral type. Select axes to compare demographic
+          characteristics across types. Hover a dot for details.
+        </p>
+        <div
+          style={{
+            border: "1px solid var(--color-border)",
+            borderRadius: 8,
+            padding: "24px",
+            background: "var(--color-surface)",
+            overflowX: "auto",
+          }}
+        >
+          <ScatterPlot width={700} height={420} />
+        </div>
+      </section>
+
+      {/* Comparison table — side-by-side type comparison */}
+      <section style={{ marginBottom: 56 }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 22,
+            fontWeight: 700,
+            margin: "0 0 8px",
+          }}
+        >
+          Compare Types
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--color-text-muted)",
+            margin: "0 0 20px",
+            lineHeight: 1.6,
+          }}
+        >
+          Select up to 4 types to compare their demographic and political
+          profiles side-by-side. The comparison URL is shareable.
+        </p>
+        <Suspense fallback={null}>
+          <ComparisonTable />
+        </Suspense>
+      </section>
 
       {/* Types grouped by super-type */}
       {superTypeIds.map((superTypeId) => {

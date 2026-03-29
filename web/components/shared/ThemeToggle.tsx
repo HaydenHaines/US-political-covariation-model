@@ -28,6 +28,13 @@ export function ThemeToggle() {
     setTheme(next);
     localStorage.setItem("wethervane-theme", next);
     document.documentElement.setAttribute("data-theme", next);
+
+    // Sync .dark class for shadcn components
+    const shouldBeDark =
+      next === "dark" ||
+      (next === "system" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    document.documentElement.classList.toggle("dark", shouldBeDark);
   }
 
   return (

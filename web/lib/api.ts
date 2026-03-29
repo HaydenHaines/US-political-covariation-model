@@ -87,6 +87,12 @@ export async function fetchCounties(): Promise<CountyRow[]> {
   return res.json();
 }
 
+export async function fetchCountyDetail(fips: string): Promise<import("@/lib/types").CountyDetail> {
+  const res = await fetch(`${API_BASE}/counties/${fips}`);
+  if (!res.ok) throw new Error(`/counties/${fips} failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchForecast(race?: string, state?: string): Promise<ForecastRow[]> {
   const params = new URLSearchParams();
   if (race) params.set("race", race);

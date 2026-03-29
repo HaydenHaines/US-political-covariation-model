@@ -1,4 +1,3 @@
-import { timeAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 interface FreshnessStampProps {
@@ -7,11 +6,17 @@ interface FreshnessStampProps {
   className?: string;
 }
 
+/** Format a date as "Mar 23, 2026" — absolute dates age better than relative ones. */
+function formatAbsoluteDate(date: string | Date): string {
+  const d = typeof date === "string" ? new Date(date) : date;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 export function FreshnessStamp({ updatedAt, pollCount, className }: FreshnessStampProps) {
   const parts: string[] = [];
 
   if (updatedAt) {
-    parts.push(`Updated ${timeAgo(updatedAt)}`);
+    parts.push(`Updated ${formatAbsoluteDate(updatedAt)}`);
   }
 
   if (pollCount !== undefined) {

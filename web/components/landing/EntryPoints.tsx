@@ -22,7 +22,7 @@ const ENTRY_POINTS: EntryPoint[] = [
   {
     title: "Explore electoral types \u2192",
     description:
-      "Discover the 100 community types that drive American elections.",
+      "Discover the community types that drive American elections.",
     href: "/types",
   },
   {

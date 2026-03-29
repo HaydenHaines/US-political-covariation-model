@@ -289,7 +289,17 @@ export default async function RaceDetailPage({ params }: PageProps) {
             </span>
           )}
         </h2>
-        <PollTable polls={data.polls} />
+        {nPolls === 0 ? (
+          <p
+            className="text-sm italic"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            This forecast is based on the structural model prior — no race-specific polls have been
+            incorporated yet.
+          </p>
+        ) : (
+          <PollTable polls={data.polls} />
+        )}
       </section>
 
       {/* Electoral types breakdown */}

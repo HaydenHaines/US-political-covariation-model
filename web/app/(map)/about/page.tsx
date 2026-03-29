@@ -200,7 +200,7 @@ export default async function AboutPage() {
         }}
       >
         <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "0 0 6px" }}>
-          Targeting 2026 midterms. Currently tracking 18 races.
+          Targeting 2026 midterms. Currently tracking 33 Senate races.
         </p>
         <p style={{ fontSize: "13px", color: "var(--color-text-muted)", margin: "0" }}>
           Built by Hayden Haines. Inspired by The Economist&apos;s 2020

@@ -86,7 +86,11 @@ const FIELD_CONFIG: Record<string, FieldConfig> = {
   pop_per_sq_mi:          { label: "Population density", format: "number",  section: "geography", order: 3 },
 
   // -- Political --
-  mean_dem_share:         { label: "Mean Dem share",       format: "margin",  section: "political", order: 0 },
+  // mean_dem_share is the historical average Dem vote share (0-1 fraction).
+  // Formatted as a percentage rather than a partisan margin to avoid showing
+  // "EVEN" for types that are historically near 50/50 (which implies a model
+  // rating rather than a raw historical average).
+  mean_dem_share:         { label: "Mean Dem share",       format: "percent", section: "political", order: 0 },
   pred_dem_share:         { label: "Predicted Dem share",  format: "margin",  section: "political", order: 1 },
   mean_pred_dem_share:    { label: "Mean predicted Dem share", format: "margin", section: "political", order: 2 },
 };

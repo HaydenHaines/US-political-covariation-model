@@ -769,7 +769,7 @@ export function MethodologyContent() {
             <p>
               WetherVane is in active development, targeting the{" "}
               <strong>2026 midterm elections</strong>. The model currently covers
-              all 50 states and DC, tracking 18 competitive races.
+              all 50 states and DC, tracking 33 Senate races.
             </p>
             <p className="mt-3">
               The poll scraper runs weekly, ingesting new polls and updating race
@@ -791,7 +791,7 @@ export function MethodologyContent() {
                 { label: "Counties", value: "3,154" },
                 { label: "Electoral types", value: "100" },
                 { label: "Super-types", value: "5" },
-                { label: "Races tracked", value: "18" },
+                { label: "Races tracked", value: "33" },
               ].map((stat) => (
                 <div
                   key={stat.label}

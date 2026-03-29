@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { GlobalNav } from "@/components/nav/GlobalNav";
-import { Footer } from "@/components/nav/Footer";
+import { SiteChrome } from "@/components/nav/SiteChrome";
 import "./globals.css";
 
 export const viewport: Viewport = {
@@ -54,14 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="flex min-h-screen flex-col">
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
-        <GlobalNav />
-        <main id="main-content" className="flex-1">
-          {children}
-        </main>
-        <Footer />
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

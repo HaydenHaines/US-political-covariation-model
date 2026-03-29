@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { MethodologyContent } from "@/components/MethodologyContent";
+import { MethodologyContent } from "@/components/methodology/MethodologyContent";
 
 // ── Metadata ──────────────────────────────────────────────────────────────
 

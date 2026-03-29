@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 
 import duckdb
-import numpy as np
 import pandas as pd
 from fastapi import APIRouter, Depends, Request
 
@@ -116,21 +115,12 @@ def get_senate_overview(
 ) -> dict:
     """Return the national Senate forecast summary for the landing page.
 
-    Uses tract-level type priors + behavior layer adjustment for off-cycle
-    races. Produces vote-weighted state predictions per Senate race.
+    Reads vote-weighted state predictions from the predictions table — the
+    same source used by the race detail endpoint in forecast.py — so that
+    overview and detail pages always agree.
     """
-    # Load type model data from app.state
-    type_scores = getattr(request.app.state, "type_scores", None)
-    type_covariance = getattr(request.app.state, "type_covariance", None)
-    type_priors = getattr(request.app.state, "type_priors", None)
-    ridge_priors = getattr(request.app.state, "ridge_priors", {})
-    tract_fips = getattr(request.app.state, "type_county_fips", [])
-    tract_states_map = getattr(request.app.state, "tract_states", {})
-    tract_votes_map = getattr(request.app.state, "tract_votes", {})
-    behavior_tau = getattr(request.app.state, "behavior_tau", None)
-    behavior_delta = getattr(request.app.state, "behavior_delta", None)
-
-    if type_scores is None or not tract_fips:
+    version_id = getattr(request.app.state, "version_id", None)
+    if not version_id:
         return {
             "headline": "No Senate Forecasts Available",
             "subtitle": "predictions not yet loaded",
@@ -139,106 +129,68 @@ def get_senate_overview(
             "races": [],
         }
 
-    # Fetch all senate polls grouped by race
+    # Check if forecast_mode column exists (backward compat)
+    _has_mode = "forecast_mode" in [
+        row[0] for row in db.execute("DESCRIBE predictions").fetchall()
+    ]
+    _mode_filter = "AND p.forecast_mode = 'national'" if _has_mode else ""
+
+    # Vote-weighted state prediction for all senate races at once,
+    # matching the same SQL used in forecast.py race detail endpoint.
+    senate_preds = db.execute(
+        f"""
+        SELECT
+            p.race,
+            c.state_abbr,
+            CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
+                 THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
+                      / SUM(COALESCE(c.total_votes_2024, 0))
+                 ELSE AVG(p.pred_dem_share)
+            END AS state_pred,
+            COUNT(*) AS n_counties
+        FROM predictions p
+        JOIN counties c ON p.county_fips = c.county_fips
+        WHERE p.version_id = ?
+          AND LOWER(p.race) LIKE '%senate%'
+          {_mode_filter}
+        GROUP BY p.race, c.state_abbr
+        """,
+        [version_id],
+    ).fetchall()
+
+    # Build lookup: race -> (state_abbr, state_pred)
+    pred_by_race: dict[str, tuple[str, float]] = {}
+    for race_str, state_abbr, state_pred, _n in senate_preds:
+        pred_by_race[race_str] = (state_abbr, float(state_pred))
+
+    # Fetch poll counts per senate race
     try:
         polls_df = db.execute(
             """
-            SELECT race, geography AS state_abbr, dem_share, n_sample
+            SELECT race, COUNT(*) AS n_polls
             FROM polls
             WHERE LOWER(race) LIKE '%senate%'
+            GROUP BY race
             """
         ).fetchdf()
     except Exception:
         polls_df = pd.DataFrame()
 
-    polls_by_race: dict[str, list[tuple[float, int, str]]] = {}
+    poll_counts: dict[str, int] = {}
     for _, row in polls_df.iterrows():
-        race_key = str(row["race"])
-        polls_by_race.setdefault(race_key, []).append(
-            (float(row["dem_share"]), int(row["n_sample"]), str(row["state_abbr"]))
-        )
-
-    # Build tract-level arrays (shared across all races)
-    states_list = [tract_states_map.get(f, f[:2]) for f in tract_fips]
-    county_names = [f"Tract {f}" for f in tract_fips]
-    county_priors = np.array([ridge_priors.get(f, 0.45) for f in tract_fips])
-
-    # Apply behavior adjustment for off-cycle (Senate = off-cycle)
-    if (behavior_tau is not None and behavior_delta is not None
-            and type_scores.shape[1] == len(behavior_tau)):
-        from src.behavior.voter_behavior import apply_behavior_adjustment
-        county_priors = apply_behavior_adjustment(
-            county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True
-        )
-
-    # Precompute vote-weighted state priors for races without polls
-    state_prior_preds: dict[str, float] = {}
-    state_accum: dict[str, tuple[float, float]] = {}  # {st: (weighted_sum, total_votes)}
-    for i, fips in enumerate(tract_fips):
-        st = tract_states_map.get(fips)
-        if not st:
-            continue
-        votes = tract_votes_map.get(fips, 0)
-        ws, tv = state_accum.get(st, (0.0, 0))
-        state_accum[st] = (ws + county_priors[i] * votes, tv + votes)
-    for st, (ws, tv) in state_accum.items():
-        state_prior_preds[st] = ws / tv if tv > 0 else 0.5
-
-    # For races WITH polls, run full Bayesian update via predict_race
-    from src.prediction.predict_2026_types import predict_race
-
-    rows = []
-    for st in sorted(SENATE_2026_STATES):
-        race = f"2026 {st} Senate"
-        race_polls = polls_by_race.get(race, [])
-        n_polls = len(race_polls)
-
-        if race_polls and type_covariance is not None:
-            # Full Bayesian update through type covariance
-            result_df = predict_race(
-                race=race,
-                polls=race_polls,
-                type_scores=type_scores,
-                type_covariance=type_covariance,
-                type_priors=type_priors,
-                county_fips=tract_fips,
-                states=states_list,
-                county_names=county_names,
-                county_priors=county_priors,
-                prior_weight=1.0,
-            )
-            # Vote-weighted state prediction
-            state_rows = result_df[result_df["state"] == st]
-            if not state_rows.empty:
-                weights = state_rows["county_fips"].map(
-                    lambda f: tract_votes_map.get(f, 0)
-                ).values.astype(float)
-                total_w = weights.sum()
-                if total_w > 0:
-                    state_pred = float(
-                        (state_rows["pred_dem_share"].values * weights).sum() / total_w
-                    )
-                else:
-                    state_pred = float(state_rows["pred_dem_share"].mean())
-            else:
-                state_pred = 0.5
-            log.info("Senate %s: predict_race with %d polls -> %.3f", st, n_polls, state_pred)
-        else:
-            # No polls: use behavior-adjusted prior
-            state_pred = state_prior_preds.get(st, 0.5)
-
-        rows.append({"race": race, "state_pred": state_pred, "state_abbr": st})
+        poll_counts[str(row["race"])] = int(row["n_polls"])
 
     races = []
-    for row in rows:
-        race = row["race"]
-        state_pred = row["state_pred"]
-        state_abbr = row["state_abbr"]
+    for st in sorted(SENATE_2026_STATES):
+        race = f"2026 {st} Senate"
+        if race not in pred_by_race:
+            continue
 
+        state_abbr, state_pred = pred_by_race[race]
         margin = state_pred - 0.5
         rating = _margin_to_rating(margin)
         slug = race.lower().replace(" ", "-")
-        n_polls = len(polls_by_race.get(race, []))
+        n_polls = poll_counts.get(race, 0)
 
         races.append({
             "state": state_abbr,

@@ -954,6 +954,12 @@ def main() -> None:
 
     build(db_path=args.db, reset=args.reset)
 
+    # DuckDB 1.5.x corrupts the glibc heap during large DataFrame inserts.
+    # Even with `del con; gc.collect()`, Python's finalization hits the
+    # corrupted heap and crashes with `free(): corrupted unsorted chunks`.
+    # Since all data is written and contract-validated, skip finalization.
+    os._exit(0)
+
 
 if __name__ == "__main__":
     main()

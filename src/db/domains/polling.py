@@ -100,7 +100,7 @@ DOMAIN_SPEC = DomainSpec(
 class PollIngestRow(BaseModel):
     race: str
     geography: str
-    geo_level: Literal["state", "county", "district"]
+    geo_level: Literal["state", "county", "district", "national"]
     dem_share: float = Field(ge=0.0, le=1.0)
     n_sample: int = Field(gt=0)
     date: str | None

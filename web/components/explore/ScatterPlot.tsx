@@ -17,7 +17,7 @@ import type { TypeScatterPoint } from "@/lib/types";
 
 /** Demographic fields available as scatter axes, with human-readable labels. */
 const AXIS_FIELDS: { key: string; label: string }[] = [
-  { key: "mean_pred_dem_share",  label: "Predicted Dem share" },
+  { key: "mean_dem_share",       label: "Mean Dem share" },
   { key: "pct_white_nh",        label: "White (non-Hispanic)" },
   { key: "pct_black",           label: "Black" },
   { key: "pct_hispanic",        label: "Hispanic" },
@@ -35,11 +35,6 @@ const AXIS_FIELDS: { key: string; label: string }[] = [
 // ---------------------------------------------------------------------------
 
 function getPointValue(point: TypeScatterPoint, field: string): number | null {
-  // Top-level fields on scatter data (not in demographics sub-object)
-  if (field === "mean_pred_dem_share") {
-    const v = (point as unknown as Record<string, unknown>)[field];
-    return typeof v === "number" ? v : null;
-  }
   const v = point.demographics[field];
   return typeof v === "number" ? v : null;
 }
@@ -80,7 +75,7 @@ interface ScatterPlotProps {
 export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
   const { data: points, isLoading } = useTypeScatter();
   const [xField, setXField] = useState("pct_white_nh");
-  const [yField, setYField] = useState("mean_pred_dem_share");
+  const [yField, setYField] = useState("mean_dem_share");
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
 
   const { tooltipData, tooltipLeft, tooltipTop, showTooltip, hideTooltip } =

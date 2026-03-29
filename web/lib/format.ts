@@ -37,6 +37,15 @@ export function formatNumber(value: number, decimals = 1): string {
 }
 
 /**
+ * Format a number as a rounded integer with locale grouping.
+ * Used for population and other whole-number quantities.
+ * "439179.0" -> "439,179"
+ */
+export function formatInteger(value: number): string {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+/**
  * Format a per-1,000 value as a percentage.
  *
  * RCMS religious adherence rate uses "adherents per 1,000 population."
@@ -152,6 +161,7 @@ const FORMAT_DISPATCH: Record<FormatType, (value: number) => string> = {
   percent:        (v) => formatPercent(v),
   currency:       (v) => formatCurrency(v),
   number:         (v) => formatNumber(v),
+  integer:        (v) => formatInteger(v),
   per1000_to_pct: (v) => formatPer1000ToPct(v),
   margin:         (v) => formatMargin(v),
   raw:            (v) => formatRaw(v),

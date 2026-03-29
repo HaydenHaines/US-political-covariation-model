@@ -15,6 +15,7 @@ export type FormatType =
   | "percent"
   | "currency"
   | "number"
+  | "integer"
   | "per1000_to_pct"
   | "margin"
   | "raw";
@@ -79,7 +80,7 @@ const FIELD_CONFIG: Record<string, FieldConfig> = {
   religious_adherence_rate: { label: "Religious adherence",   format: "per1000_to_pct", section: "religion", order: 5 },
 
   // -- Geography --
-  pop_total:              { label: "Total population",  format: "number",  section: "geography", order: 0 },
+  pop_total:              { label: "Total population",  format: "integer", section: "geography", order: 0 },
   median_age:             { label: "Median age",         format: "number",  section: "geography", order: 1 },
   land_area_sq_mi:        { label: "Land area (sq mi)",  format: "number",  section: "geography", order: 2 },
   pop_per_sq_mi:          { label: "Population density", format: "number",  section: "geography", order: 3 },

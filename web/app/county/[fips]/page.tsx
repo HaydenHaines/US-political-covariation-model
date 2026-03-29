@@ -299,6 +299,29 @@ export default async function CountyPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* Election History */}
+      <section style={{ marginBottom: 40 }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 22,
+            marginBottom: 16,
+          }}
+        >
+          Electoral Shift History
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--color-text-muted)", margin: 0 }}>
+          County-level shift history coming soon. See the{" "}
+          <a
+            href={`/type/${data.dominant_type}`}
+            style={{ color: "var(--color-dem)", textDecoration: "none" }}
+          >
+            {data.type_display_name}
+          </a>{" "}
+          type page for the shift profile of this county&apos;s electoral community.
+        </p>
+      </section>
+
       {/* Similar Counties */}
       {data.sibling_counties.length > 0 && (
         <section style={{ marginBottom: 40 }}>

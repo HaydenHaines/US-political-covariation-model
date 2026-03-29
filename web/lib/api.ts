@@ -239,6 +239,8 @@ export interface SenateOverviewData {
   dem_seats_safe: number;
   gop_seats_safe: number;
   races: SenateRaceData[];
+  /** Map from state abbreviation to hex color for the mini map. */
+  state_colors?: Record<string, string>;
   /** ISO date string of the most recently scraped poll, if available. */
   updated_at?: string | null;
 }

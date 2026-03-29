@@ -7,6 +7,7 @@ import { EntryPoints } from "@/components/landing/EntryPoints";
 import { FreshnessStamp } from "@/components/shared/FreshnessStamp";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { BalanceBar } from "@/components/forecast/BalanceBar";
+import { MiniMap } from "@/components/landing/MiniMap";
 
 export default function LandingPage() {
   const { data, error, isLoading, mutate } = useSenateOverview();
@@ -34,6 +35,12 @@ export default function LandingPage() {
             demSeats={data.dem_seats_safe}
             gopSeats={data.gop_seats_safe}
           />
+        </div>
+      )}
+
+      {data?.state_colors && (
+        <div className="flex justify-center px-4 mb-6">
+          <MiniMap stateColors={data.state_colors} />
         </div>
       )}
 

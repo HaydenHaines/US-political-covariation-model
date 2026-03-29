@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { RATING_COLORS, RATING_LABELS } from "@/lib/config/palette";
+import { RATING_COLORS, RATING_LABELS, DUSTY_INK } from "@/lib/config/palette";
 import {
   Tooltip,
   TooltipContent,
@@ -29,9 +29,7 @@ const RATING_ORDER: Record<string, number> = {
 };
 
 /**
- * Format a margin centered at 0 (positive = Dem) as a partisan string.
- * Unlike formatMargin(), which expects a 0-1 dem share, this works directly
- * on the API's margin field where positive = Dem advantage.
+ * Format a signed Dem margin (positive = Dem advantage) as a partisan string.
  */
 function formatRaceMargin(margin: number): string {
   if (Math.abs(margin) < 0.005) return "EVEN";
@@ -40,9 +38,14 @@ function formatRaceMargin(margin: number): string {
 }
 
 /**
- * Senate balance bar — horizontal stacked segments, one per competitive race,
- * colored by rating. Each segment is a button with a tooltip and navigates
- * to the race detail page on click.
+ * Senate balance bar — shows all 100 Senate seats as thin segments.
+ *
+ * Layout (left → right):
+ *   [demSeats safe D seats] [contested races, sorted safe_d → safe_r] [gopSeats safe R seats]
+ *
+ * The "51 needed for control" marker is positioned at segment 51 from the left.
+ * Non-contested safe seats are shorter (24px); contested seats are taller (32px).
+ * Competitive races retain click-to-navigate and hover tooltips.
  */
 export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
   const router = useRouter();
@@ -51,9 +54,25 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
     (a, b) => (RATING_ORDER[a.rating] ?? 3) - (RATING_ORDER[b.rating] ?? 3),
   );
 
-  if (sorted.length === 0) return null;
+  // Safe-seat colors: muted, clearly "not a race" variants from the palette
+  const DEM_SAFE_COLOR = DUSTY_INK.safeD;   // "#2d4a6f"
+  const GOP_SAFE_COLOR = DUSTY_INK.safeR;   // "#6e3535"
 
-  // Summarize races by rating group for the mobile text summary
+  // Height constants
+  const SAFE_HEIGHT = 24;
+  const CONTESTED_HEIGHT = 32;
+
+  // Total segments must equal 100; guard against data inconsistency
+  const totalContested = sorted.length;
+  const safeDCount = Math.max(0, Math.min(demSeats, 100 - totalContested - gopSeats));
+  const safeRCount = Math.max(0, Math.min(gopSeats, 100 - totalContested - safeDCount));
+
+  // Position of the "51 needed" marker: after demSeats safe segments
+  // The marker sits between segment 50 and 51 (zero-indexed), i.e. at 50% of total 100
+  // We express as a percentage of the full bar width.
+  const markerPct = (demSeats / 100) * 100;
+
+  // Mobile summary
   const ratingGroups = sorted.reduce<Record<string, SenateRaceData[]>>((acc, race) => {
     const key = race.rating;
     if (!acc[key]) acc[key] = [];
@@ -100,46 +119,80 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
           )}
         </div>
 
-        {/* Desktop: stacked bar (≥768px) */}
-        <div className={cn(
-          "hidden md:flex h-8 rounded-md overflow-hidden border border-[rgb(var(--color-border))]",
-        )}>
-          {sorted.map((race) => (
-            <Tooltip key={race.slug}>
-              <TooltipTrigger
-                render={
-                  <button
-                    className="h-full transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-1 min-w-[8px]"
-                    style={{
-                      flex: 1,
-                      backgroundColor:
-                        RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
-                        RATING_COLORS.tossup,
-                    }}
-                    onClick={() => router.push(`/forecast/${race.slug}`)}
-                    aria-label={`${race.state}: ${formatRaceMargin(race.margin)}`}
-                  />
-                }
-              />
-              <TooltipContent>
-                <p className="font-semibold">{race.state}</p>
-                <p>
-                  {formatRaceMargin(race.margin)} ·{" "}
-                  {RATING_LABELS[race.rating as keyof typeof RATING_LABELS] ?? race.rating}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {race.n_polls} poll{race.n_polls === 1 ? "" : "s"}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-
-        {/* 50-seat midline indicator (desktop only) */}
-        <div className="relative h-0 hidden md:block">
+        {/* Desktop: 100-segment bar (≥768px) */}
+        <div
+          className="hidden md:block relative"
+          style={{ height: CONTESTED_HEIGHT }}
+        >
+          {/* All 100 segments laid out as a flex row, vertically centered */}
           <div
-            className="absolute top-[-32px] h-8 w-px bg-foreground opacity-30"
-            style={{ left: "50%" }}
+            className="flex items-end rounded-md overflow-hidden border border-[rgb(var(--color-border))]"
+            style={{ height: CONTESTED_HEIGHT }}
+          >
+            {/* Left block: safe Dem seats */}
+            {Array.from({ length: safeDCount }, (_, i) => (
+              <div
+                key={`safe-d-${i}`}
+                style={{
+                  flex: 1,
+                  height: SAFE_HEIGHT,
+                  backgroundColor: DEM_SAFE_COLOR,
+                  opacity: 0.75,
+                }}
+              />
+            ))}
+
+            {/* Middle: contested races with tooltips */}
+            {sorted.map((race) => (
+              <Tooltip key={race.slug}>
+                <TooltipTrigger
+                  render={
+                    <button
+                      className="transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-1 min-w-[6px]"
+                      style={{
+                        flex: 1,
+                        height: CONTESTED_HEIGHT,
+                        backgroundColor:
+                          RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
+                          RATING_COLORS.tossup,
+                      }}
+                      onClick={() => router.push(`/forecast/${race.slug}`)}
+                      aria-label={`${race.state}: ${formatRaceMargin(race.margin)}`}
+                    />
+                  }
+                />
+                <TooltipContent>
+                  <p className="font-semibold">{race.state}</p>
+                  <p>
+                    {formatRaceMargin(race.margin)} ·{" "}
+                    {RATING_LABELS[race.rating as keyof typeof RATING_LABELS] ?? race.rating}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {race.n_polls} poll{race.n_polls === 1 ? "" : "s"}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+
+            {/* Right block: safe GOP seats */}
+            {Array.from({ length: safeRCount }, (_, i) => (
+              <div
+                key={`safe-r-${i}`}
+                style={{
+                  flex: 1,
+                  height: SAFE_HEIGHT,
+                  backgroundColor: GOP_SAFE_COLOR,
+                  opacity: 0.75,
+                }}
+              />
+            ))}
+          </div>
+
+          {/* "51 needed" marker — positioned at the 51st seat from left */}
+          <div
+            className="absolute top-0 h-full w-px bg-foreground opacity-40 pointer-events-none"
+            style={{ left: `${markerPct}%` }}
+            aria-hidden="true"
           />
         </div>
       </div>

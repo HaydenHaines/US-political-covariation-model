@@ -245,6 +245,54 @@ export default async function TypesPage() {
         </div>
       )}
 
+      {/* Jump links — one per super-type group */}
+      {!isEmpty && superTypeIds.length > 0 && (
+        <nav
+          aria-label="Jump to super-type section"
+          style={{
+            marginBottom: 32,
+            padding: "12px 16px",
+            border: "1px solid var(--color-border)",
+            borderRadius: 6,
+            background: "var(--color-surface)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: 11,
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              color: "var(--color-text-muted)",
+              marginRight: 12,
+            }}
+          >
+            Jump to:
+          </span>
+          {superTypeIds.map((id, idx) => {
+            const st = superTypeMap.get(id);
+            const name = st?.display_name ?? `Super-Type ${id}`;
+            return (
+              <span key={id}>
+                <a
+                  href={`#super-type-${id}`}
+                  style={{
+                    color: "var(--color-dem)",
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: 500,
+                  }}
+                >
+                  {name}
+                </a>
+                {idx < superTypeIds.length - 1 && (
+                  <span style={{ color: "var(--color-border)", margin: "0 8px" }}>|</span>
+                )}
+              </span>
+            );
+          })}
+        </nav>
+      )}
+
       {/* API unavailable fallback */}
       {isEmpty && (
         <div
@@ -335,7 +383,7 @@ export default async function TypesPage() {
         const stName = st?.display_name ?? `Super-Type ${superTypeId}`;
 
         return (
-          <section key={superTypeId} style={{ marginBottom: 48 }}>
+          <section key={superTypeId} id={`super-type-${superTypeId}`} style={{ marginBottom: 48, scrollMarginTop: "5rem" }}>
             {/* Super-type header */}
             <div
               style={{

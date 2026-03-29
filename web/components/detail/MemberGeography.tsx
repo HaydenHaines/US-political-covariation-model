@@ -24,17 +24,14 @@ const MemberGeographyInner = dynamic(
     ssr: false,
     loading: () => (
       <div
+        className="animate-pulse"
         style={{
           height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 13,
-          color: "var(--color-text-muted)",
+          width: "100%",
+          borderRadius: 6,
+          background: "var(--color-border)",
         }}
-      >
-        Loading map…
-      </div>
+      />
     ),
   },
 );

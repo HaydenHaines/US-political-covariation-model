@@ -545,6 +545,7 @@ export function MethodologyContent() {
             title="How It Works"
             sectionNumber={2}
             totalSections={total}
+            defaultExpanded={false}
           >
             <Step number={1} title="Measure Shifts">
               <p>
@@ -624,6 +625,7 @@ export function MethodologyContent() {
             title="Model Performance"
             sectionNumber={3}
             totalSections={total}
+            defaultExpanded={false}
           >
             <p>
               All metrics are on the 2024 presidential election. LOO
@@ -646,6 +648,7 @@ export function MethodologyContent() {
             title="Historical Accuracy"
             sectionNumber={4}
             totalSections={total}
+            defaultExpanded={false}
           >
             <p>
               Cross-election validation tests whether the type structure
@@ -680,6 +683,7 @@ export function MethodologyContent() {
             title="What Makes This Different"
             sectionNumber={5}
             totalSections={total}
+            defaultExpanded={false}
           >
             <ul className="space-y-4 pl-5 list-disc">
               <li>
@@ -726,6 +730,7 @@ export function MethodologyContent() {
             title="Data Sources"
             sectionNumber={6}
             totalSections={total}
+            defaultExpanded={false}
           >
             <p>
               WetherVane uses exclusively free, public data. No proprietary
@@ -765,6 +770,7 @@ export function MethodologyContent() {
             title="Current Status"
             sectionNumber={7}
             totalSections={total}
+            defaultExpanded={false}
           >
             <p>
               WetherVane is in active development, targeting the{" "}
@@ -828,6 +834,7 @@ export function MethodologyContent() {
             title="Credits"
             sectionNumber={8}
             totalSections={total}
+            defaultExpanded={false}
           >
             <p>
               Built by <strong>Hayden Haines</strong>.

@@ -21,12 +21,12 @@ export function RaceCard({ race }: RaceCardProps) {
     <Link href={`/forecast/${race.slug}`} className="block h-full">
       <Card className="h-full hover:border-foreground/30 transition-colors cursor-pointer">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-2">
-            <div>
+          <div className="flex items-start justify-between gap-2 mb-2 flex-wrap xs:flex-nowrap">
+            <div className="min-w-0">
               <div className="text-xs text-muted-foreground mb-1">{race.state}</div>
               <MarginDisplay demShare={race.margin + 0.5} size="lg" />
             </div>
-            <RatingBadge rating={race.rating} />
+            <RatingBadge rating={race.rating} className="shrink-0 self-start" />
           </div>
           <FreshnessStamp pollCount={race.n_polls} />
         </CardContent>

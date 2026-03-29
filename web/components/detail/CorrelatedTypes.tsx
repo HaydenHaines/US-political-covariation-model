@@ -102,15 +102,12 @@ function SiblingCard({ type, superType }: SiblingCardProps) {
             </div>
             <div
               style={{
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: 700,
                 fontFamily: "var(--font-serif)",
                 color: "var(--color-text)",
-                lineHeight: 1.25,
-                overflow: "hidden",
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical" as const,
+                lineHeight: 1.3,
+                wordBreak: "break-word",
               }}
             >
               {type.display_name}

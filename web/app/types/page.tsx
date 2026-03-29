@@ -138,7 +138,7 @@ export default async function TypesPage() {
     >
       {/* Breadcrumb */}
       <nav style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 24 }}>
-        <Link href="/forecast" style={{ color: "var(--color-dem)", textDecoration: "none" }}>
+        <Link href="/explore/map" style={{ color: "var(--color-dem)", textDecoration: "none" }}>
           Map
         </Link>
         {" / "}
@@ -477,7 +477,7 @@ export default async function TypesPage() {
         }}
       >
         <Link
-          href="/forecast"
+          href="/explore/map"
           style={{
             color: "var(--color-dem)",
             textDecoration: "none",

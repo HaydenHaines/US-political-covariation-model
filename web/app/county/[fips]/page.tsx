@@ -147,7 +147,7 @@ export default async function CountyPage({ params }: PageProps) {
         <p style={{ color: "var(--color-text-muted)" }}>
           No data available for FIPS code {fips}.
         </p>
-        <Link href="/forecast" style={{ color: "var(--color-dem)" }}>
+        <Link href="/explore/map" style={{ color: "var(--color-dem)" }}>
           Back to map
         </Link>
       </div>
@@ -207,7 +207,10 @@ export default async function CountyPage({ params }: PageProps) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <Breadcrumbs currentPage={name} />
+      <Breadcrumbs
+        currentPage={name}
+        extraParents={[{ label: state, href: `/explore/map?state=${data.state_abbr}` }]}
+      />
 
       {/* Header */}
       <h1
@@ -358,7 +361,7 @@ export default async function CountyPage({ params }: PageProps) {
           ← Type: {data.type_display_name}
         </Link>
         <Link
-          href="/forecast"
+          href={`/explore/map?focus=${fips}`}
           style={{
             color: "var(--color-dem)",
             textDecoration: "none",

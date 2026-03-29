@@ -163,7 +163,7 @@ export default async function TypePage({ params }: PageProps) {
         <p style={{ color: "var(--color-text-muted)" }}>
           No data available for type {id}.
         </p>
-        <Link href="/forecast" style={{ color: "var(--color-dem)" }}>
+        <Link href="/explore/map" style={{ color: "var(--color-dem)" }}>
           Back to map
         </Link>
       </div>
@@ -470,7 +470,7 @@ export default async function TypePage({ params }: PageProps) {
           ← All Types
         </Link>
         <Link
-          href="/forecast"
+          href={`/explore/map?type=${data.type_id}`}
           style={{
             color: "var(--color-dem)",
             textDecoration: "none",

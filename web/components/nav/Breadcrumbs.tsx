@@ -17,11 +17,20 @@ import { getBreadcrumbs, type BreadcrumbSegment } from "@/lib/config/navigation"
 interface BreadcrumbsProps {
   /** Label for the current (last) breadcrumb segment. */
   currentPage: string;
+  /**
+   * Optional extra crumb segments inserted between the route-derived parents
+   * and the current page. Useful for adding geographic context (e.g. state)
+   * that is only available from page-level data, not from the URL.
+   */
+  extraParents?: BreadcrumbSegment[];
 }
 
-export function Breadcrumbs({ currentPage }: BreadcrumbsProps) {
+export function Breadcrumbs({ currentPage, extraParents }: BreadcrumbsProps) {
   const pathname = usePathname();
-  const parents: BreadcrumbSegment[] = getBreadcrumbs(pathname);
+  const routeParents: BreadcrumbSegment[] = getBreadcrumbs(pathname);
+  const parents: BreadcrumbSegment[] = extraParents
+    ? [...routeParents, ...extraParents]
+    : routeParents;
 
   // Build the full crumb list: parents + current page
   const all: Array<{ label: string; href?: string }> = [

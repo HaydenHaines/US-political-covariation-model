@@ -31,6 +31,7 @@ export const FOOTER_NAV: NavItem[] = [
   { label: "Shifts",      href: "/explore" },
   { label: "Methodology", href: "/methodology" },
   { label: "Shifts",      href: "/explore/shifts" },
+  { label: "Changelog",   href: "/changelog" },
   { label: "About",       href: "/methodology#about" },
   { label: "GitHub",      href: "https://github.com/HaydenHaines/wethervane", external: true },
 ];
@@ -66,6 +67,10 @@ export const BREADCRUMB_ROUTES: Record<string, BreadcrumbSegment[]> = {
   ],
   "/county/[fips]": [
     { label: "Home", href: "/" },
+  ],
+  "/changelog": [
+    { label: "Home", href: "/" },
+    { label: "Forecast", href: "/forecast" },
   ],
   "/methodology": [
     { label: "Home", href: "/" },

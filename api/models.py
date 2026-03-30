@@ -332,3 +332,23 @@ class ElectionHistoryPoint(BaseModel):
     election_type: str   # "president" | "senate" | "governor"
     dem_share: float
     total_votes: int | None = None
+
+
+# ── Forecast changelog ───────────────────────────────────────────────────
+
+class ChangelogRaceDiff(BaseModel):
+    race: str
+    before: float | None
+    after: float | None
+    delta: float | None
+
+
+class ChangelogEntry(BaseModel):
+    date: str
+    note: str | None = None
+    diffs: list[ChangelogRaceDiff]
+
+
+class ChangelogResponse(BaseModel):
+    entries: list[ChangelogEntry]
+    current_snapshot_date: str | None = None

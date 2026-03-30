@@ -280,3 +280,29 @@ export async function fetchPolls(params: {
   if (!res.ok) throw new Error(`/polls failed: ${res.status}`);
   return res.json();
 }
+
+// ── Forecast changelog ───────────────────────────────────────────────────
+
+export interface ChangelogRaceDiff {
+  race: string;
+  before: number | null;
+  after: number | null;
+  delta: number | null;
+}
+
+export interface ChangelogEntry {
+  date: string;
+  note: string | null;
+  diffs: ChangelogRaceDiff[];
+}
+
+export interface ChangelogResponse {
+  entries: ChangelogEntry[];
+  current_snapshot_date: string | null;
+}
+
+export async function fetchChangelog(): Promise<ChangelogResponse> {
+  const res = await fetch(`${API_BASE}/forecast/changelog`);
+  if (!res.ok) throw new Error(`/forecast/changelog failed: ${res.status}`);
+  return res.json();
+}

@@ -8,6 +8,7 @@ Voters move slowly (θ_prior from decade of elections); polls move quickly
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -15,6 +16,9 @@ from src.prediction.national_environment import estimate_theta_national
 from src.prediction.candidate_effects import estimate_delta_race
 from src.propagation.propagate_polls import PollObservation
 from src.propagation.poll_weighting import apply_all_weights
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def prepare_polls(
@@ -135,8 +139,13 @@ def _build_poll_arrays(
     type_scores: np.ndarray,
     states: list[str],
     county_votes: np.ndarray,
+    w_builder: callable | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, list[str]]:
     """Build W, y, sigma arrays from all polls across all races.
+
+    When w_builder is provided, it is called for each poll to produce
+    a poll-specific W vector (or list of observation dicts for Tier 2).
+    When w_builder is None, falls back to build_W_state (current behavior).
 
     Returns: (W_all, y_all, sigma_all, race_labels)
     """
@@ -151,7 +160,21 @@ def _build_poll_arrays(
             dem_share = p["dem_share"]
             n_sample = p["n_sample"]
 
-            W_row = build_W_state(state, type_scores, states, county_votes)
+            if w_builder is not None:
+                result = w_builder(p)
+                if isinstance(result, list):
+                    # Tier 2: multiple observations per poll (crosstab-expanded)
+                    for obs in result:
+                        W_rows.append(obs["W"])
+                        y_vals.append(obs["y"])
+                        sigma_vals.append(obs["sigma"])
+                        race_labels.append(race_id)
+                    continue
+                else:
+                    W_row = result
+            else:
+                W_row = build_W_state(state, type_scores, states, county_votes)
+
             sigma = np.sqrt(dem_share * (1 - dem_share) / max(n_sample, 1))
 
             W_rows.append(W_row)
@@ -181,13 +204,17 @@ def run_forecast(
     lam: float = 1.0,  # θ_national regularization
     mu: float = 1.0,  # δ_race regularization
     generic_ballot_shift: float = 0.0,
+    w_vector_mode: str = "core",
+    reference_date: str | None = None,
+    type_profiles: pd.DataFrame | None = None,
 ) -> dict[str, ForecastResult]:
     """Run the full hierarchical forecast for all races.
 
     1. Compute θ_prior from county priors
-    2. Estimate θ_national from all polls pooled
-    3. For each race, estimate δ_race from residuals
-    4. Produce county predictions in both modes
+    2. Apply poll quality weighting (if reference_date provided)
+    3. Estimate θ_national from all polls pooled
+    4. For each race, estimate δ_race from residuals
+    5. Produce county predictions in both modes
     """
     J = type_scores.shape[1]
 
@@ -197,30 +224,58 @@ def run_forecast(
     # Step 1: θ_prior
     theta_prior = compute_theta_prior(type_scores, adjusted_priors)
 
+    # Step 1.5: Apply poll quality weighting
+    working_polls = polls_by_race
+    if reference_date:
+        working_polls = prepare_polls(polls_by_race, reference_date)
+
+    # Step 1.6: Build W vector builder if type_profiles available
+    w_builder = None
+    if type_profiles is not None:
+        from src.prediction.poll_enrichment import build_W_poll
+
+        # Precompute state-level type weights for W vector construction;
+        # cache avoids redundant vote-weighted aggregation across polls in same state.
+        state_type_weight_cache: dict[str, np.ndarray] = {}
+
+        def _w_builder(poll: dict) -> np.ndarray | list[dict]:
+            st = poll["state"]
+            if st not in state_type_weight_cache:
+                state_type_weight_cache[st] = build_W_state(
+                    st, type_scores, states, county_votes,
+                )
+            return build_W_poll(
+                poll=poll,
+                type_profiles=type_profiles,
+                state_type_weights=state_type_weight_cache[st],
+                w_vector_mode=w_vector_mode,
+            )
+
+        w_builder = _w_builder
+
     # Step 2: Build poll arrays and estimate θ_national
     W_all, y_all, sigma_all, race_labels = _build_poll_arrays(
-        polls_by_race, type_scores, states, county_votes,
+        working_polls, type_scores, states, county_votes,
+        w_builder=w_builder,
     )
     theta_national = estimate_theta_national(W_all, y_all, sigma_all, theta_prior, lam)
 
     # Step 3 & 4: Per-race δ and predictions
     results: dict[str, ForecastResult] = {}
     for race_id in races:
-        # Get this race's polls
-        race_polls = polls_by_race.get(race_id, [])
+        race_polls = working_polls.get(race_id, [])
         n_polls = len(race_polls)
 
         if n_polls > 0:
-            # Build race-specific W and residuals
             race_W, race_y, race_sigma, _ = _build_poll_arrays(
                 {race_id: race_polls}, type_scores, states, county_votes,
+                w_builder=w_builder,
             )
             residuals = race_y - race_W @ theta_national
             delta = estimate_delta_race(race_W, residuals, race_sigma, J, mu)
         else:
             delta = np.zeros(J)
 
-        # County predictions
         county_preds_national = type_scores @ theta_national
         county_preds_local = type_scores @ (theta_national + delta)
 

@@ -4,10 +4,11 @@ import numpy as np
 import pytest
 
 from src.prediction.forecast_engine import (
-    compute_theta_prior,
-    build_W_state,
-    run_forecast,
     ForecastResult,
+    build_W_state,
+    compute_theta_prior,
+    prepare_polls,
+    run_forecast,
 )
 
 
@@ -152,7 +153,88 @@ class TestForecastResult:
         assert len(result.county_preds_local) == 2
 
 
-from src.prediction.forecast_engine import prepare_polls
+class TestEnrichedForecast:
+    def test_w_vector_mode_parameter(self):
+        """run_forecast should accept w_vector_mode parameter."""
+        J = 3
+        n = 6
+        type_scores = np.random.RandomState(42).rand(n, J)
+        type_scores = type_scores / type_scores.sum(axis=1, keepdims=True)
+        county_priors = np.full(n, 0.5)
+        states = ["GA"] * 3 + ["FL"] * 3
+        county_votes = np.ones(n)
+
+        polls = {"2026 GA Senate": [
+            {"dem_share": 0.53, "n_sample": 600, "state": "GA",
+             "date": "2026-03-01", "pollster": "Test", "notes": "LV"},
+        ]}
+
+        result = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race=polls,
+            races=["2026 GA Senate"],
+            w_vector_mode="core",
+        )
+        assert "2026 GA Senate" in result
+        assert result["2026 GA Senate"].n_polls == 1
+
+    def test_reference_date_parameter(self):
+        """run_forecast should accept reference_date parameter and apply quality weighting."""
+        J = 3
+        n = 6
+        type_scores = np.random.RandomState(7).rand(n, J)
+        type_scores = type_scores / type_scores.sum(axis=1, keepdims=True)
+        county_priors = np.full(n, 0.5)
+        states = ["GA"] * 3 + ["FL"] * 3
+        county_votes = np.ones(n)
+
+        polls = {"2026 GA Senate": [
+            {"dem_share": 0.53, "n_sample": 600, "state": "GA",
+             "date": "2026-03-01", "pollster": "Test", "notes": "LV"},
+        ]}
+
+        # With reference_date, quality weighting is applied; should still return valid result
+        result = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race=polls,
+            races=["2026 GA Senate"],
+            reference_date="2026-03-29",
+        )
+        assert "2026 GA Senate" in result
+        assert result["2026 GA Senate"].n_polls == 1
+
+    def test_type_profiles_none_uses_state_w(self):
+        """Without type_profiles, W vectors fall back to state-level build_W_state."""
+        J = 3
+        n = 4
+        type_scores = np.random.RandomState(1).rand(n, J)
+        type_scores = type_scores / type_scores.sum(axis=1, keepdims=True)
+        county_priors = np.full(n, 0.5)
+        states = ["TX"] * 2 + ["CA"] * 2
+        county_votes = np.array([100.0, 200.0, 150.0, 300.0])
+
+        polls = {"2026 TX Senate": [
+            {"dem_share": 0.45, "n_sample": 500, "state": "TX",
+             "date": "2026-03-15", "pollster": "Test", "notes": "LV"},
+        ]}
+
+        result = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race=polls,
+            races=["2026 TX Senate"],
+            type_profiles=None,
+        )
+        assert "2026 TX Senate" in result
+        assert result["2026 TX Senate"].n_polls == 1
 
 
 class TestPreparePolls:

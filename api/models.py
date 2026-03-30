@@ -355,3 +355,28 @@ class ChangelogEntry(BaseModel):
 class ChangelogResponse(BaseModel):
     entries: list[ChangelogEntry]
     current_snapshot_date: str | None = None
+
+
+# ── Poll trend chart ─────────────────────────────────────────────────────
+
+class PollTrendPoll(BaseModel):
+    """A single poll data point for the trend chart."""
+    date: str
+    pollster: str | None
+    dem_share: float
+    rep_share: float | None
+    sample_size: int | None
+
+
+class PollTrend(BaseModel):
+    """Smoothed trend line — dates and weighted moving-average shares."""
+    dates: list[str]
+    dem_trend: list[float]
+    rep_trend: list[float]
+
+
+class PollTrendResponse(BaseModel):
+    race: str
+    slug: str
+    polls: list[PollTrendPoll]
+    trend: PollTrend | None

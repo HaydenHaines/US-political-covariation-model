@@ -18,6 +18,9 @@ from api.models import (
     MultiPollResponse,
     PollInput,
     PollRow,
+    PollTrendPoll,
+    PollTrendResponse,
+    PollTrend,
     RaceDetail,
     RacePoll,
     TypeBreakdown,
@@ -390,6 +393,108 @@ def get_race_detail(
         pred_lo90=state_lo90,
         pred_hi90=state_hi90,
     )
+
+
+@router.get("/forecast/race/{slug}/poll-trend", response_model=PollTrendResponse)
+def get_poll_trend(
+    slug: str,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> PollTrendResponse:
+    """Return poll data and a weighted moving-average trend line for a single race.
+
+    Polls are returned in chronological order.  The trend is a 30-day rolling
+    weighted average — each poll contributes proportionally to its sample size.
+    Two-party Republican share is inferred as ``1 - dem_share`` since the polls
+    table stores only the Democratic share.
+
+    Returns an empty polls list and ``trend=None`` when no polls are available.
+    """
+    race = slug_to_race(slug)
+
+    polls_df = db.execute(
+        """
+        SELECT date, pollster, dem_share, n_sample
+        FROM polls
+        WHERE LOWER(race) = LOWER(?)
+          AND date IS NOT NULL
+        ORDER BY date
+        """,
+        [race],
+    ).fetchdf()
+
+    if polls_df.empty:
+        return PollTrendResponse(
+            race=race,
+            slug=slug,
+            polls=[],
+            trend=None,
+        )
+
+    poll_points: list[PollTrendPoll] = [
+        PollTrendPoll(
+            date=str(row["date"]),
+            pollster=row["pollster"] if row["pollster"] else None,
+            dem_share=float(row["dem_share"]),
+            rep_share=float(1.0 - row["dem_share"]),
+            sample_size=int(row["n_sample"]) if not pd.isna(row["n_sample"]) else None,
+        )
+        for _, row in polls_df.iterrows()
+    ]
+
+    trend = _compute_poll_trend(polls_df)
+    return PollTrendResponse(race=race, slug=slug, polls=poll_points, trend=trend)
+
+
+def _compute_poll_trend(polls_df: "pd.DataFrame") -> PollTrend | None:
+    """Compute a 30-day rolling weighted moving average over poll data.
+
+    Weights each poll by its sample size.  For each day in the trend output
+    we average all polls within the preceding 30 days.  Output dates are
+    the unique poll dates (no interpolation) — this keeps the response small
+    and avoids inventing data between polls.
+
+    Returns ``None`` if there are fewer than 2 polls (no trend to fit).
+    """
+    if len(polls_df) < 2:
+        return None
+
+    # Parse dates; drop rows with unparseable dates
+    polls_df = polls_df.copy()
+    polls_df["_dt"] = pd.to_datetime(polls_df["date"], errors="coerce")
+    polls_df = polls_df.dropna(subset=["_dt"]).sort_values("_dt")
+
+    if len(polls_df) < 2:
+        return None
+
+    # Replace missing sample sizes with the median
+    median_n = int(polls_df["n_sample"].median()) if polls_df["n_sample"].notna().any() else 600
+    polls_df["_n"] = polls_df["n_sample"].fillna(median_n).astype(float)
+
+    window_days = pd.Timedelta(days=30)
+
+    trend_dates: list[str] = []
+    trend_dem: list[float] = []
+    trend_rep: list[float] = []
+
+    for _, anchor in polls_df.iterrows():
+        anchor_dt = anchor["_dt"]
+        # All polls within 30 days before (and including) this poll
+        mask = (polls_df["_dt"] >= anchor_dt - window_days) & (polls_df["_dt"] <= anchor_dt)
+        window = polls_df[mask]
+
+        total_weight = float(window["_n"].sum())
+        if total_weight == 0:
+            continue
+
+        dem_avg = float((window["dem_share"] * window["_n"]).sum() / total_weight)
+        trend_dates.append(str(anchor["date"]))
+        trend_dem.append(round(dem_avg, 4))
+        trend_rep.append(round(1.0 - dem_avg, 4))
+
+    if not trend_dates:
+        return None
+
+    return PollTrend(dates=trend_dates, dem_trend=trend_dem, rep_trend=trend_rep)
 
 
 @router.get("/forecast/generic-ballot", response_model=GenericBallotInfo)

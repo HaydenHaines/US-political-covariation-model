@@ -28,6 +28,18 @@ const SectionWeightSliders = dynamic(
   { ssr: false },
 );
 
+// Poll trend chart — visx + SWR, client-only
+const PollTrendChart = dynamic(
+  () =>
+    import("@/components/forecast/PollTrendChart").then(
+      (m) => m.PollTrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-[220px]" />,
+  },
+);
+
 // Revalidate every 5 minutes — polls and forecast data update periodically
 export const revalidate = 300;
 
@@ -298,6 +310,12 @@ export default async function RaceDetailPage({ params }: PageProps) {
           >
             This forecast is based on the structural model prior — no race-specific polls have been incorporated yet.
           </p>
+        )}
+        {/* Poll trend chart — shows movement over time; no-polls state handled inside */}
+        {nPolls > 0 && (
+          <div className="mb-6">
+            <PollTrendChart slug={slug} width={480} />
+          </div>
         )}
         <PollTable polls={data.polls} />
       </section>

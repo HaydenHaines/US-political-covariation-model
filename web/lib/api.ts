@@ -306,3 +306,9 @@ export async function fetchChangelog(): Promise<ChangelogResponse> {
   if (!res.ok) throw new Error(`/forecast/changelog failed: ${res.status}`);
   return res.json();
 }
+
+export async function fetchPollTrend(slug: string): Promise<import("@/lib/types").PollTrendResponse> {
+  const res = await fetch(`${API_BASE}/forecast/race/${slug}/poll-trend`);
+  if (!res.ok) throw new Error(`/forecast/race/${slug}/poll-trend failed: ${res.status}`);
+  return res.json();
+}

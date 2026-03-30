@@ -195,3 +195,28 @@ export type Rating =
   | "lean_r"
   | "likely_r"
   | "safe_r";
+
+// ---------------------------------------------------------------------------
+// Poll trend chart
+// ---------------------------------------------------------------------------
+
+export interface PollTrendPoll {
+  date: string;
+  pollster: string | null;
+  dem_share: number;
+  rep_share: number | null;
+  sample_size: number | null;
+}
+
+export interface PollTrend {
+  dates: string[];
+  dem_trend: number[];
+  rep_trend: number[];
+}
+
+export interface PollTrendResponse {
+  race: string;
+  slug: string;
+  polls: PollTrendPoll[];
+  trend: PollTrend | null;
+}

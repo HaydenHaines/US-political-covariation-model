@@ -156,7 +156,7 @@ function ScrollSection({
       id={id}
       className="scroll-mt-16"
       style={{
-        minHeight: "80vh",
+        minHeight: expanded ? "80vh" : undefined,
         paddingTop: "3rem",
         paddingBottom: "3rem",
         display: "flex",

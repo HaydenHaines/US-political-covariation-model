@@ -495,7 +495,7 @@ export default async function TypesPage() {
                           color: "var(--color-text-muted)",
                         }}
                       >
-                        <span>{t.n_counties} counties</span>
+                        <span>{t.n_counties} {t.n_counties === 1 ? "county" : "counties"}</span>
                         {t.median_hh_income !== null && (
                           <span>{formatIncome(t.median_hh_income)} income</span>
                         )}

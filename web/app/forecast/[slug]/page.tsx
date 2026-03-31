@@ -128,7 +128,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const title = `${data.year} ${stateName} ${data.race_type} | WetherVane`;
   const description =
     data.prediction !== null && rating !== null
-      ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race as ${rating.replace("_", " ")}. Based on ${data.n_counties} counties and electoral type modeling.`
+      ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race as ${rating.replace("_", " ")}. Based on ${data.n_counties} ${data.n_counties === 1 ? "county" : "counties"} and electoral type modeling.`
       : `WetherVane's forecast for the ${data.year} ${stateName} ${data.race_type} race. Explore county-level predictions and polling data.`;
 
   return {
@@ -352,7 +352,7 @@ export default async function RaceDetailPage({ params }: PageProps) {
         </h3>
         <ul className="space-y-1 list-disc list-inside">
           <li>
-            Structural forecast based on electoral type modeling across {data.n_counties} counties.
+            Structural forecast based on electoral type modeling across {data.n_counties} {data.n_counties === 1 ? "county" : "counties"}.
           </li>
           <li>
             Types are discovered from historical shift patterns — not from polls or demographics alone.

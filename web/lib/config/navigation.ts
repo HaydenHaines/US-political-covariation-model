@@ -28,9 +28,8 @@ export const MAIN_NAV: NavItem[] = [
 export const FOOTER_NAV: NavItem[] = [
   { label: "Forecast",    href: "/forecast" },
   { label: "Types",       href: "/types" },
-  { label: "Shifts",      href: "/explore" },
-  { label: "Methodology", href: "/methodology" },
   { label: "Shifts",      href: "/explore/shifts" },
+  { label: "Methodology", href: "/methodology" },
   { label: "Compare",     href: "/compare" },
   { label: "Changelog",   href: "/changelog" },
   { label: "About",       href: "/methodology#about" },

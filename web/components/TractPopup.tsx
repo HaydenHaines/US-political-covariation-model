@@ -124,7 +124,7 @@ export function TractPopup({ data, nCounties, meanDemShare, onClose }: Props) {
 
       <div style={{ color: "rgba(176,190,197,0.8)", fontSize: 11, marginBottom: 10 }}>
         Type {feature.type_id} &middot; {feature.n_tracts.toLocaleString()} tracts
-        {nCounties != null && <> &middot; {nCounties} counties</>}
+        {nCounties != null && <> &middot; {nCounties} {nCounties === 1 ? "county" : "counties"}</>}
       </div>
 
       {/* Political lean */}

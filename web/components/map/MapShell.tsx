@@ -80,7 +80,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   const {
     selectedCommunityId, setSelectedCommunityId,
     selectedTypeId, setSelectedTypeId,
-    forecastState, forecastChoropleth,
+    forecastState, setForecastState, forecastChoropleth,
     zoomedState, setZoomedState,
     layoutMode,
   } = useMapContext();
@@ -158,6 +158,11 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
       setZoomedState(stateAbbr);
       setLoadingTracts(true);
       setTractPopup(null);
+      // On forecast pages, notify the forecast panel which state was clicked
+      // so it can navigate to the corresponding race detail page.
+      if (defaultOverlayMode === "forecast") {
+        setForecastState(stateAbbr);
+      }
 
       fetch(`/tracts/${stateAbbr}.geojson`)
         .then((r) => r.json())
@@ -181,7 +186,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
         }
       }
     },
-    [stateGeo, setZoomedState]
+    [stateGeo, setZoomedState, setForecastState, defaultOverlayMode]
   );
 
   // ── Back to national ──────────────────────────────────────────────────────
@@ -299,9 +304,16 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
             if (share !== undefined) return choroplethColor(share);
             return [200, 200, 200, 120];
           }
-          // On forecast pages, use a neutral tone instead of stained-glass coloring
-          // so the map doesn't imply community-type meaning on pages about race ratings.
+          // On forecast pages, color tracts by their type's partisan lean
+          // using the type metadata already loaded from the API.
           if (defaultOverlayMode === "forecast") {
+            const typeId = f.properties?.type_id as number | undefined;
+            if (typeId != null) {
+              const typeData = typeDataMap.get(typeId);
+              if (typeData?.mean_pred_dem_share != null) {
+                return choroplethColor(typeData.mean_pred_dem_share);
+              }
+            }
             return [200, 195, 188, 140];
           }
           const st = (f.properties?.super_type as number) ?? -1;
@@ -385,7 +397,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
           }
         },
         updateTriggers: {
-          getFillColor: [forecastChoropleth, defaultOverlayMode],
+          getFillColor: [forecastChoropleth, defaultOverlayMode, typeDataMap],
         },
       })
     );

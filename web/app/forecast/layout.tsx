@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { MapProvider } from "@/components/MapContext";
+import { usePathname, useRouter } from "next/navigation";
+import { MapProvider, useMapContext } from "@/components/MapContext";
 
 // MapShell uses deck.gl which requires browser APIs — must be client-only.
 const MapShell = dynamic(() => import("@/components/map/MapShell"), {
@@ -51,9 +52,36 @@ function ForecastTabs() {
   );
 }
 
+/**
+ * Watches forecastState from MapContext and navigates the right panel
+ * to that state's race detail page when a state is clicked on the map.
+ */
+function ForecastStateNavigator() {
+  const { forecastState, setForecastState } = useMapContext();
+  const router = useRouter();
+  const pathname = usePathname();
+  // Track the last state we navigated to, so we don't re-navigate on mount
+  const lastNavigated = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!forecastState || forecastState === lastNavigated.current) return;
+    lastNavigated.current = forecastState;
+    // Build the race slug: 2026-{state_lower}-senate
+    const slug = `2026-${forecastState.toLowerCase()}-senate`;
+    const target = `/forecast/${slug}`;
+    // Don't navigate if we're already on this page
+    if (pathname !== target) {
+      router.push(target);
+    }
+  }, [forecastState, router, pathname]);
+
+  return null;
+}
+
 export default function ForecastLayout({ children }: { children: React.ReactNode }) {
   return (
     <MapProvider>
+      <ForecastStateNavigator />
       <div className="flex flex-col lg:flex-row h-[calc(100vh-3rem)]">
         {/* Map pane — desktop only; hidden on mobile.
             defaultOverlayMode="forecast" keeps the focus on competitive ratings,

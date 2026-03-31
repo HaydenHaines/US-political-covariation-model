@@ -770,7 +770,6 @@ export function MethodologyContent() {
             </Link>
           </div>
         </div>
-      </div>
     </div>
   );
 }

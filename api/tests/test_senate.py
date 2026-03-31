@@ -1,4 +1,4 @@
-"""Tests for GET /api/v1/senate/overview."""
+"""Tests for GET /api/v1/senate/overview and GET /api/v1/senate/chamber-probability."""
 from __future__ import annotations
 
 import duckdb
@@ -14,7 +14,11 @@ from api.routers.senate import (
     _build_headline,
     _margin_to_rating,
     _rating_sort_key,
+    _simulate_chamber_probability,
     _CLASS_II_INCUMBENT,
+    _DEM_CLASS_II_COUNT,
+    _GOP_CLASS_II_COUNT,
+    _DEM_HOLDOVER_SEATS,
 )
 from api.tests.conftest import _noop_lifespan
 
@@ -398,3 +402,212 @@ class TestSenateOverviewEmptyDB:
         assert tx_race["n_polls"] == 0
         il_race = next(r for r in data["races"] if r["state"] == "IL")
         assert il_race["rating"] == "safe_d"  # IL is D-held (Dick Durbin)
+
+# ── Chamber probability unit tests ──────────────────────────────────────────
+
+
+class TestIncumbentCounts:
+    """Derived incumbent counts stay in sync with the _CLASS_II_INCUMBENT map."""
+
+    def test_dem_count_matches_map(self):
+        expected = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "D")
+        assert _DEM_CLASS_II_COUNT == expected
+
+    def test_gop_count_matches_map(self):
+        expected = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "R")
+        assert _GOP_CLASS_II_COUNT == expected
+
+    def test_counts_sum_to_33(self):
+        # There are 33 Class II seats up in 2026
+        assert _DEM_CLASS_II_COUNT + _GOP_CLASS_II_COUNT == len(SENATE_2026_STATES)
+
+    def test_holdover_seats_correct(self):
+        # Holdover = safe seats not up in 2026 on the Dem side
+        assert _DEM_HOLDOVER_SEATS == DEM_SAFE_SEATS - _DEM_CLASS_II_COUNT
+
+
+class TestSimulateChamberProbability:
+    """Unit tests for _simulate_chamber_probability helper."""
+
+    def test_certain_dem_control(self):
+        """When all races are strongly Dem (pred=0.9, tiny std), Dems win every sim."""
+        modeled = [(0.9, 0.01)] * 33
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=0,
+            safe_gop_wins=0,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=1000,
+            rng_seed=0,
+        )
+        assert result.dem_majority_pct > 99.0
+        assert result.rep_control_pct < 1.0
+
+    def test_certain_gop_control(self):
+        """When all races are strongly GOP (pred=0.1, tiny std), GOP wins every sim."""
+        modeled = [(0.1, 0.01)] * 33
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=0,
+            safe_gop_wins=0,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=1000,
+            rng_seed=0,
+        )
+        assert result.rep_control_pct > 99.0
+        assert result.dem_majority_pct < 1.0
+
+    def test_tossup_near_fifty_fifty(self):
+        """All races at dead 50/50 -- neither party should dominate."""
+        modeled = [(0.5, 0.03)] * 33
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=0,
+            safe_gop_wins=0,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=5000,
+            rng_seed=42,
+        )
+        assert 10.0 < result.dem_majority_pct < 90.0
+        assert 10.0 < result.rep_control_pct < 90.0
+
+    def test_probabilities_sum_near_100(self):
+        """rep_control_pct + dem_control_pct should cover all outcomes."""
+        modeled = [(0.5, 0.05)] * 10
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=5,
+            safe_gop_wins=18,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=2000,
+            rng_seed=7,
+        )
+        total = result.dem_control_pct + result.rep_control_pct
+        assert abs(total - 100.0) < 0.5
+
+    def test_seat_distribution_sums_to_one(self):
+        """Probability mass in seat_distribution should sum close to 1.0."""
+        modeled = [(0.5, 0.04)] * 15
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=5,
+            safe_gop_wins=13,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=2000,
+            rng_seed=99,
+        )
+        total_prob = sum(b.probability for b in result.seat_distribution)
+        assert 0.95 < total_prob <= 1.01
+
+    def test_metadata_fields_correct(self):
+        """n_modeled_races and n_safe_races reflect the inputs."""
+        modeled = [(0.52, 0.03)] * 8
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=10,
+            safe_gop_wins=15,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=500,
+            rng_seed=1,
+        )
+        assert result.n_modeled_races == 8
+        assert result.n_safe_races == 25
+        assert result.n_simulations == 500
+
+    def test_median_dem_plus_rep_equals_100(self):
+        """Median Dem + Rep seats should always add to 100."""
+        modeled = [(0.48, 0.05)] * 20
+        result = _simulate_chamber_probability(
+            modeled_races=modeled,
+            safe_dem_wins=3,
+            safe_gop_wins=10,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=1000,
+            rng_seed=5,
+        )
+        assert result.median_dem_seats + result.median_rep_seats == 100
+
+    def test_no_modeled_races(self):
+        """When there are no contested races, safe seats determine the outcome."""
+        result = _simulate_chamber_probability(
+            modeled_races=[],
+            safe_dem_wins=_DEM_CLASS_II_COUNT,
+            safe_gop_wins=_GOP_CLASS_II_COUNT,
+            dem_holdover=_DEM_HOLDOVER_SEATS,
+            n_sims=1000,
+            rng_seed=0,
+        )
+        assert result.rep_control_pct > 90.0
+
+
+# ── Chamber probability endpoint tests ──────────────────────────────────────
+
+
+class TestChamberProbabilityEndpoint:
+    """Integration tests for GET /api/v1/senate/chamber-probability."""
+
+    def test_status_200(self, senate_client):
+        resp = senate_client.get("/api/v1/senate/chamber-probability")
+        assert resp.status_code == 200
+
+    def test_response_shape(self, senate_client):
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        assert "dem_control_pct" in data
+        assert "rep_control_pct" in data
+        assert "dem_majority_pct" in data
+        assert "median_dem_seats" in data
+        assert "median_rep_seats" in data
+        assert "seat_distribution" in data
+        assert "n_simulations" in data
+        assert "n_modeled_races" in data
+        assert "n_safe_races" in data
+
+    def test_probabilities_are_0_to_100(self, senate_client):
+        """All probability values are in the 0-100 range."""
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        for key in ("dem_control_pct", "rep_control_pct", "dem_majority_pct"):
+            assert 0.0 <= data[key] <= 100.0, f"{key} = {data[key]} out of range"
+
+    def test_dem_and_rep_control_sum_to_100(self, senate_client):
+        """dem_control_pct + rep_control_pct should sum to 100 (complementary events)."""
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        total = data["dem_control_pct"] + data["rep_control_pct"]
+        assert abs(total - 100.0) < 1.0
+
+    def test_median_seats_sum_to_100(self, senate_client):
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        assert data["median_dem_seats"] + data["median_rep_seats"] == 100
+
+    def test_seat_distribution_is_list(self, senate_client):
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        assert isinstance(data["seat_distribution"], list)
+        assert len(data["seat_distribution"]) > 0
+
+    def test_seat_distribution_buckets_have_seats_and_probability(self, senate_client):
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        for bucket in data["seat_distribution"]:
+            assert "seats" in bucket
+            assert "probability" in bucket
+            assert 0 <= bucket["seats"] <= 100
+            assert 0.0 <= bucket["probability"] <= 1.0
+
+    def test_n_simulations_matches_default(self, senate_client):
+        """Default n_simulations should be 10,000."""
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        assert data["n_simulations"] == 10_000
+
+    def test_custom_n_simulations(self, senate_client):
+        """?n_simulations query param overrides the default."""
+        data = senate_client.get("/api/v1/senate/chamber-probability?n_simulations=2000").json()
+        assert data["n_simulations"] == 2000
+
+    def test_n_simulations_below_minimum_rejected(self, senate_client):
+        """n_simulations < 1000 is rejected with 422."""
+        resp = senate_client.get("/api/v1/senate/chamber-probability?n_simulations=500")
+        assert resp.status_code == 422
+
+    def test_gop_favored_with_test_data(self, senate_client):
+        """Test DB has TX and GA both leaning R; GOP should be favored."""
+        data = senate_client.get("/api/v1/senate/chamber-probability").json()
+        assert data["rep_control_pct"] > 50.0
+

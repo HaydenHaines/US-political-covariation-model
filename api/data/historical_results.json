@@ -1,0 +1,214 @@
+{
+  "_comment": "Historical results for tracked 2026 races. Senate last_race year = most recent election for that Class seat. Presidential margins are 2024 two-party Dem share vs 50% (positive = Dem advantage, negative = Rep advantage). Source: official state returns / AP.",
+  "2026-ga-senate": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Raphael Warnock",
+      "party": "D",
+      "margin": 2.8,
+      "note": "2022 runoff"
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -11.7,
+      "note": "Trump won GA by R+11.7 two-party"
+    }
+  },
+  "2026-az-senate": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Mark Kelly",
+      "party": "D",
+      "margin": 4.9
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -5.5,
+      "note": "Trump won AZ by R+5.5 two-party"
+    }
+  },
+  "2026-nc-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Thom Tillis",
+      "party": "R",
+      "margin": -1.7
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -14.4,
+      "note": "Trump won NC by R+14.4 two-party"
+    }
+  },
+  "2026-mi-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Gary Peters",
+      "party": "D",
+      "margin": 1.9
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -1.4,
+      "note": "Trump won MI by R+1.4 two-party"
+    }
+  },
+  "2026-pa-senate": {
+    "last_race": {
+      "year": 2022,
+      "winner": "John Fetterman",
+      "party": "D",
+      "margin": 4.9
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -2.1,
+      "note": "Trump won PA by R+2.1 two-party"
+    }
+  },
+  "2026-ia-senate": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Chuck Grassley",
+      "party": "R",
+      "margin": -26.5
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -18.3,
+      "note": "Trump won IA by R+18.3 two-party"
+    }
+  },
+  "2026-me-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Susan Collins",
+      "party": "R",
+      "margin": -8.6
+    },
+    "presidential_2024": {
+      "winner": "Harris",
+      "party": "D",
+      "margin": 5.9,
+      "note": "Harris won ME statewide by D+5.9 two-party"
+    }
+  },
+  "2026-mn-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Tina Smith",
+      "party": "D",
+      "margin": 5.3
+    },
+    "presidential_2024": {
+      "winner": "Harris",
+      "party": "D",
+      "margin": 3.0,
+      "note": "Harris won MN by D+3.0 two-party"
+    }
+  },
+  "2026-nh-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Jeanne Shaheen",
+      "party": "D",
+      "margin": 15.9
+    },
+    "presidential_2024": {
+      "winner": "Harris",
+      "party": "D",
+      "margin": 2.8,
+      "note": "Harris won NH by D+2.8 two-party"
+    }
+  },
+  "2026-or-senate": {
+    "last_race": {
+      "year": 2020,
+      "winner": "Jeff Merkley",
+      "party": "D",
+      "margin": 18.7
+    },
+    "presidential_2024": {
+      "winner": "Harris",
+      "party": "D",
+      "margin": 10.8,
+      "note": "Harris won OR by D+10.8 two-party"
+    }
+  },
+  "2026-mi-governor": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Gretchen Whitmer",
+      "party": "D",
+      "margin": 10.5
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -1.4,
+      "note": "Trump won MI by R+1.4 two-party"
+    }
+  },
+  "2026-oh-governor": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Mike DeWine",
+      "party": "R",
+      "margin": -25.5
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -17.0,
+      "note": "Trump won OH by R+17.0 two-party"
+    }
+  },
+  "2026-pa-governor": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Josh Shapiro",
+      "party": "D",
+      "margin": 14.8
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -2.1,
+      "note": "Trump won PA by R+2.1 two-party"
+    }
+  },
+  "2026-tx-governor": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Greg Abbott",
+      "party": "R",
+      "margin": -11.3
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -14.1,
+      "note": "Trump won TX by R+14.1 two-party"
+    }
+  },
+  "2026-wi-governor": {
+    "last_race": {
+      "year": 2022,
+      "winner": "Tony Evers",
+      "party": "D",
+      "margin": 3.4
+    },
+    "presidential_2024": {
+      "winner": "Trump",
+      "party": "R",
+      "margin": -0.9,
+      "note": "Trump won WI by R+0.9 two-party"
+    }
+  }
+}

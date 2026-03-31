@@ -287,6 +287,7 @@ class TypeScatterPoint(BaseModel):
 
 # ── Race detail (SEO page) ───────────────────────────────────────────────
 
+
 class RacePoll(BaseModel):
     date: str | None
     pollster: str | None
@@ -304,6 +305,39 @@ class TypeBreakdown(BaseModel):
     # without this, states like MI show only rural types because they have
     # more small counties than urban ones (see GitHub #21).
     total_votes: int | None = None
+
+
+# ── Historical context (static per-race, from api/data/historical_results.json) ──
+
+
+class LastRaceResult(BaseModel):
+    """Most recent election result for this specific Senate seat or Governor office."""
+
+    year: int
+    winner: str
+    party: str
+    # Positive = Dem advantage (D+X), negative = Rep advantage (R+X), in percentage points.
+    margin: float
+    note: str | None = None
+
+
+class PresidentialResult(BaseModel):
+    """2024 presidential two-party result for this state."""
+
+    winner: str
+    party: str
+    # Positive = Dem advantage, negative = Rep advantage, in percentage points.
+    margin: float
+    note: str | None = None
+
+
+class HistoricalContext(BaseModel):
+    """Historical electoral context for a single tracked race."""
+
+    last_race: LastRaceResult
+    presidential_2024: PresidentialResult
+    # Model forecast minus last_race margin (pp). Positive = Dem shift vs. last result.
+    forecast_shift: float | None = None
 
 
 class RaceDetail(BaseModel):
@@ -324,6 +358,7 @@ class RaceDetail(BaseModel):
     pred_std: float | None = None
     pred_lo90: float | None = None
     pred_hi90: float | None = None
+    historical_context: HistoricalContext | None = None
 
 
 # ── Embed widget ─────────────────────────────────────────────────────────
@@ -367,6 +402,51 @@ class ElectionHistoryPoint(BaseModel):
     election_type: str   # "president" | "senate" | "governor"
     dem_share: float
     total_votes: int | None = None
+
+
+# ── Chamber probability ──────────────────────────────────────────────────
+
+class SeatDistributionBucket(BaseModel):
+    """Probability mass for a specific Dem seat total from Monte Carlo simulation."""
+
+    seats: int
+    probability: float
+
+
+class ChamberProbabilityResponse(BaseModel):
+    """Monte Carlo chamber control probability for the 2026 Senate.
+
+    Derived by simulating N independent race outcomes drawn from each race's
+    predicted Dem share and uncertainty (Normal(pred, std)).  Safe/unmodeled
+    races use a fixed high-confidence draw for the incumbent party.
+    """
+
+    dem_control_pct: float
+    """Fraction of simulations where Democrats win >=50 seats (0-100 scale)."""
+
+    rep_control_pct: float
+    """Fraction of simulations where Republicans win (0-100 scale)."""
+
+    dem_majority_pct: float
+    """Fraction of simulations where Democrats win >=51 seats (outright majority, 0-100 scale)."""
+
+    median_dem_seats: int
+    """Median Democratic seat total across all simulations."""
+
+    median_rep_seats: int
+    """Median Republican seat total across all simulations."""
+
+    seat_distribution: list[SeatDistributionBucket]
+    """Probability mass function over possible Dem seat totals."""
+
+    n_simulations: int
+    """Number of Monte Carlo draws used."""
+
+    n_modeled_races: int
+    """Number of contested races with model predictions (Normal draws)."""
+
+    n_safe_races: int
+    """Number of races treated as safe (high-confidence incumbent win)."""
 
 
 # ── Forecast changelog ───────────────────────────────────────────────────

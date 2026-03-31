@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   useReactTable,
@@ -683,17 +684,13 @@ export function ComparisonTable() {
         )}
       </div>
 
-      {/* Loading state */}
+      {/* Loading state — skeleton rows sized to approximate the comparison table */}
       {detailsLoading && selectedIds.length > 0 && !hasAnyDetail && (
-        <div
-          style={{
-            padding: "32px",
-            textAlign: "center",
-            color: "var(--color-text-muted)",
-            fontSize: 13,
-          }}
-        >
-          Loading type details…
+        <div className="space-y-2">
+          <Skeleton className="w-full h-10" />
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="w-full h-8" />
+          ))}
         </div>
       )}
 

@@ -359,7 +359,16 @@ export default async function TypesPage() {
           Select up to 4 types to compare their demographic and political
           profiles side-by-side. The comparison URL is shareable.
         </p>
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="space-y-2">
+              <Skeleton className="w-full h-12" />
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Skeleton key={i} className="w-full h-8" />
+              ))}
+            </div>
+          }
+        >
           <ComparisonTable />
         </Suspense>
       </section>

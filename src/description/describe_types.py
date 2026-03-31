@@ -175,13 +175,23 @@ def describe_types(
             "pop_total": total_pop,
         }
 
-        # Score-weighted mean of every feature column
+        # Score-weighted mean of every feature column.
+        # Only weight non-null values: NaN counties are excluded from
+        # both numerator and denominator.  This prevents sparse features
+        # (e.g. Alaska Census Areas missing ACS data) from being dragged
+        # toward zero by fillna(0.0).
         for col in all_feature_cols:
             if col not in merged.columns or col == "pop_total":
                 continue
-            col_vals = merged[col].fillna(0.0)
-            if total_weight > 0:
-                row[col] = float((col_vals * weights).sum() / total_weight)
+            mask = merged[col].notna()
+            if mask.sum() == 0:
+                row[col] = float("nan")
+                continue
+            col_vals = merged.loc[mask, col]
+            w = weights[mask]
+            w_sum = w.sum()
+            if w_sum > 0:
+                row[col] = float((col_vals * w).sum() / w_sum)
             else:
                 row[col] = float(col_vals.mean())
 

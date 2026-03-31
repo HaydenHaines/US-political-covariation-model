@@ -27,7 +27,11 @@ from src.description.naming_vocab import (
 )
 
 # Ordinals used in several disambiguation passes
-_DISAMBIG_ORDINALS = ["", " II", " III", " IV", " V", " VI", " VII", " VIII"]
+_DISAMBIG_ORDINALS = [
+    "", " II", " III", " IV", " V", " VI", " VII", " VIII",
+    " IX", " X", " XI", " XII", " XIII", " XIV", " XV", " XVI",
+    " XVII", " XVIII", " XIX", " XX",
+]
 
 
 # ---------------------------------------------------------------------------

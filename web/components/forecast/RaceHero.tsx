@@ -78,16 +78,19 @@ export function RaceHero({
         )}
       </div>
 
-      {/* 90% confidence interval */}
+      {/* 90% confidence interval.
+          hi90 is the upper dem-share bound (more D-leaning) and lo90 is the
+          lower bound (more R-leaning). Render D first so the range reads
+          naturally: "D+5.2 to R+6.3" rather than "R+6.3 to D+5.2". */}
       {hasBounds && (
         <p className="text-sm text-muted-foreground">
           90% interval:{" "}
           <span className="font-mono">
-            {formatMargin(lo90 as number)}
+            {formatMargin(hi90 as number)}
           </span>{" "}
           to{" "}
           <span className="font-mono">
-            {formatMargin(hi90 as number)}
+            {formatMargin(lo90 as number)}
           </span>
         </p>
       )}

@@ -138,8 +138,8 @@ export default async function TypesPage() {
     >
       {/* Breadcrumb */}
       <nav style={{ fontSize: 13, color: "var(--color-text-muted)", marginBottom: 24 }}>
-        <Link href="/explore/map" style={{ color: "var(--color-dem)", textDecoration: "none" }}>
-          Map
+        <Link href="/" style={{ color: "var(--color-dem)", textDecoration: "none" }}>
+          Home
         </Link>
         {" / "}
         <span>Types</span>

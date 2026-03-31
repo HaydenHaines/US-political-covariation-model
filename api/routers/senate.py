@@ -163,17 +163,22 @@ def _build_headline(races: list[dict]) -> tuple[str, str, int, int]:
             dem_projected,
             gop_projected,
         )
+    # Subtitle shows the competitive breakdown, not a projected total. Using
+    # "GOP projected 71 seats" contradicts the balance bar (which shows only
+    # the non-contested safe-seat count, 53R). Both numbers are valid but count
+    # different things; putting them on the same screen without explanation
+    # confuses readers. The competitive breakdown is self-contained and matches
+    # what the balance bar conveys visually.
+    tossup_label = f"{n_tossup} tossup" if n_tossup == 1 else f"{n_tossup} tossups"
+    competitive_subtitle = f"{n_competitive} competitive races · {tossup_label}"
+
     if gop_projected > dem_projected:
         if gop_projected >= 55:
-            subtitle = f"GOP projected {gop_projected} seats · {n_competitive} competitive races"
-            return "Republicans Strongly Favored to Hold the Senate", subtitle, dem_projected, gop_projected
-        subtitle = f"GOP projected {gop_projected} seats · {n_competitive} competitive races"
-        return "Republicans Favored to Hold the Senate", subtitle, dem_projected, gop_projected
+            return "Republicans Strongly Favored to Hold the Senate", competitive_subtitle, dem_projected, gop_projected
+        return "Republicans Favored to Hold the Senate", competitive_subtitle, dem_projected, gop_projected
     if dem_projected >= 55:
-        subtitle = f"Dems projected {dem_projected} seats · {n_competitive} competitive races"
-        return "Democrats Strongly Favored to Flip the Senate", subtitle, dem_projected, gop_projected
-    subtitle = f"Dems projected {dem_projected} seats · {n_competitive} competitive races"
-    return "Democrats Favored to Flip the Senate", subtitle, dem_projected, gop_projected
+        return "Democrats Strongly Favored to Flip the Senate", competitive_subtitle, dem_projected, gop_projected
+    return "Democrats Favored to Flip the Senate", competitive_subtitle, dem_projected, gop_projected
 
 
 @router.get("/senate/overview")

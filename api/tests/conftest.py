@@ -127,6 +127,20 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
             [fips, TEST_VERSION],
         )
 
+    # Races table: maps race_id → state, required by the state-filtered comparisons query.
+    # The comparisons and snapshot endpoints join predictions through races to restrict
+    # aggregation to in-state counties, avoiding cross-state baseline dilution (issue #16).
+    con.execute("""
+        CREATE TABLE races (
+            race_id   VARCHAR PRIMARY KEY,
+            race_type VARCHAR NOT NULL,
+            state     VARCHAR NOT NULL,
+            year      INTEGER NOT NULL,
+            district  INTEGER
+        )
+    """)
+    con.execute("INSERT INTO races VALUES ('FL_Senate', 'senate', 'FL', 2026, NULL)")
+
     # Minimal schema: only one shift column. Extend when shift_profile endpoints need it.
     con.execute("""
         CREATE TABLE county_shifts (

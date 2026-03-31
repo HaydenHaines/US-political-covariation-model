@@ -83,21 +83,62 @@ def snapshot_predictions(db_path: str | Path = DEFAULT_DB) -> dict[str, float]:
 
         # Use the latest version_id so we compare apples-to-apples.
         # If multiple version_ids exist, pick the most recent.
-        result = con.execute("""
-            WITH latest AS (
-                SELECT MAX(version_id) AS vid
-                FROM predictions
-                WHERE pred_dem_share IS NOT NULL
-            )
-            SELECT
-                race,
-                AVG(pred_dem_share) AS avg_pred_dem_share
-            FROM predictions, latest
-            WHERE version_id = vid
-              AND pred_dem_share IS NOT NULL
-            GROUP BY race
-            ORDER BY race
-        """).fetchall()
+        #
+        # IMPORTANT: filter counties to the race's own state.
+        # The predictions table stores all 3,154 US counties for every race,
+        # with out-of-state counties carrying the national baseline value (~0.318).
+        # Averaging across all counties produces a misleading ~48.3% D number
+        # for most races — diluted by ~3,100 out-of-state baseline rows.
+        #
+        # We join through the `races` table (race_id → state) to restrict the
+        # aggregate to the counties that actually vote in each race. If `races`
+        # is absent (e.g. older schema or small test DBs), we fall back to the
+        # simple county average — correct for single-state test DBs but diluted
+        # for national DBs.
+        has_races_table = "races" in tables
+        has_counties_table = "counties" in tables
+
+        if has_races_table and has_counties_table:
+            result = con.execute("""
+                WITH latest AS (
+                    SELECT MAX(version_id) AS vid
+                    FROM predictions
+                    WHERE pred_dem_share IS NOT NULL
+                )
+                SELECT
+                    p.race,
+                    CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
+                         THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
+                              / SUM(COALESCE(c.total_votes_2024, 0))
+                         ELSE AVG(p.pred_dem_share)
+                    END AS avg_pred_dem_share
+                FROM predictions p, latest
+                JOIN counties c ON p.county_fips = c.county_fips
+                JOIN races r ON p.race = r.race_id
+                WHERE p.version_id = latest.vid
+                  AND p.pred_dem_share IS NOT NULL
+                  AND c.state_abbr = r.state
+                GROUP BY p.race
+                ORDER BY p.race
+            """).fetchall()
+        else:
+            # Fallback for DBs without a races table (e.g. older schema or test DBs).
+            result = con.execute("""
+                WITH latest AS (
+                    SELECT MAX(version_id) AS vid
+                    FROM predictions
+                    WHERE pred_dem_share IS NOT NULL
+                )
+                SELECT
+                    race,
+                    AVG(pred_dem_share) AS avg_pred_dem_share
+                FROM predictions, latest
+                WHERE version_id = vid
+                  AND pred_dem_share IS NOT NULL
+                  AND race != 'baseline'
+                GROUP BY race
+                ORDER BY race
+            """).fetchall()
 
         return {row[0]: float(row[1]) for row in result}
     finally:

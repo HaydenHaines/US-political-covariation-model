@@ -1099,7 +1099,15 @@ def get_forecast_comparisons(
     last_updated = comparisons_data.get("last_updated")
     manual_ratings: dict[str, dict] = comparisons_data.get("ratings", {})
 
-    # Fetch vote-weighted state-level predictions for all races
+    # Fetch vote-weighted state-level predictions for all races.
+    #
+    # IMPORTANT: filter counties to the race's own state via the `races` table.
+    # The predictions table stores county rows for ALL 3,154 US counties for every
+    # race, with non-state counties carrying the national baseline value (~0.318).
+    # Without the state filter, the vote-weighted average is diluted by ~3,100
+    # out-of-state baseline rows and converges to ~48.3% D (R+1.7pp) for almost
+    # every race — the "48.3% D · R+1.7" bug reported in issues #16 and #17.
+    # Joining through races.state ensures only in-state counties contribute.
     try:
         rows = db.execute(
             """
@@ -1114,7 +1122,10 @@ def get_forecast_comparisons(
                 COUNT(*) AS n_counties
             FROM predictions p
             JOIN counties c ON p.county_fips = c.county_fips
-            WHERE p.version_id = ? AND p.race != 'baseline'
+            JOIN races r ON p.race = r.race_id
+            WHERE p.version_id = ?
+              AND p.race != 'baseline'
+              AND c.state_abbr = r.state
             GROUP BY p.race
             ORDER BY p.race
             """,

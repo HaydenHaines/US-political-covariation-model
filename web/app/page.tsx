@@ -41,8 +41,14 @@ export default function LandingPage() {
       )}
 
       {data?.state_colors && (
-        <div className="flex justify-center px-4 mb-6">
+        <div className="flex flex-col items-center px-4 mb-6">
           <MiniMap stateColors={data.state_colors} />
+          <p
+            className="text-xs mt-2 max-w-sm text-center"
+            style={{ color: "var(--color-text-subtle)" }}
+          >
+            Map area reflects geography, not population or electoral weight.
+          </p>
         </div>
       )}
 

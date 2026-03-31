@@ -80,6 +80,14 @@ function Swatch({ color, style }: { color: string; style?: React.CSSProperties }
   );
 }
 
+function GeoCaveat() {
+  return (
+    <p style={{ color: "var(--color-text-subtle)", fontSize: 10, margin: "6px 0 0", lineHeight: 1.3 }}>
+      Area reflects geography, not population.
+    </p>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Sub-legends
 // ---------------------------------------------------------------------------
@@ -104,6 +112,7 @@ function ForecastLegend() {
           </div>
         );
       })}
+      <GeoCaveat />
     </div>
   );
 }
@@ -142,6 +151,7 @@ function SenateLegend() {
           <span style={{ color: "var(--color-text-muted)" }}>{label}</span>
         </div>
       ))}
+      <GeoCaveat />
     </div>
   );
 }

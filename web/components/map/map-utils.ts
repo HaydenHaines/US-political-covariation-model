@@ -70,11 +70,11 @@ export function zoomFromBbox(
   return Math.min(9, Math.max(4, Math.log2(360 / span) - 0.5));
 }
 
-/** Initial view state: centered on continental US at zoom 4. */
+/** Initial view state: centered on continental US at zoom 3.5 to avoid cropping NE/West edges. */
 export const INITIAL_VIEW_STATE = {
   longitude: -98.0,
-  latitude: 39.0,
-  zoom: 4.0,
+  latitude: 38.5,
+  zoom: 3.5,
   pitch: 0,
   bearing: 0,
 } as const;

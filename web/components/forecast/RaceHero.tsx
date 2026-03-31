@@ -6,7 +6,6 @@ import { marginToRating } from "@/lib/config/palette";
 import { formatMargin } from "@/lib/format";
 
 interface RaceHeroProps {
-  raceName: string;
   stateName: string;
   raceType: string;
   year: number;
@@ -16,6 +15,8 @@ interface RaceHeroProps {
   /** Optional 90% confidence interval bounds (0-1 dem share) */
   lo90?: number | null;
   hi90?: number | null;
+  /** Number of polls incorporated into this forecast */
+  nPolls?: number;
 }
 
 /**
@@ -25,7 +26,6 @@ interface RaceHeroProps {
  * interval text line when bounds are available.
  */
 export function RaceHero({
-  raceName,
   stateName,
   raceType,
   year,
@@ -33,6 +33,7 @@ export function RaceHero({
   nCounties,
   lo90,
   hi90,
+  nPolls = 0,
 }: RaceHeroProps) {
   const rating = prediction !== null ? marginToRating(prediction) : "tossup";
 
@@ -56,6 +57,25 @@ export function RaceHero({
       <div className="flex items-center gap-4 flex-wrap mb-3">
         <MarginDisplay demShare={prediction} size="xl" />
         <RatingBadge rating={rating} />
+        {nPolls > 0 ? (
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={{
+              background: "color-mix(in srgb, var(--color-dem) 12%, transparent)",
+              color: "var(--color-dem)",
+              border: "1px solid color-mix(in srgb, var(--color-dem) 30%, transparent)",
+            }}
+          >
+            Poll-informed
+          </span>
+        ) : (
+          <span
+            className="text-xs"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Model prior only
+          </span>
+        )}
       </div>
 
       {/* 90% confidence interval */}
@@ -79,19 +99,6 @@ export function RaceHero({
         </p>
       )}
 
-      {/* Race identifier chips */}
-      <div className="flex gap-2 mt-4 flex-wrap">
-        <span
-          className="text-xs px-3 py-1 rounded-full border font-semibold"
-          style={{
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            color: "var(--color-text-muted)",
-          }}
-        >
-          {raceName}
-        </span>
-      </div>
     </div>
   );
 }

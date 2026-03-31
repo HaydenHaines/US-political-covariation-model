@@ -244,7 +244,6 @@ export default async function RaceDetailPage({ params }: PageProps) {
 
       {/* Hero — large margin, rating badge, CI */}
       <RaceHero
-        raceName={data.race}
         stateName={stateName}
         raceType={data.race_type}
         year={data.year}
@@ -252,6 +251,7 @@ export default async function RaceDetailPage({ params }: PageProps) {
         nCounties={data.n_counties}
         lo90={lo90}
         hi90={hi90}
+        nPolls={nPolls}
       />
 
       {/* Outcome distribution dotplot */}
@@ -315,27 +315,42 @@ export default async function RaceDetailPage({ params }: PageProps) {
         </section>
       )}
 
-      {/* Forecast blend controls */}
+      {/* Forecast blend controls — only shown when polls are available to blend */}
       <section className="mb-10">
         <h2 className="font-serif text-xl mb-4" style={{ fontFamily: "var(--font-serif)" }}>
           Forecast Blend
         </h2>
-        <p className="text-sm mb-3" style={{ color: "var(--color-text-muted)" }}>
-          Adjust how the forecast weights the structural model prior against available polling data.
-          {data.state_pred_local !== null && data.state_pred_local !== undefined && (
-            <> State-level model prior: <span className="font-mono">{((data.state_pred_local) * 100).toFixed(1)}% D</span>.</>
-          )}
-          {data.state_pred_national !== null && data.state_pred_national !== undefined && (
-            <> National-adjusted: <span className="font-mono">{((data.state_pred_national) * 100).toFixed(1)}% D</span>.</>
-          )}
-        </p>
-        <SectionWeightSliders
-          initial={{
-            model_prior: nPolls === 0 ? 80 : 60,
-            state_polls: nPolls === 0 ? 15 : 30,
-            national_polls: nPolls === 0 ? 5 : 10,
-          }}
-        />
+        {nPolls > 0 ? (
+          <>
+            <p className="text-sm mb-3" style={{ color: "var(--color-text-muted)" }}>
+              Adjust how the forecast weights the structural model prior against available polling data.
+              {data.state_pred_local !== null && data.state_pred_local !== undefined && (
+                <> State-level model prior: <span className="font-mono">{((data.state_pred_local) * 100).toFixed(1)}% D</span>.</>
+              )}
+              {data.state_pred_national !== null && data.state_pred_national !== undefined && (
+                <> National-adjusted: <span className="font-mono">{((data.state_pred_national) * 100).toFixed(1)}% D</span>.</>
+              )}
+            </p>
+            <SectionWeightSliders
+              initial={{
+                model_prior: 60,
+                state_polls: 30,
+                national_polls: 10,
+              }}
+            />
+          </>
+        ) : (
+          <p
+            className="text-sm rounded-md px-4 py-3"
+            style={{
+              color: "var(--color-text-muted)",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            Blend controls will appear here once polling data is available for this race.
+          </p>
+        )}
       </section>
 
       {/* Model notes */}
@@ -363,11 +378,14 @@ export default async function RaceDetailPage({ params }: PageProps) {
               via Bayesian update through the type covariance structure.
             </li>
           )}
-          <li>
-            Forecast mode:{" "}
-            <span className="font-mono">{data.forecast_mode ?? "local"}</span>.
-          </li>
         </ul>
+        {/* Freshness timestamp — shows most recent poll date when polls exist */}
+        <p className="mt-3 text-xs" style={{ color: "var(--color-text-muted)", opacity: 0.75 }}>
+          {nPolls > 0 && data.polls.length > 0 && data.polls[0].date
+            ? <>Last updated: {new Date(data.polls[0].date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</>
+            : <>No polls yet — forecast reflects structural model prior only.</>
+          }
+        </p>
       </section>
 
       {/* Back link */}

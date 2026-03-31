@@ -611,3 +611,127 @@ class TestChamberProbabilityEndpoint:
         data = senate_client.get("/api/v1/senate/chamber-probability").json()
         assert data["rep_control_pct"] > 50.0
 
+
+
+# ── Overview Blend endpoint tests ──────────────────────────────────────────
+
+
+class TestOverviewBlend:
+    """Tests for POST /api/v1/forecast/overview/blend — GitHub issue #14."""
+
+    def test_status_200(self, senate_client):
+        resp = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        )
+        assert resp.status_code == 200
+
+    def test_response_shape(self, senate_client):
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        assert "dem_seats" in data
+        assert "rep_seats" in data
+        assert "races" in data
+        assert isinstance(data["races"], list)
+
+    def test_returns_all_33_races(self, senate_client):
+        """The endpoint covers every 2026 Senate race, not just contested ones."""
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        assert len(data["races"]) == len(SENATE_2026_STATES)
+
+    def test_race_summary_fields(self, senate_client):
+        """Each race summary has slug, prediction, pred_std, and rating_label."""
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        for race in data["races"]:
+            for field in ("slug", "prediction", "pred_std", "rating_label"):
+                assert field in race, f"Missing field '{field}' in race {race}"
+
+    def test_seat_totals_are_integers(self, senate_client):
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        assert isinstance(data["dem_seats"], int)
+        assert isinstance(data["rep_seats"], int)
+
+    def test_seat_totals_at_least_safe_counts(self, senate_client):
+        """Projected totals are always >= the safe baseline seat counts."""
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        assert data["dem_seats"] >= DEM_SAFE_SEATS
+        assert data["rep_seats"] >= GOP_SAFE_SEATS
+
+    def test_different_weights_accepted(self, senate_client):
+        """Any valid weight combination must return 200."""
+        for weights in [
+            {"model_prior": 100, "state_polls": 0, "national_polls": 0},
+            {"model_prior": 0, "state_polls": 100, "national_polls": 0},
+            {"model_prior": 33, "state_polls": 33, "national_polls": 34},
+        ]:
+            resp = senate_client.post(
+                "/api/v1/forecast/overview/blend",
+                json=weights,
+            )
+            assert resp.status_code == 200, f"Failed for weights {weights}: {resp.text}"
+
+    def test_slugs_match_expected_format(self, senate_client):
+        """All slugs are lowercase hyphenated senate race slugs."""
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        for race in data["races"]:
+            slug = race["slug"]
+            assert slug == slug.lower(), f"Slug not lowercase: {slug}"
+            assert " " not in slug, f"Slug contains space: {slug}"
+            assert "senate" in slug, f"Slug missing 'senate': {slug}"
+
+    def test_rating_labels_are_valid(self, senate_client):
+        """All rating_label values must be one of the 7 canonical ratings."""
+        valid_ratings = {"safe_d", "likely_d", "lean_d", "tossup", "lean_r", "likely_r", "safe_r"}
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
+        ).json()
+        for race in data["races"]:
+            assert race["rating_label"] in valid_ratings, (
+                f"Unknown rating '{race['rating_label']}' for slug '{race['slug']}'"
+            )
+
+    def test_model_prior_only_preserves_prediction(self, senate_client):
+        """With model_prior=100 and state_polls=0, poll influence is zeroed out.
+
+        TX has polls in the fixture.  Even with polls zeroed, the structural
+        prior should still yield a valid float prediction.
+        """
+        data = senate_client.post(
+            "/api/v1/forecast/overview/blend",
+            json={"model_prior": 100, "state_polls": 0, "national_polls": 0},
+        ).json()
+        tx_race = next(r for r in data["races"] if "tx" in r["slug"])
+        assert tx_race["prediction"] is not None
+        assert isinstance(tx_race["prediction"], float)
+
+    def test_not_500_on_edge_weights(self, senate_client):
+        """No weight combination should produce a 5xx response."""
+        for weights in [
+            {"model_prior": 0, "state_polls": 0, "national_polls": 100},
+            {"model_prior": 50, "state_polls": 50, "national_polls": 0},
+        ]:
+            resp = senate_client.post(
+                "/api/v1/forecast/overview/blend",
+                json=weights,
+            )
+            assert resp.status_code < 500, (
+                f"Got {resp.status_code} for weights {weights}: {resp.text}"
+            )

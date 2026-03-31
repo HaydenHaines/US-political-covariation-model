@@ -320,3 +320,31 @@ export async function fetchPollTrend(slug: string): Promise<import("@/lib/types"
   if (!res.ok) throw new Error(`/forecast/race/${slug}/poll-trend failed: ${res.status}`);
   return res.json();
 }
+
+// ── Chamber probability ──────────────────────────────────────────────────
+
+export interface SeatDistributionBucket {
+  seats: number;
+  probability: number;
+}
+
+export interface ChamberProbabilityData {
+  /** Fraction of simulations where Dems win >=50 seats (0-100 scale). */
+  dem_control_pct: number;
+  /** Fraction of simulations where GOP wins (0-100 scale). */
+  rep_control_pct: number;
+  /** Fraction of simulations where Dems win >=51 seats (outright majority, 0-100 scale). */
+  dem_majority_pct: number;
+  median_dem_seats: number;
+  median_rep_seats: number;
+  seat_distribution: SeatDistributionBucket[];
+  n_simulations: number;
+  n_modeled_races: number;
+  n_safe_races: number;
+}
+
+export async function fetchChamberProbability(): Promise<ChamberProbabilityData> {
+  const res = await fetch(`${API_BASE}/senate/chamber-probability`);
+  if (!res.ok) throw new Error(`/senate/chamber-probability failed: ${res.status}`);
+  return res.json();
+}

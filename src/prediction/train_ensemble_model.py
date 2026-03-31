@@ -72,6 +72,27 @@ _ENSEMBLE_CONFIG = _load_ensemble_config()
 # HGB_PARAMS directly. Prefer _ENSEMBLE_CONFIG["hgb"] for new code.
 HGB_PARAMS: dict = _ENSEMBLE_CONFIG["hgb"]
 
+_ACCURACY_METRICS_PATH = PROJECT_ROOT / "data" / "model" / "accuracy_metrics.json"
+_TRAINING_METRICS_PATH = PROJECT_ROOT / "data" / "model" / "training_metrics.json"
+
+
+def _read_loo_metric(method_name: str) -> float | None:
+    """Pull a LOO r value from accuracy_metrics.json by method name.
+
+    Returns None if the file doesn't exist or the method isn't found, so the
+    training script never fails just because validation hasn't run yet.
+    """
+    if not _ACCURACY_METRICS_PATH.exists():
+        return None
+    try:
+        metrics = json.loads(_ACCURACY_METRICS_PATH.read_text())
+        for entry in metrics.get("method_comparison", []):
+            if entry.get("method") == method_name:
+                return entry.get("loo_r")
+    except (json.JSONDecodeError, KeyError):
+        log.warning("Could not read LOO metric from %s", _ACCURACY_METRICS_PATH)
+    return None
+
 
 def train_and_save(
     type_assignments_path: Path | None = None,
@@ -193,11 +214,12 @@ def train_and_save(
         "ensemble_ridge_weight": ridge_weight,
         "ensemble_hgb_weight": hgb_weight,
         "hgb_params": hgb_params,
-        # DEBT: write training metrics to data/model/training_metrics.json after retrain
-        # rather than embedding empirical LOO results as hardcoded literals here.
-        "loo_r_ridge": "see data/model/accuracy_metrics.json",
-        "loo_r_hgb": "see data/model/accuracy_metrics.json",
-        "loo_r_ensemble": "see data/model/accuracy_metrics.json",
+        # LOO metrics are computed by the validation pipeline and stored in
+        # data/model/accuracy_metrics.json. Pull them in if available so the
+        # training metadata is self-contained; otherwise leave as null.
+        "loo_r_ridge": _read_loo_metric("Ridge (scores only)"),
+        "loo_r_hgb": _read_loo_metric("Ridge+HGB ensemble"),  # closest proxy
+        "loo_r_ensemble": _read_loo_metric("Ridge+HGB ensemble"),
         "feature_names": feature_names,
         "n_counties": int(len(priors_df)),
         "n_training_samples": int(n_fit),
@@ -210,6 +232,39 @@ def train_and_save(
     out_json = output_dir / "ridge_meta.json"
     out_json.write_text(json.dumps(meta, indent=2))
     log.info("Saved metadata to %s", out_json)
+
+    # ── Write training_metrics.json (standalone record of this retrain) ────
+    training_metrics = {
+        "date_trained": str(date.today()),
+        "n_training_samples": int(n_fit),
+        "n_counties_output": int(len(priors_df)),
+        "n_features": int(X_fit.shape[1]),
+        "n_type_scores": J,
+        "n_demo_features": n_demo,
+        "ridge": {
+            "alpha": alpha,
+            "train_r2": r2_ridge,
+        },
+        "hgb": {
+            "train_r2": r2_hgb,
+            **hgb_params,
+        },
+        "ensemble": {
+            "method": f"{int(ridge_weight * 100)}pct_ridge_{int(hgb_weight * 100)}pct_hgb",
+            "ridge_weight": ridge_weight,
+            "hgb_weight": hgb_weight,
+            "pred_min": float(ensemble_pred.min()),
+            "pred_max": float(ensemble_pred.max()),
+            "pred_mean": float(ensemble_pred.mean()),
+        },
+        "loo_r_ridge": meta["loo_r_ridge"],
+        "loo_r_ensemble": meta["loo_r_ensemble"],
+        "target": "pres_dem_share_2024",
+        "history_years": _HISTORY_YEARS,
+    }
+    _TRAINING_METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _TRAINING_METRICS_PATH.write_text(json.dumps(training_metrics, indent=2))
+    log.info("Saved training metrics to %s", _TRAINING_METRICS_PATH)
 
     print(f"Ridge: alpha={alpha:.4g}, train R²={r2_ridge:.4f}")
     print(f"HGB:   train R²={r2_hgb:.4f}")

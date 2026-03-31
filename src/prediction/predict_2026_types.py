@@ -42,8 +42,8 @@ _STATE_FIPS_TO_ABBR: dict[str, str] = _cfg.STATE_ABBR
 
 # ---------------------------------------------------------------------------
 # Forecast hyperparameters — loaded from data/config/prediction_params.json.
-# lam: θ_national regularization strength (TODO: calibrate — Plan C)
-# mu: δ_race regularization strength (TODO: calibrate — Plan C)
+# lam: θ_national regularization strength (see GitHub #91 for calibration plan)
+# mu: δ_race regularization strength (see GitHub #91 for calibration plan)
 # w_vector_mode: W vector construction tier ("core" vs "full" — benchmark first)
 # ---------------------------------------------------------------------------
 _PARAMS_PATH = PROJECT_ROOT / "data" / "config" / "prediction_params.json"

@@ -305,3 +305,104 @@ class TestEnsembleMetadata:
         assert meta["hgb_params"]["learning_rate"] == pytest.approx(HGB_PARAMS["learning_rate"])
         assert meta["hgb_params"]["max_depth"] == HGB_PARAMS["max_depth"]
         assert meta["hgb_params"]["min_samples_leaf"] == HGB_PARAMS["min_samples_leaf"]
+
+    def test_training_metrics_json_written(self, tmp_path):
+        """train_and_save must write data/model/training_metrics.json."""
+        from src.prediction.train_ensemble_model import train_and_save
+        import src.prediction.train_ensemble_model as mod
+
+        n = 40
+        ta_df = _make_type_assignments(n, j=6)
+        demo_df = _make_demographics(n, n_demo=4)
+
+        ta_path = tmp_path / "type_assignments.parquet"
+        demo_path = tmp_path / "county_features_national.parquet"
+        assembled_dir = tmp_path / "assembled"
+        output_dir = tmp_path / "ensemble_output"
+        ta_df.to_parquet(ta_path, index=False)
+        demo_df.to_parquet(demo_path, index=False)
+
+        for year, seed in zip([2008, 2012, 2016, 2020, 2024], range(5)):
+            _write_election_parquet(assembled_dir, year, n, seed)
+
+        # Point training_metrics path to tmp_path so we don't pollute real data
+        metrics_path = tmp_path / "training_metrics.json"
+        original_path = mod._TRAINING_METRICS_PATH
+        mod._TRAINING_METRICS_PATH = metrics_path
+        try:
+            train_and_save(
+                type_assignments_path=ta_path,
+                demographics_path=demo_path,
+                assembled_dir=assembled_dir,
+                output_dir=output_dir,
+            )
+        finally:
+            mod._TRAINING_METRICS_PATH = original_path
+
+        assert metrics_path.exists(), "training_metrics.json not written"
+        tm = json.loads(metrics_path.read_text())
+        assert "date_trained" in tm
+        assert "ridge" in tm
+        assert "hgb" in tm
+        assert "ensemble" in tm
+        assert tm["ridge"]["train_r2"] >= 0.0
+        assert tm["ensemble"]["pred_min"] >= 0.0
+        assert tm["ensemble"]["pred_max"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Test: _read_loo_metric
+# ---------------------------------------------------------------------------
+
+class TestReadLooMetric:
+    """_read_loo_metric must safely read from accuracy_metrics.json."""
+
+    def test_reads_existing_metric(self, tmp_path):
+        """Returns float when method exists in accuracy_metrics.json."""
+        from src.prediction.train_ensemble_model import _read_loo_metric
+        import src.prediction.train_ensemble_model as mod
+
+        metrics = {
+            "method_comparison": [
+                {"method": "Ridge (scores only)", "loo_r": 0.533},
+                {"method": "Ridge+HGB ensemble", "loo_r": 0.711},
+            ]
+        }
+        metrics_path = tmp_path / "accuracy_metrics.json"
+        metrics_path.write_text(json.dumps(metrics))
+
+        original = mod._ACCURACY_METRICS_PATH
+        mod._ACCURACY_METRICS_PATH = metrics_path
+        try:
+            result = _read_loo_metric("Ridge+HGB ensemble")
+            assert result == pytest.approx(0.711)
+        finally:
+            mod._ACCURACY_METRICS_PATH = original
+
+    def test_returns_none_for_missing_method(self, tmp_path):
+        """Returns None when the requested method is not in the file."""
+        from src.prediction.train_ensemble_model import _read_loo_metric
+        import src.prediction.train_ensemble_model as mod
+
+        metrics = {"method_comparison": [{"method": "Something else", "loo_r": 0.5}]}
+        metrics_path = tmp_path / "accuracy_metrics.json"
+        metrics_path.write_text(json.dumps(metrics))
+
+        original = mod._ACCURACY_METRICS_PATH
+        mod._ACCURACY_METRICS_PATH = metrics_path
+        try:
+            assert _read_loo_metric("Nonexistent") is None
+        finally:
+            mod._ACCURACY_METRICS_PATH = original
+
+    def test_returns_none_for_missing_file(self, tmp_path):
+        """Returns None when accuracy_metrics.json doesn't exist."""
+        from src.prediction.train_ensemble_model import _read_loo_metric
+        import src.prediction.train_ensemble_model as mod
+
+        original = mod._ACCURACY_METRICS_PATH
+        mod._ACCURACY_METRICS_PATH = tmp_path / "nonexistent.json"
+        try:
+            assert _read_loo_metric("Ridge+HGB ensemble") is None
+        finally:
+            mod._ACCURACY_METRICS_PATH = original

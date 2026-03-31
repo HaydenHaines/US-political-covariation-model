@@ -81,9 +81,11 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.safeD}>Not on the Ballot — Democrats</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                <strong>{zone_counts.not_up_d ?? 0} Democratic seats</strong> are not on the
-                ballot in 2026. Senate terms are 6 years — the 2026 class was last elected in
-                2020. These seats are locked in regardless of the political environment.
+                <strong>{zone_counts.not_up_d ?? 0} Democratic seats</strong> aren&rsquo;t
+                on the ballot in 2026. Senate terms run six years, and these senators were
+                elected in 2022 or 2024 — they won&rsquo;t face voters again until 2028 at the
+                earliest. These seats form the Democratic floor: safe from any wave, immune to
+                the political environment, already locked in.
               </p>
               {not_up_d_states.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -102,9 +104,11 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.likelyD}>Safe Democratic Seats Up</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                These are the seats Democrats won in 2020. They&rsquo;re safe — but the fact
-                that they&rsquo;re on the ballot is the first part of the story. Democrats are
-                defending a class built during one of their better recent cycles.
+                These seats were won in 2020 — a strong Democratic cycle, with Biden at the top
+                of the ticket. They&rsquo;re expected to hold. But 2020&rsquo;s favorable map is
+                exactly what makes this class complicated: Democrats are defending terrain they
+                won under unusually good conditions, in an environment that may look nothing
+                like 2020.
               </p>
               {safeUpDStates.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -163,8 +167,8 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.leanD}>The Battleground</ZoneLabel>
               <p className="mt-4 text-base leading-relaxed" style={{ color: "var(--color-text-muted)" }}>
-                These are the races where the map gets decided. Sorted by margin — closest races
-                at the top.
+                Control of the Senate comes down to these races. Every one of them is
+                genuinely uncertain. Sorted by margin — the closest calls at the top.
               </p>
             </div>
 
@@ -190,9 +194,11 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.likelyR}>Safe Republican Seats Up</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                These Republican seats survived {sc.baseline_year}&rsquo;s environment. They were
-                won even as Democrats ran competitively at the national level. Flipping them would
-                require outperforming that baseline — a steep ask in most scenarios.
+                These Republican seats held through {sc.baseline_year}&rsquo;s{" "}
+                {sc.baseline_label} — won even when Democrats ran competitively at the national
+                level. The communities that send these senators to Washington are deeply
+                Republican. Flipping them would require Democrats to outperform their own strong
+                cycle by a meaningful margin. That&rsquo;s not impossible. It&rsquo;s just rare.
               </p>
               {safeUpRStates.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -212,9 +218,10 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.safeR}>Not on the Ballot — Republicans</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                <strong>{zone_counts.not_up_r ?? 0} Republican seats</strong> aren&rsquo;t on
-                the ballot. The structural floor. Whatever happens in November, these seats stay
-                Republican.
+                <strong>{zone_counts.not_up_r ?? 0} Republican seats</strong> are off the
+                ballot entirely. No matter what happens in November — wave, surge, or
+                collapse — these seats don&rsquo;t move. They are the Republican floor, baked
+                in before a single vote is cast in 2026.
               </p>
               {not_up_r_states.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -231,11 +238,13 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
                 className="text-xl font-bold mb-2"
                 style={{ color: "var(--color-text)" }}
               >
-                Follow the forecast
+                Watch the map change
               </h2>
               <p className="text-base mb-6" style={{ color: "var(--color-text-muted)" }}>
-                The model updates as polls arrive. Track each race or explore the community
-                types that drive WetherVane&rsquo;s predictions.
+                Every new poll shifts the picture. WetherVane updates each race as data
+                arrives — propagating signals through the community structure to every state,
+                not just the ones being polled. Dig into the individual races, or explore the
+                community types the model is actually built on.
               </p>
             </div>
 

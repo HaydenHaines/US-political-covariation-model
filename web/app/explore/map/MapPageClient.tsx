@@ -42,8 +42,8 @@ function MapPageInner() {
       style={{
         position: "relative",
         width: "100%",
-        // Fill viewport below the nav bar (nav is ~56px)
-        height: "calc(100vh - 56px)",
+        // Fill viewport below the nav bar (nav is h-12 = 3rem = 48px)
+        height: "calc(100vh - 3rem)",
         overflow: "hidden",
       }}
     >

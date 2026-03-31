@@ -84,3 +84,4 @@ web/tsconfig.tsbuildinfo
 
 # Per-state tract GeoJSON splits (generated, too large for git)
 web/public/tracts/
+web/test-results/

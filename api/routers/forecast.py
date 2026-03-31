@@ -65,6 +65,32 @@ _Z90 = 1.645                  # z-score for 90% confidence interval
 router = APIRouter(tags=["forecast"])
 
 
+def _lookup_pollster_grade(request: Request, pollster_name: str | None) -> str | None:
+    """Look up Silver Bulletin letter grade for a pollster, with fuzzy matching."""
+    if not pollster_name:
+        return None
+    grades = getattr(request.app.state, "pollster_grades", {})
+    norm_grades = getattr(request.app.state, "pollster_grades_normalized", {})
+    if not grades:
+        return None
+    # Exact match
+    if pollster_name in grades:
+        return grades[pollster_name]
+    # Normalized match
+    from src.assembly.silver_bulletin_ratings import _normalize, _name_similarity
+    norm = _normalize(pollster_name)
+    if norm in norm_grades:
+        return norm_grades[norm]
+    # Fuzzy match (Jaccard > 0.4)
+    best_grade, best_sim = None, 0.0
+    for nk, grade in norm_grades.items():
+        sim = _name_similarity(norm, nk)
+        if sim > best_sim:
+            best_sim = sim
+            best_grade = grade
+    return best_grade if best_sim >= 0.4 else None
+
+
 @router.get("/forecast", response_model=list[ForecastRow])
 def get_forecast(
     request: Request,
@@ -372,6 +398,9 @@ def get_race_detail(
             pollster=row["pollster"] if row["pollster"] else None,
             dem_share=float(row["dem_share"]),
             n_sample=int(row["n_sample"]) if not pd.isna(row["n_sample"]) else None,
+            grade=_lookup_pollster_grade(
+                request, row["pollster"] if row["pollster"] else None
+            ),
         )
         for _, row in polls_df.iterrows()
     ]
@@ -966,6 +995,7 @@ def get_polls(
         params.append(state)
     where = " AND ".join(conditions)
     rows = db.execute(f"SELECT * FROM polls WHERE {where} ORDER BY date", params).fetchdf()
+
     return [
         PollRow(
             race=row["race"],
@@ -975,6 +1005,9 @@ def get_polls(
             n_sample=int(row["n_sample"]),
             date=row["date"] if row["date"] else None,
             pollster=row["pollster"] if row["pollster"] else None,
+            grade=_lookup_pollster_grade(
+                request, row["pollster"] if row["pollster"] else None
+            ),
         )
         for _, row in rows.iterrows()
     ]

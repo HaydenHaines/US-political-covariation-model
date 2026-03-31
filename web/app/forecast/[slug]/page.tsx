@@ -52,6 +52,7 @@ interface RacePoll {
   pollster: string | null;
   dem_share: number;
   n_sample: number | null;
+  grade: string | null;
 }
 
 interface TypeBreakdown {

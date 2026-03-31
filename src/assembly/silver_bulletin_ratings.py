@@ -239,6 +239,77 @@ def load_pollster_ratings(path: Optional[Path | str] = None) -> dict[str, float]
     return ratings
 
 
+def load_pollster_grades(path: Optional[Path | str] = None) -> dict[str, str]:
+    """Load Silver Bulletin pollster ratings XLSX and return {pollster_name: grade_str}.
+
+    Returns the raw letter grade (e.g. "A+", "B-", "C") for each pollster.
+    Banned pollsters receive "Banned". Pollsters without a grade are omitted.
+
+    Parameters
+    ----------
+    path:
+        Path to the Silver Bulletin XLSX file. Defaults to
+        ``data/raw/silver_bulletin/pollster_stats_full_2026.xlsx``.
+
+    Returns
+    -------
+    dict[str, str]
+        Mapping from original pollster name to letter grade string.
+    """
+    xlsx_path = Path(path) if path is not None else DEFAULT_XLSX_PATH
+
+    if not xlsx_path.exists():
+        raise FileNotFoundError(
+            f"Silver Bulletin XLSX not found at {xlsx_path}."
+        )
+
+    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    ws = wb.active
+
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return {}
+
+    header = rows[0]
+    col_name_raw = _find_col(header, "pollster", required=True, fallback=0)
+    if len(rows) > 1 and len(rows[1]) > col_name_raw:
+        peek = rows[1][col_name_raw]
+        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
+            col_name_raw += 1
+    col_name = col_name_raw
+    col_banned = _find_col(header, "banned", required=False, fallback=5)
+    col_grade = _find_col(header, "sb grade", required=False, fallback=8)
+
+    grades: dict[str, str] = {}
+
+    for row in rows[1:]:
+        if row is None or len(row) <= col_name:
+            continue
+
+        raw_name = row[col_name]
+        if not raw_name:
+            continue
+        name = str(raw_name).strip()
+
+        # Banned pollsters
+        if col_banned is not None and len(row) > col_banned:
+            banned_val = str(row[col_banned] or "").strip().lower()
+            if banned_val == "yes":
+                grades[name] = "Banned"
+                continue
+
+        # Extract grade string
+        if col_grade is not None and len(row) > col_grade:
+            raw_grade = row[col_grade]
+            if raw_grade is not None:
+                grade_str = str(raw_grade).strip()
+                if grade_str in GRADE_SCORES:
+                    grades[name] = grade_str
+
+    wb.close()
+    return grades
+
+
 def load_pollster_house_effects(path: Optional[Path | str] = None) -> dict[str, float]:
     """Load Silver Bulletin house effects and return {pollster_name: house_effect_pp}.
 
@@ -409,6 +480,8 @@ def grade_to_score(grade: str) -> float:
 # Module-level cache populated on first call to get_pollster_quality
 _RATINGS_CACHE: Optional[dict[str, float]] = None
 _NORMALIZED_CACHE: Optional[dict[str, tuple[str, float]]] = None  # norm_name -> (orig_name, score)
+_GRADES_CACHE: Optional[dict[str, str]] = None
+_NORMALIZED_GRADES_CACHE: Optional[dict[str, tuple[str, str]]] = None  # norm_name -> (orig_name, grade)
 
 
 def _ensure_cache(path: Optional[Path | str] = None) -> None:
@@ -418,6 +491,16 @@ def _ensure_cache(path: Optional[Path | str] = None) -> None:
         _NORMALIZED_CACHE = {
             _normalize(name): (name, score)
             for name, score in _RATINGS_CACHE.items()
+        }
+
+
+def _ensure_grades_cache(path: Optional[Path | str] = None) -> None:
+    global _GRADES_CACHE, _NORMALIZED_GRADES_CACHE
+    if _GRADES_CACHE is None:
+        _GRADES_CACHE = load_pollster_grades(path)
+        _NORMALIZED_GRADES_CACHE = {
+            _normalize(name): (name, grade)
+            for name, grade in _GRADES_CACHE.items()
         }
 
 
@@ -479,11 +562,66 @@ def get_pollster_quality(
     return DEFAULT_SCORE
 
 
+def get_pollster_grade(
+    name: str,
+    path: Optional[Path | str] = None,
+    threshold: float = 0.4,
+) -> str | None:
+    """Return the letter grade for a pollster, with fuzzy name matching.
+
+    Same lookup strategy as ``get_pollster_quality`` but returns the letter
+    grade string (e.g. "A+", "B-") instead of a numeric score. Returns None
+    for unknown pollsters.
+
+    Parameters
+    ----------
+    name:
+        Pollster name to look up.
+    path:
+        Optional override for the XLSX path.
+    threshold:
+        Minimum Jaccard similarity for fuzzy match (default 0.4).
+
+    Returns
+    -------
+    str | None
+        Letter grade string, "Banned", or None if unknown.
+    """
+    _ensure_grades_cache(path)
+    assert _GRADES_CACHE is not None
+    assert _NORMALIZED_GRADES_CACHE is not None
+
+    # 1. Exact match
+    if name in _GRADES_CACHE:
+        return _GRADES_CACHE[name]
+
+    # 2. Normalised exact match
+    norm = _normalize(name)
+    if norm in _NORMALIZED_GRADES_CACHE:
+        return _NORMALIZED_GRADES_CACHE[norm][1]
+
+    # 3. Best Jaccard fuzzy match
+    best_grade: str | None = None
+    best_sim = 0.0
+    for norm_key, (_, grade) in _NORMALIZED_GRADES_CACHE.items():
+        sim = _name_similarity(norm, norm_key)
+        if sim > best_sim:
+            best_sim = sim
+            best_grade = grade
+
+    if best_sim >= threshold and best_grade is not None:
+        return best_grade
+
+    return None
+
+
 def clear_cache() -> None:
     """Clear the module-level pollster ratings cache.
 
     Useful in tests that use temporary XLSX fixtures.
     """
-    global _RATINGS_CACHE, _NORMALIZED_CACHE
+    global _RATINGS_CACHE, _NORMALIZED_CACHE, _GRADES_CACHE, _NORMALIZED_GRADES_CACHE
     _RATINGS_CACHE = None
     _NORMALIZED_CACHE = None
+    _GRADES_CACHE = None
+    _NORMALIZED_GRADES_CACHE = None

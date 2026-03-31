@@ -299,6 +299,20 @@ async def lifespan(app: FastAPI):
         app.state.behavior_delta = None
         log.warning("Behavior layer not found — predictions will use presidential baseline")
 
+    # ── Pollster grades (Silver Bulletin) ────────────────────────────────────────
+    try:
+        from src.assembly.silver_bulletin_ratings import load_pollster_grades, _normalize, _name_similarity
+        grades = load_pollster_grades()
+        # Build normalized lookup for fuzzy matching at request time
+        norm_grades = {_normalize(name): grade for name, grade in grades.items()}
+        app.state.pollster_grades = grades
+        app.state.pollster_grades_normalized = norm_grades
+        log.info("Loaded pollster grades: %d pollsters", len(grades))
+    except Exception as e:
+        app.state.pollster_grades = {}
+        app.state.pollster_grades_normalized = {}
+        log.warning("Failed to load pollster grades: %s", e)
+
     # ── Contract check ─────────────────────────────────────────────────────────
     contract_ok = True
     for table_name in ["super_types", "types", "county_type_assignments"]:

@@ -258,6 +258,7 @@ class PollRow(BaseModel):
     n_sample: int
     date: str | None
     pollster: str | None
+    grade: str | None = None  # Silver Bulletin letter grade (e.g. "A+", "B-")
 
 
 # ── Type-primary models ─────────────────────────────────────────────────────
@@ -323,6 +324,7 @@ class RacePoll(BaseModel):
     pollster: str | None
     dem_share: float
     n_sample: int | None
+    grade: str | None = None  # Silver Bulletin letter grade (e.g. "A+", "B-")
 
 
 class TypeBreakdown(BaseModel):

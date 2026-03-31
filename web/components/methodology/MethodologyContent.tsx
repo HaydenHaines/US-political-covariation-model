@@ -49,45 +49,6 @@ const DATA_SOURCES = [
   { name: "Governor returns", source: "Algara & Amlani (Harvard Dataverse) — 2002-2022 governor" },
 ];
 
-// ── Progress indicator ─────────────────────────────────────────────────────
-
-/** Sticky horizontal dots that show which section is active. */
-function ProgressIndicator({ activeId }: { activeId: SectionId }) {
-  return (
-    <div
-      className="sticky top-14 z-10 flex justify-center py-2 pointer-events-none"
-      aria-hidden="true"
-    >
-      <div
-        className="flex items-center gap-2 px-4 py-2 rounded-full"
-        style={{
-          background: "var(--color-surface)",
-          border: "1px solid var(--color-border)",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
-        }}
-      >
-        {TOC_SECTIONS.map((section, i) => {
-          const isActive = section.id === activeId;
-          return (
-            <span
-              key={section.id}
-              title={section.label}
-              style={{
-                display: "inline-block",
-                width: isActive ? "24px" : "6px",
-                height: "6px",
-                borderRadius: "3px",
-                background: isActive ? "var(--color-dem)" : "var(--color-border)",
-                transition: "width 0.25s ease, background 0.2s ease",
-              }}
-            />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Sticky TOC sidebar ─────────────────────────────────────────────────────
 
 function TableOfContents({ activeId }: { activeId: SectionId }) {
@@ -130,33 +91,28 @@ function TableOfContents({ activeId }: { activeId: SectionId }) {
 // ── ScrollSection ──────────────────────────────────────────────────────────
 
 /**
- * A full-height section with a collapsible body. Sections fill most of the
- * viewport height so users experience a scroll-driven story arc. The content
- * is collapsible (toggle button) and expanded by default.
+ * A full-height section. Always expanded — no collapse toggle — so TOC links
+ * always land on visible content, matching the scrollytelling design intent.
  */
 function ScrollSection({
   id,
   title,
   sectionNumber,
   totalSections,
-  defaultExpanded = true,
   children,
 }: {
   id: string;
   title: string;
   sectionNumber: number;
   totalSections: number;
-  defaultExpanded?: boolean;
   children: React.ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
-
   return (
     <section
       id={id}
       className="scroll-mt-16"
       style={{
-        minHeight: expanded ? "80vh" : undefined,
+        minHeight: "80vh",
         paddingTop: "3rem",
         paddingBottom: "3rem",
         display: "flex",
@@ -165,95 +121,55 @@ function ScrollSection({
         borderBottom: sectionNumber < totalSections ? "1px solid var(--color-border)" : "none",
       }}
     >
-      {/* Section header with section number tag */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        aria-controls={`${id}-body`}
-        className="flex w-full items-start justify-between gap-3 text-left mb-5 group"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          {/* Ambient section number — subtle, decorative */}
-          <span
-            aria-hidden="true"
-            className="shrink-0 text-xs font-mono tabular-nums select-none"
-            style={{
-              color: "var(--color-text-subtle)",
-              fontFamily: "var(--font-sans)",
-              letterSpacing: "0.05em",
-            }}
-          >
-            {String(sectionNumber).padStart(2, "0")} / {String(totalSections).padStart(2, "0")}
-          </span>
-
-          <h2
-            className="font-serif text-2xl font-bold leading-snug flex items-center gap-2"
-            style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
-          >
-            {title}
-            <a
-              href={`#${id}`}
-              className="text-sm font-normal opacity-0 group-hover:opacity-60 transition-opacity"
-              style={{ color: "var(--color-text-muted)", textDecoration: "none" }}
-              onClick={(e) => e.stopPropagation()}
-              aria-label={`Link to ${title} section`}
-            >
-              #
-            </a>
-          </h2>
-        </div>
-
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {/* Section header */}
+      <div className="flex items-center gap-3 min-w-0 mb-5 group">
+        <span
           aria-hidden="true"
-          className="w-5 h-5 shrink-0 mt-1 transition-transform"
+          className="shrink-0 text-xs font-mono tabular-nums select-none"
           style={{
-            transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-            color: "var(--color-text-muted)",
+            color: "var(--color-text-subtle)",
+            fontFamily: "var(--font-sans)",
+            letterSpacing: "0.05em",
           }}
         >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
+          {String(sectionNumber).padStart(2, "0")} / {String(totalSections).padStart(2, "0")}
+        </span>
+
+        <h2
+          className="font-serif text-2xl font-bold leading-snug flex items-center gap-2"
+          style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+        >
+          {title}
+          <a
+            href={`#${id}`}
+            className="text-sm font-normal opacity-0 group-hover:opacity-60 transition-opacity"
+            style={{ color: "var(--color-text-muted)", textDecoration: "none" }}
+            aria-label={`Link to ${title} section`}
+          >
+            #
+          </a>
+        </h2>
+      </div>
 
       <div
         id={`${id}-body`}
         role="region"
         aria-labelledby={id}
         className="text-base leading-relaxed"
-        style={{
-          display: expanded ? "block" : "none",
-          color: "var(--color-text)",
-        }}
+        style={{ color: "var(--color-text)" }}
       >
         {children}
       </div>
 
-      {/* Scroll nudge — subtle down arrow when expanded, hidden when collapsed */}
-      {expanded && (
-        <div
-          className="mt-auto pt-8 flex justify-center"
-          aria-hidden="true"
-          style={{ opacity: 0.25 }}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            className="w-5 h-5"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            <path d="M12 5v14M5 12l7 7 7-7" />
-          </svg>
-        </div>
-      )}
+      <div
+        className="mt-auto pt-8 flex justify-center"
+        aria-hidden="true"
+        style={{ opacity: 0.25 }}
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5" style={{ color: "var(--color-text-muted)" }}>
+          <path d="M12 5v14M5 12l7 7 7-7" />
+        </svg>
+      </div>
     </section>
   );
 }
@@ -457,11 +373,7 @@ export function MethodologyContent() {
   const total = TOC_SECTIONS.length;
 
   return (
-    <>
-      {/* Sticky progress indicator — full-width, above the layout */}
-      <ProgressIndicator activeId={activeSection} />
-
-      <div className="max-w-5xl mx-auto px-4 pb-20 flex gap-12">
+    <div className="max-w-5xl mx-auto px-4 pb-20 flex gap-12">
         {/* Sticky TOC sidebar */}
         <TableOfContents activeId={activeSection} />
 
@@ -866,6 +778,6 @@ export function MethodologyContent() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

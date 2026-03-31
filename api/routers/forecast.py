@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import duckdb
@@ -11,11 +12,15 @@ from api.db import get_db
 from api.models import (
     BlendResult,
     BlendWeights,
+    OverviewBlendRaceSummary,
+    OverviewBlendResult,
     ChangelogEntry,
     ChangelogRaceDiff,
     ChangelogResponse,
     ForecastRow,
     GenericBallotInfo,
+    HistoricalContext,
+    LastRaceResult,
     MultiPollInput,
     MultiPollResponse,
     PollInput,
@@ -23,11 +28,32 @@ from api.models import (
     PollTrendPoll,
     PollTrendResponse,
     PollTrend,
+    PresidentialResult,
     RaceDetail,
     RacePoll,
     SectionWeights,
     TypeBreakdown,
 )
+
+# Path to the static historical results data file (lives alongside the api/ package)
+_HISTORICAL_RESULTS_PATH = Path(__file__).parent.parent / "data" / "historical_results.json"
+
+
+def _load_historical_results() -> dict:
+    """Load and return the historical results dict from disk.
+
+    Returns an empty dict when the file is missing (graceful degradation).
+    Strips comment keys (those starting with '_') used for documentation.
+    """
+    if not _HISTORICAL_RESULTS_PATH.exists():
+        return {}
+    with _HISTORICAL_RESULTS_PATH.open() as f:
+        data = json.load(f)
+    return {k: v for k, v in data.items() if not k.startswith("_")}
+
+
+# Loaded once at import time - this file changes only when race data is manually updated
+_HISTORICAL_RESULTS: dict = _load_historical_results()
 
 # Uncertainty model parameters — see docs/ARCHITECTURE.md for calibration notes
 _STATE_STD_FLOOR = 0.035      # minimum state-level std; prevents over-confidence when counties agree
@@ -409,6 +435,95 @@ def get_race_detail(
         pred_std=state_std,
         pred_lo90=state_lo90,
         pred_hi90=state_hi90,
+        historical_context=_build_historical_context(slug, prediction),
+    )
+
+
+def _build_historical_context(slug: str, prediction: float | None) -> HistoricalContext | None:
+    """Build a HistoricalContext for a race slug from the static data file.
+
+    Returns None when the slug has no entry in historical_results.json
+    (i.e. it is not one of the tracked competitive races).
+
+    forecast_shift is calculated as: current model prediction margin minus
+    the last race margin.  Both are in percentage-point margin space where
+    the model prediction (Dem two-party share) is converted via
+    (pred - 0.5) * 200.  Positive shift = more Dem than last result.
+    """
+    entry = _HISTORICAL_RESULTS.get(slug)
+    if entry is None:
+        return None
+
+    last = entry["last_race"]
+    pres = entry["presidential_2024"]
+
+    last_result = LastRaceResult(
+        year=last["year"],
+        winner=last["winner"],
+        party=last["party"],
+        margin=last["margin"],
+        note=last.get("note"),
+    )
+    pres_result = PresidentialResult(
+        winner=pres["winner"],
+        party=pres["party"],
+        margin=pres["margin"],
+        note=pres.get("note"),
+    )
+
+    forecast_shift = None
+    if prediction is not None:
+        # Convert Dem two-party share to margin pp: (dem_share - 0.5) * 200
+        # e.g. 0.52 -> D+4.0;  0.48 -> R+4.0 (represented as -4.0)
+        model_margin_pp = (prediction - 0.5) * 200.0
+        forecast_shift = round(model_margin_pp - last_result.margin, 1)
+
+    return HistoricalContext(
+        last_race=last_result,
+        presidential_2024=pres_result,
+        forecast_shift=forecast_shift,
+    )
+
+
+@router.get("/forecast/race/{slug}/history", response_model=HistoricalContext)
+def get_race_history(slug: str) -> HistoricalContext:
+    """Return historical electoral context for a tracked race.
+
+    Reads from the static api/data/historical_results.json file which
+    covers the competitive races WetherVane tracks closely.  Returns
+    404 for races not in that file (safe/uncompetitive races).
+
+    Note: forecast_shift is not populated here (no prediction context);
+    fetch /forecast/race/{slug} to get the full context with forecast_shift.
+    """
+    entry = _HISTORICAL_RESULTS.get(slug)
+    if entry is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No historical data for race \'{slug}\'. "
+                "Only tracked competitive races have history."
+            ),
+        )
+
+    last = entry["last_race"]
+    pres = entry["presidential_2024"]
+
+    return HistoricalContext(
+        last_race=LastRaceResult(
+            year=last["year"],
+            winner=last["winner"],
+            party=last["party"],
+            margin=last["margin"],
+            note=last.get("note"),
+        ),
+        presidential_2024=PresidentialResult(
+            winner=pres["winner"],
+            party=pres["party"],
+            margin=pres["margin"],
+            note=pres.get("note"),
+        ),
+        forecast_shift=None,  # no prediction available in this standalone endpoint
     )
 
 
@@ -623,6 +738,74 @@ def recalculate_blend(
         pred_std=state_std,
         pred_lo90=pred - _Z90 * state_std,
         pred_hi90=pred + _Z90 * state_std,
+    )
+
+
+
+@router.post("/forecast/overview/blend", response_model=OverviewBlendResult)
+def recalculate_overview_blend(
+    body: BlendWeights,
+    request: Request,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+) -> OverviewBlendResult:
+    """Recalculate all 33 Class II Senate races with custom blend weights.
+
+    Accepts section weights as 0-100 percentages (model_prior, state_polls,
+    national_polls). Iterates over all tracked states, calls the per-race
+    recalculate_blend() function for each, and aggregates projected seat totals.
+
+    Returns dem_seats and rep_seats as full chamber projections (i.e., including
+    the DEM_SAFE_SEATS and GOP_SAFE_SEATS constants), so the BalanceBar can be
+    updated without the frontend knowing those constants.
+    """
+    # Local import to avoid circular dependency (senate.py never imports forecast.py)
+    from api.routers.senate import (
+        SENATE_2026_STATES,
+        DEM_SAFE_SEATS,
+        GOP_SAFE_SEATS,
+        _CLASS_II_INCUMBENT,
+        _DEFAULT_SAFE_MARGIN,
+        _margin_to_rating,
+        _TOSSUP_MAX,
+    )
+
+    race_summaries: list[OverviewBlendRaceSummary] = []
+    dem_favored = 0
+    gop_favored = 0
+
+    for st in sorted(SENATE_2026_STATES):
+        race_str = f"2026 {st} Senate"
+        slug = race_str.lower().replace(" ", "-")
+
+        # Reuse per-race blend logic directly
+        blend_result = recalculate_blend(slug=slug, body=body, request=request, db=db)
+
+        if blend_result.prediction is not None:
+            margin = blend_result.prediction - 0.5
+        else:
+            # Race has no model data — treat as safe for incumbent party
+            incumbent_party = _CLASS_II_INCUMBENT.get(st, "R")
+            margin = _DEFAULT_SAFE_MARGIN if incumbent_party == "D" else -_DEFAULT_SAFE_MARGIN
+
+        rating = _margin_to_rating(margin)
+
+        # Seat counts: only count races that aren't tossups
+        if margin > _TOSSUP_MAX:
+            dem_favored += 1
+        elif margin < -_TOSSUP_MAX:
+            gop_favored += 1
+
+        race_summaries.append(OverviewBlendRaceSummary(
+            slug=slug,
+            prediction=blend_result.prediction,
+            pred_std=blend_result.pred_std,
+            rating_label=rating,
+        ))
+
+    return OverviewBlendResult(
+        dem_seats=DEM_SAFE_SEATS + dem_favored,
+        rep_seats=GOP_SAFE_SEATS + gop_favored,
+        races=race_summaries,
     )
 
 

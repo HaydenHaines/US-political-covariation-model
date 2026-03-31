@@ -165,6 +165,28 @@ class BlendResult(BaseModel):
     pred_hi90: float | None
 
 
+class OverviewBlendRaceSummary(BaseModel):
+    """Per-race result from the overview blend recalculation endpoint."""
+
+    slug: str
+    prediction: float | None
+    pred_std: float | None
+    rating_label: str
+
+
+class OverviewBlendResult(BaseModel):
+    """Full response from POST /forecast/overview/blend.
+
+    dem_seats / rep_seats are projected totals including safe non-competitive
+    seats (DEM_SAFE_SEATS=47, GOP_SAFE_SEATS=53) so the BalanceBar can be
+    updated without the frontend knowing those constants.
+    """
+
+    dem_seats: int
+    rep_seats: int
+    races: list[OverviewBlendRaceSummary]
+
+
 class GenericBallotInfo(BaseModel):
     """National environment adjustment derived from generic ballot polling.
 

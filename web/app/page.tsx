@@ -35,7 +35,7 @@ export default function LandingPage() {
         <HeroSection data={data} isLoading={isLoading} communityCount={communityCount} />
 
         {data && (
-          <div className="max-w-4xl mx-auto px-4">
+          <div className="w-full px-4">
             <BalanceBar
               races={data.races}
               demSeats={data.dem_projected}

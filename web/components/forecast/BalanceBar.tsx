@@ -9,7 +9,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { SenateRaceData } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
   races: SenateRaceData[];
@@ -128,12 +127,12 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
 
         {/* Desktop: 100-segment bar (≥768px) */}
         <div
-          className="hidden md:block relative"
-          style={{ height: CONTESTED_HEIGHT }}
+          className="hidden md:block relative w-full"
+          style={{ height: CONTESTED_HEIGHT + 12 }}
         >
           {/* All 100 segments laid out as a flex row, vertically centered */}
           <div
-            className="flex items-end rounded-md overflow-hidden border border-[rgb(var(--color-border))]"
+            className="flex items-end w-full rounded-md overflow-visible border border-[rgb(var(--color-border))]"
             style={{ height: CONTESTED_HEIGHT }}
           >
             {/* Left block: safe Dem seats */}
@@ -149,37 +148,57 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
               />
             ))}
 
-            {/* Middle: contested races with tooltips */}
-            {sorted.map((race) => (
-              <Tooltip key={race.slug}>
-                <TooltipTrigger
-                  render={
-                    <button
-                      className="transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-1 min-w-[6px]"
-                      style={{
-                        flex: 1,
-                        height: CONTESTED_HEIGHT,
-                        backgroundColor:
-                          RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
-                          RATING_COLORS.tossup,
-                      }}
-                      onClick={() => router.push(`/forecast/${race.slug}`)}
-                      aria-label={`${race.state}: ${formatRaceMargin(race.margin)}`}
-                    />
-                  }
-                />
-                <TooltipContent>
-                  <p className="font-semibold">{race.state}</p>
-                  <p>
-                    {formatRaceMargin(race.margin)} ·{" "}
-                    {RATING_LABELS[race.rating as keyof typeof RATING_LABELS] ?? race.rating}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {race.n_polls} poll{race.n_polls === 1 ? "" : "s"}
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            ))}
+            {/* Middle: contested races with tooltips + state labels */}
+            {sorted.map((race) => {
+              const bgColor =
+                RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
+                RATING_COLORS.tossup;
+              return (
+                <Tooltip key={race.slug}>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        className="relative transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-offset-1 min-w-[6px]"
+                        style={{
+                          flex: 1,
+                          height: CONTESTED_HEIGHT,
+                          backgroundColor: bgColor,
+                        }}
+                        onClick={() => router.push(`/forecast/${race.slug}`)}
+                        aria-label={`${race.state}: ${formatRaceMargin(race.margin)}`}
+                      >
+                        {/* State abbreviation label — absolutely positioned below the bar */}
+                        <span
+                          className="absolute left-1/2 pointer-events-none select-none"
+                          style={{
+                            top: CONTESTED_HEIGHT + 1,
+                            transform: "translateX(-50%) rotate(-90deg)",
+                            transformOrigin: "center center",
+                            fontSize: "8px",
+                            lineHeight: 1,
+                            color: "var(--color-text-muted)",
+                            whiteSpace: "nowrap",
+                          }}
+                          aria-hidden="true"
+                        >
+                          {race.state}
+                        </span>
+                      </button>
+                    }
+                  />
+                  <TooltipContent>
+                    <p className="font-semibold">{race.state}</p>
+                    <p>
+                      {formatRaceMargin(race.margin)} ·{" "}
+                      {RATING_LABELS[race.rating as keyof typeof RATING_LABELS] ?? race.rating}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {race.n_polls} poll{race.n_polls === 1 ? "" : "s"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
 
             {/* Right block: safe GOP seats */}
             {Array.from({ length: safeRCount }, (_, i) => (
@@ -195,10 +214,10 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
             ))}
           </div>
 
-          {/* "51 needed" marker — positioned at the 51st seat from left */}
+          {/* "51 needed" marker — spans only the bar height, not the label gutter below */}
           <div
-            className="absolute top-0 h-full w-px bg-foreground opacity-40 pointer-events-none"
-            style={{ left: `${markerPct}%` }}
+            className="absolute top-0 w-px bg-foreground opacity-40 pointer-events-none"
+            style={{ left: `${markerPct}%`, height: CONTESTED_HEIGHT }}
             aria-hidden="true"
           />
         </div>

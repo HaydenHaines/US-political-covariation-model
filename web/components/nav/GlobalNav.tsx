@@ -24,7 +24,7 @@ export function GlobalNav() {
         <nav className="mx-auto flex h-full max-w-5xl items-center justify-between px-4">
           <Link
             href="/"
-            className="font-serif text-lg font-bold tracking-tight no-underline"
+            className="font-serif text-lg font-black tracking-tight no-underline"
             style={{ color: "var(--color-text)" }}
           >
             WetherVane
@@ -105,7 +105,7 @@ export function GlobalNav() {
             {/* Panel header */}
             <div className="flex items-center justify-between px-4 mb-4">
               <span
-                className="font-serif text-lg font-bold"
+                className="font-serif text-lg font-black"
                 style={{ color: "var(--color-text)" }}
               >
                 WetherVane

@@ -14,6 +14,7 @@ from api.routers.senate import (
     _build_headline,
     _margin_to_rating,
     _rating_sort_key,
+    _CLASS_II_INCUMBENT,
 )
 from api.tests.conftest import _noop_lifespan
 
@@ -73,7 +74,7 @@ class TestBuildHeadline:
         # DEM_SAFE=47, GOP_SAFE=53. Need dem_favored - gop_favored to bring
         # the gap to within 2. 6 Dem-leaning races → 53 vs 53 → diff=0.
         races = [{"rating": "lean_d", "margin": 0.05}] * 6
-        headline, subtitle = _build_headline(races)
+        headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Knife" in headline
 
     def test_gop_favored(self):
@@ -83,15 +84,32 @@ class TestBuildHeadline:
             {"rating": "tossup", "margin": -0.01},
             {"rating": "tossup", "margin": 0.02},
         ]
-        headline, subtitle = _build_headline(races)
+        headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Republican" in headline
 
     def test_dem_favored(self):
         """Enough Dem-favored races to overcome the safe-seat deficit."""
         # Need 9+ Dem-leaning to get dem_projected=56 vs gop_projected=53, diff=3
         races = [{"rating": "lean_d", "margin": 0.05}] * 9
-        headline, subtitle = _build_headline(races)
+        headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Democrat" in headline
+
+    def test_projected_counts_returned(self):
+        """_build_headline returns accurate projected seat counts."""
+        # 6 lean_d races → dem_favored=6, gop_favored=0
+        # dem_projected = 47 + 6 = 53, gop_projected = 53 + 0 = 53
+        races = [{"rating": "lean_d", "margin": 0.05}] * 6
+        _, _, dem_proj, gop_proj = _build_headline(races)
+        assert dem_proj == DEM_SAFE_SEATS + 6
+        assert gop_proj == GOP_SAFE_SEATS
+
+    def test_tossups_excluded_from_projections(self):
+        """Tossups do not count toward either party's projected total."""
+        races = [{"rating": "tossup", "margin": 0.02}] * 5
+        _, _, dem_proj, gop_proj = _build_headline(races)
+        # Tossups add 0 to both sides
+        assert dem_proj == DEM_SAFE_SEATS
+        assert gop_proj == GOP_SAFE_SEATS
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -253,6 +271,8 @@ class TestSenateOverview:
         assert "subtitle" in data
         assert "dem_seats_safe" in data
         assert "gop_seats_safe" in data
+        assert "dem_projected" in data
+        assert "gop_projected" in data
         assert "races" in data
         assert isinstance(data["races"], list)
 
@@ -260,6 +280,12 @@ class TestSenateOverview:
         data = senate_client.get("/api/v1/senate/overview").json()
         assert data["dem_seats_safe"] == DEM_SAFE_SEATS
         assert data["gop_seats_safe"] == GOP_SAFE_SEATS
+
+    def test_projected_seat_counts_present(self, senate_client):
+        """Projected totals are included and are at least as large as safe totals."""
+        data = senate_client.get("/api/v1/senate/overview").json()
+        assert data["dem_projected"] >= DEM_SAFE_SEATS
+        assert data["gop_projected"] >= GOP_SAFE_SEATS
 
     def test_only_senate_races_returned(self, senate_client):
         data = senate_client.get("/api/v1/senate/overview").json()
@@ -317,9 +343,9 @@ class TestSenateOverview:
 
 
 class TestSenateOverviewEmptyDB:
-    """Endpoint gracefully handles a DB with no Senate predictions."""
+    """Endpoint with no predictions — returns all 33 races using incumbent fallbacks."""
 
-    def test_returns_empty_races_list(self):
+    def test_returns_all_races_via_fallback(self):
         with duckdb.connect(":memory:") as con:
             con.execute(
                 "CREATE TABLE model_versions (version_id VARCHAR PRIMARY KEY, role VARCHAR, "
@@ -356,6 +382,19 @@ class TestSenateOverviewEmptyDB:
 
         assert resp.status_code == 200
         data = resp.json()
-        assert data["races"] == []
+        # All 33 Class II races should appear — using incumbent-party fallbacks
+        # when no model predictions are available.
+        assert len(data["races"]) == len(SENATE_2026_STATES)
         assert data["dem_seats_safe"] == DEM_SAFE_SEATS
         assert data["gop_seats_safe"] == GOP_SAFE_SEATS
+        assert "dem_projected" in data
+        assert "gop_projected" in data
+        # Without predictions every race uses safe defaults — all are safe_d or safe_r
+        ratings = {r["rating"] for r in data["races"]}
+        assert ratings <= {"safe_d", "safe_r"}
+        # Verify incumbent-party fallback for a known state
+        tx_race = next(r for r in data["races"] if r["state"] == "TX")
+        assert tx_race["rating"] == "safe_r"  # TX is R-held (John Cornyn)
+        assert tx_race["n_polls"] == 0
+        il_race = next(r for r in data["races"] if r["state"] == "IL")
+        assert il_race["rating"] == "safe_d"  # IL is D-held (Dick Durbin)

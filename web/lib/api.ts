@@ -236,8 +236,16 @@ export interface SenateRaceData {
 export interface SenateOverviewData {
   headline: string;
   subtitle: string;
+  /** Safe seats not up in 2026 (baseline, not displayed directly in the hero). */
   dem_seats_safe: number;
   gop_seats_safe: number;
+  /**
+   * Projected seat totals: safe seats + contested seats the model clearly favors.
+   * Tossups are excluded from both sides (standard forecasting convention).
+   * These are the numbers displayed in the hero section and balance bar.
+   */
+  dem_projected: number;
+  gop_projected: number;
   races: SenateRaceData[];
   /** Map from state abbreviation to hex color for the mini map. */
   state_colors?: Record<string, string>;

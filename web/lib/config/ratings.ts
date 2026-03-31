@@ -19,12 +19,14 @@ export const RATING_KEYS = [
 export type RatingKey = (typeof RATING_KEYS)[number];
 
 /**
- * Ratings that represent genuinely competitive races.
+ * Ratings that represent the most competitive races — genuine tossups where
+ * the model's posterior uncertainty is highest.
  *
- * "Key races" are tossups and lean seats — the races where the model's
- * posterior uncertainty is highest and polling has the most predictive value.
+ * Lean and likely races are displayed in separate sections on the Senate page
+ * rather than grouped into "key races" to avoid conflating D+6 leaning races
+ * with true tossups.
  *
  * Typed as Set<string> so it can be used directly with .has() against API
  * string fields without requiring a cast at every call site.
  */
-export const KEY_RATING_SET: Set<string> = new Set<RatingKey>(["tossup", "lean_d", "lean_r"]);
+export const KEY_RATING_SET: Set<string> = new Set<RatingKey>(["tossup"]);

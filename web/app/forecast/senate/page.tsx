@@ -1,15 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { BalanceBar } from "@/components/forecast/BalanceBar";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { KEY_RATING_SET } from "@/lib/config/ratings";
 import { ELECTION_YEAR } from "@/lib/config/election";
+import type { SenateRaceData } from "@/lib/api";
+
+/** Ratings that are genuine tossups — the most competitive races. */
+const TOSSUP_RATINGS = new Set<string>(["tossup"]);
+
+/** Lean ratings — model has a directional view but still competitive. */
+const LEAN_RATINGS = new Set<string>(["lean_d", "lean_r"]);
+
+/** Likely ratings — meaningful model advantage, but not settled. */
+const LIKELY_RATINGS = new Set<string>(["likely_d", "likely_r"]);
+
+/** Safe ratings — model treats these as decided. */
+const SAFE_RATINGS = new Set<string>(["safe_d", "safe_r"]);
+
+function filterRaces(races: SenateRaceData[], ratingSet: Set<string>): SenateRaceData[] {
+  return races.filter((r) => ratingSet.has(r.rating));
+}
 
 export default function SenatePage() {
   const { data, error, isLoading, mutate } = useSenateOverview();
+  // Safe races are collapsed by default — they're decided and not interesting
+  const [safeExpanded, setSafeExpanded] = useState(false);
 
   if (error) {
     return <ErrorAlert title="Failed to load Senate forecast" retry={() => mutate()} />;
@@ -29,8 +48,10 @@ export default function SenatePage() {
     );
   }
 
-  const keyRaces = data.races.filter((r) => KEY_RATING_SET.has(r.rating));
-  const otherRaces = data.races.filter((r) => !KEY_RATING_SET.has(r.rating));
+  const tossupRaces = filterRaces(data.races, TOSSUP_RATINGS);
+  const leanRaces = filterRaces(data.races, LEAN_RATINGS);
+  const likelyRaces = filterRaces(data.races, LIKELY_RATINGS);
+  const safeRaces = filterRaces(data.races, SAFE_RATINGS);
 
   return (
     <div>
@@ -38,16 +59,36 @@ export default function SenatePage() {
 
       <BalanceBar
         races={data.races}
-        demSeats={data.dem_seats_safe}
-        gopSeats={data.gop_seats_safe}
+        demSeats={data.dem_projected}
+        gopSeats={data.gop_projected}
       />
 
-      {keyRaces.length > 0 && (
-        <RaceCardGrid races={keyRaces} title="Key Races" />
+      {tossupRaces.length > 0 && (
+        <RaceCardGrid races={tossupRaces} title="Key Races" />
       )}
 
-      {otherRaces.length > 0 && (
-        <RaceCardGrid races={otherRaces} title="Other Races" />
+      {leanRaces.length > 0 && (
+        <RaceCardGrid races={leanRaces} title="Leaning" />
+      )}
+
+      {likelyRaces.length > 0 && (
+        <RaceCardGrid races={likelyRaces} title="Likely" />
+      )}
+
+      {safeRaces.length > 0 && (
+        <section className="mb-8">
+          <button
+            className="flex items-center gap-2 font-serif text-lg font-semibold mb-3 hover:opacity-75 transition-opacity"
+            onClick={() => setSafeExpanded((v) => !v)}
+            aria-expanded={safeExpanded}
+          >
+            <span>Safe ({safeRaces.length})</span>
+            <span className="text-sm font-normal text-muted-foreground" aria-hidden="true">
+              {safeExpanded ? "▲ collapse" : "▼ expand"}
+            </span>
+          </button>
+          {safeExpanded && <RaceCardGrid races={safeRaces} title="" />}
+        </section>
       )}
     </div>
   );

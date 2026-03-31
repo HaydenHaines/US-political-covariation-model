@@ -13,7 +13,14 @@ import { cn } from "@/lib/utils";
 
 interface BalanceBarProps {
   races: SenateRaceData[];
+  /**
+   * Projected Dem seat total (safe seats + favored contested seats, tossups excluded).
+   * Displayed above the balance bar and used to position the majority marker.
+   */
   demSeats: number;
+  /**
+   * Projected GOP seat total (safe seats + favored contested seats, tossups excluded).
+   */
   gopSeats: number;
 }
 

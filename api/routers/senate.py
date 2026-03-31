@@ -38,6 +38,51 @@ SENATE_2026_STATES = {
     "VA", "WV", "WY",
 }
 
+# Which party currently holds each Class II Senate seat (up in 2026).
+# "D" includes independents who caucus with Democrats (VT, ME).
+# Used to assign ratings/margins to seats that have no model prediction yet
+# (e.g. uncontested races or states with insufficient county data).
+_CLASS_II_INCUMBENT: dict[str, str] = {
+    "AL": "R",  # Richard Shelby seat → Tommy Tuberville
+    "AK": "R",  # Lisa Murkowski
+    "AR": "R",  # Tom Cotton
+    "CO": "D",  # John Hickenlooper
+    "DE": "D",  # Chris Coons
+    "GA": "D",  # Jon Ossoff
+    "IA": "R",  # Chuck Grassley
+    "ID": "R",  # Jim Risch
+    "IL": "D",  # Dick Durbin
+    "KS": "R",  # Roger Marshall
+    "KY": "R",  # Mitch McConnell
+    "LA": "R",  # Bill Cassidy
+    "MA": "D",  # Ed Markey
+    "ME": "D",  # Angus King (I, caucuses D)
+    "MI": "D",  # Gary Peters
+    "MN": "D",  # Tina Smith
+    "MS": "R",  # Roger Wicker
+    "MT": "R",  # Steve Daines
+    "NC": "R",  # Thom Tillis
+    "NE": "R",  # Deb Fischer
+    "NH": "D",  # Jeanne Shaheen
+    "NJ": "D",  # Andy Kim
+    "NM": "D",  # Martin Heinrich
+    "OK": "R",  # James Lankford
+    "OR": "D",  # Jeff Merkley
+    "RI": "D",  # Jack Reed
+    "SC": "R",  # Lindsey Graham
+    "SD": "R",  # Mike Rounds
+    "TN": "R",  # Marsha Blackburn
+    "TX": "R",  # John Cornyn
+    "VA": "D",  # Mark Warner
+    "WV": "R",  # Shelley Moore Capito (flipped R after Manchin retirement)
+    "WY": "R",  # John Barrasso
+}
+
+# Default margin magnitude for seats with no model prediction.
+# Safe means the model hasn't bothered predicting them — treat as solidly held.
+# Positive = safe D, negative = safe R.
+_DEFAULT_SAFE_MARGIN = 0.25
+
 # Rating margin thresholds (margin = dem_share - 0.5)
 _TOSSUP_MAX = 0.03
 _LEAN_MAX = 0.08
@@ -84,19 +129,25 @@ def _rating_sort_key(rating: str) -> int:
     }.get(rating, 3)
 
 
-def _build_headline(races: list[dict]) -> tuple[str, str]:
-    """Derive a headline + subtitle from the current race ratings.
+def _build_headline(races: list[dict]) -> tuple[str, str, int, int]:
+    """Derive a headline + subtitle and projected seat totals from current race ratings.
 
-    Returns (headline, subtitle).
+    Seat projections count safe seats (not up in 2026) plus contested seats
+    that the model clearly favors for each party. Tossups are excluded from
+    both totals — the standard forecasting convention, matching how outlets
+    like 538 and Cook Report present seat projections.
+
+    Returns (headline, subtitle, dem_projected, gop_projected).
     """
-    # Count races where the model favors each party (tossups split as contested)
+    # Count races where the model clearly favors each party (tossups excluded)
     dem_favored = sum(1 for r in races if r["margin"] > _TOSSUP_MAX)
     gop_favored = sum(1 for r in races if r["margin"] < -_TOSSUP_MAX)
     n_tossup = sum(1 for r in races if r["rating"] == "tossup")
     competitive = [r for r in races if r["rating"] in ("tossup", "lean_d", "lean_r")]
     n_competitive = len(competitive)
 
-    # Seat projections: safe seats plus clearly-favored contested seats
+    # Projected totals: off-cycle safe seats + contested seats the model favors.
+    # Tossups intentionally excluded from both sides — their outcome is uncertain.
     dem_projected = DEM_SAFE_SEATS + dem_favored
     gop_projected = GOP_SAFE_SEATS + gop_favored
 
@@ -109,18 +160,20 @@ def _build_headline(races: list[dict]) -> tuple[str, str]:
         return (
             "Senate Control on a Knife's Edge",
             f"{' · '.join(subtitle_parts)} in play",
+            dem_projected,
+            gop_projected,
         )
     if gop_projected > dem_projected:
         if gop_projected >= 55:
             subtitle = f"GOP projected {gop_projected} seats · {n_competitive} competitive races"
-            return "Republicans Strongly Favored to Hold the Senate", subtitle
+            return "Republicans Strongly Favored to Hold the Senate", subtitle, dem_projected, gop_projected
         subtitle = f"GOP projected {gop_projected} seats · {n_competitive} competitive races"
-        return "Republicans Favored to Hold the Senate", subtitle
-    if gop_projected >= 55:
+        return "Republicans Favored to Hold the Senate", subtitle, dem_projected, gop_projected
+    if dem_projected >= 55:
         subtitle = f"Dems projected {dem_projected} seats · {n_competitive} competitive races"
-        return "Democrats Strongly Favored to Flip the Senate", subtitle
+        return "Democrats Strongly Favored to Flip the Senate", subtitle, dem_projected, gop_projected
     subtitle = f"Dems projected {dem_projected} seats · {n_competitive} competitive races"
-    return "Democrats Favored to Flip the Senate", subtitle
+    return "Democrats Favored to Flip the Senate", subtitle, dem_projected, gop_projected
 
 
 @router.get("/senate/overview")
@@ -141,6 +194,8 @@ def get_senate_overview(
             "subtitle": "predictions not yet loaded",
             "dem_seats_safe": DEM_SAFE_SEATS,
             "gop_seats_safe": GOP_SAFE_SEATS,
+            "dem_projected": DEM_SAFE_SEATS,
+            "gop_projected": GOP_SAFE_SEATS,
             "races": [],
         }
 
@@ -196,14 +251,23 @@ def get_senate_overview(
     races = []
     for st in sorted(SENATE_2026_STATES):
         race = f"2026 {st} Senate"
-        if race not in pred_by_race:
-            continue
-
-        state_abbr, state_pred = pred_by_race[race]
-        margin = state_pred - 0.5
-        rating = _margin_to_rating(margin)
-        slug = race.lower().replace(" ", "-")
         n_polls = poll_counts.get(race, 0)
+        slug = race.lower().replace(" ", "-")
+
+        if race in pred_by_race:
+            # Model has a prediction for this race — use it.
+            state_abbr, state_pred = pred_by_race[race]
+            margin = state_pred - 0.5
+            rating = _margin_to_rating(margin)
+        else:
+            # No model prediction yet (seat not in training data, insufficient
+            # county coverage, etc.). Fall back to the incumbent's party and
+            # treat it as safely held — the frontend needs *all* 33 races for
+            # the balance bar and seat-count summary to be meaningful.
+            state_abbr = st
+            incumbent_party = _CLASS_II_INCUMBENT.get(st, "R")
+            margin = _DEFAULT_SAFE_MARGIN if incumbent_party == "D" else -_DEFAULT_SAFE_MARGIN
+            rating = "safe_d" if incumbent_party == "D" else "safe_r"
 
         races.append({
             "state": state_abbr,
@@ -217,7 +281,7 @@ def get_senate_overview(
     # Sort: tossups first, then lean, likely, safe; break ties alphabetically by state
     races.sort(key=lambda r: (_rating_sort_key(r["rating"]), r["state"]))
 
-    headline, subtitle = _build_headline(races)
+    headline, subtitle, dem_projected, gop_projected = _build_headline(races)
 
     # Build state_colors map: every state gets a hex color for the map.
     # Contested states → rating-based color. Non-contested → delegation party color.
@@ -247,6 +311,10 @@ def get_senate_overview(
         "subtitle": subtitle,
         "dem_seats_safe": DEM_SAFE_SEATS,
         "gop_seats_safe": GOP_SAFE_SEATS,
+        # Projected totals include model-favored contested seats; tossups excluded.
+        # These are the numbers the hero section and balance bar should display.
+        "dem_projected": dem_projected,
+        "gop_projected": gop_projected,
         "races": races,
         "state_colors": state_colors,
         "updated_at": updated_at,

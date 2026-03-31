@@ -34,8 +34,8 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-4">
           <BalanceBar
             races={data.races}
-            demSeats={data.dem_seats_safe}
-            gopSeats={data.gop_seats_safe}
+            demSeats={data.dem_projected}
+            gopSeats={data.gop_projected}
           />
         </div>
       )}

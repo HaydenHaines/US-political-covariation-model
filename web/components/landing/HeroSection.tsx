@@ -37,7 +37,7 @@ export function HeroSection({ data, isLoading, communityCount }: HeroSectionProp
           className="font-mono text-6xl font-bold tracking-tight sm:text-7xl"
           style={{ color: "var(--forecast-safe-d)" }}
         >
-          {data.dem_seats_safe}
+          {data.dem_projected}
           <span className="ml-1 text-2xl font-semibold sm:text-3xl">D</span>
         </span>
 
@@ -52,7 +52,7 @@ export function HeroSection({ data, isLoading, communityCount }: HeroSectionProp
           className="font-mono text-6xl font-bold tracking-tight sm:text-7xl"
           style={{ color: "var(--forecast-safe-r)" }}
         >
-          {data.gop_seats_safe}
+          {data.gop_projected}
           <span className="ml-1 text-2xl font-semibold sm:text-3xl">R</span>
         </span>
       </div>

@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field
 
+from src.db._utils import normalize_fips as _normalize_fips
+
 from src.db.domains import DomainIngestionError, DomainSpec
 
 log = logging.getLogger(__name__)
@@ -361,7 +363,7 @@ def _ingest_ridge_priors(con, version_id, path):
         log.warning("ridge_county_priors.parquet not found; skipping")
         return
     rf = pd.read_parquet(path)
-    rf["county_fips"] = rf["county_fips"].astype(str).str.zfill(5)
+    rf["county_fips"] = rf["county_fips"].pipe(_normalize_fips)
     df = rf[["county_fips", "ridge_pred_dem_share"]].copy()
     df["version_id"] = version_id
     _insert_via_parquet(con, "ridge_county_priors", df)
@@ -405,7 +407,7 @@ def _ingest_hac_county_weights(con, version_id, path):
         log.info("hac_county_weights: long format (no weight columns) — skipping")
         return
 
-    cw["county_fips"] = cw["county_fips"].astype(str).str.zfill(5)
+    cw["county_fips"] = cw["county_fips"].pipe(_normalize_fips)
     df = cw[["county_fips"] + comm_cols].melt(
         id_vars="county_fips",
         value_vars=comm_cols,

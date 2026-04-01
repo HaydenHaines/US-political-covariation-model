@@ -50,64 +50,51 @@ def _state_from_geoid(geoid: str, state_fips_map: dict[str, str]) -> str | None:
 # ── Electoral features ───────────────────────────────────────────────────────
 
 
-def build_electoral_features(
+def _build_presidential_levels(
     tract_votes: dict[str, pd.DataFrame],
-    tract_areas: pd.Series,
-    state_fips_map: dict[str, str],
+    tract_areas: pd.Series | None,
+    result: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Compute shifts, lean, turnout, density, split-ticket from tract votes.
-
-    Parameters
-    ----------
-    tract_votes : dict[str, pd.DataFrame]
-        Keys like "president_2020", "president_2024", "house_2020", "governor_2018".
-        Each DataFrame has columns: GEOID, votes_dem, votes_rep, votes_total, dem_share, state, year, race.
-    tract_areas : pd.Series
-        GEOID → area in sq km.
-    state_fips_map : dict[str, str]
-        FIPS prefix → state abbreviation (e.g. "12" → "FL").
-
-    Returns
-    -------
-    DataFrame with GEOID + all electoral feature columns.
-    """
-    # Collect all GEOIDs across all vote DataFrames
-    all_geoids = set()
-    for df in tract_votes.values():
-        all_geoids.update(df["GEOID"].values)
-    all_geoids = sorted(all_geoids)
-
-    result = pd.DataFrame({"GEOID": all_geoids})
-
-    # -- Presidential lean and turnout levels ----------------------------------
+    """Merge presidential dem-share, turnout, and vote-density columns into result."""
     for key, df in tract_votes.items():
         parts = key.split("_")
         race = parts[0]
         year = int(parts[1])
 
-        if race == "president":
-            yr_short = str(year)[-2:]
-            # Dem share
-            col_lean = f"pres_dem_share_{year}"
-            merge_df = df[["GEOID", "dem_share"]].rename(columns={"dem_share": col_lean})
-            result = result.merge(merge_df, on="GEOID", how="left")
+        if race != "president":
+            continue
 
-            # Turnout
-            col_turnout = f"turnout_{year}"
-            merge_df = df[["GEOID", "votes_total"]].rename(columns={"votes_total": col_turnout})
-            result = result.merge(merge_df, on="GEOID", how="left")
+        # Dem share level
+        col_lean = f"pres_dem_share_{year}"
+        merge_df = df[["GEOID", "dem_share"]].rename(columns={"dem_share": col_lean})
+        result = result.merge(merge_df, on="GEOID", how="left")
 
-            # Vote density
-            if tract_areas is not None:
-                col_density = f"vote_density_{year}"
-                density_df = df[["GEOID", "votes_total"]].copy()
-                density_df = density_df.set_index("GEOID")
-                density_df[col_density] = density_df["votes_total"] / tract_areas
-                density_df = density_df[[col_density]].reset_index()
-                result = result.merge(density_df, on="GEOID", how="left")
+        # Turnout level
+        col_turnout = f"turnout_{year}"
+        merge_df = df[["GEOID", "votes_total"]].rename(columns={"votes_total": col_turnout})
+        result = result.merge(merge_df, on="GEOID", how="left")
 
-    # -- Presidential shifts (log-odds, NOT state-centered) ----------------------
-    # Presidential shifts carry cross-state signal and remain raw.
+        # Vote density (votes per sq km)
+        if tract_areas is not None:
+            col_density = f"vote_density_{year}"
+            density_df = df[["GEOID", "votes_total"]].copy()
+            density_df = density_df.set_index("GEOID")
+            density_df[col_density] = density_df["votes_total"] / tract_areas
+            density_df = density_df[[col_density]].reset_index()
+            result = result.merge(density_df, on="GEOID", how="left")
+
+    return result
+
+
+def _build_presidential_shifts(
+    tract_votes: dict[str, pd.DataFrame],
+    result: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge presidential log-odds shifts and turnout shifts into result.
+
+    Presidential shifts are NOT state-centered — they carry cross-state
+    signal and must remain raw for the clustering model.
+    """
     pres_pairs = [("2008", "2012"), ("2012", "2016"), ("2016", "2020"), ("2020", "2024")]
     for early_yr, late_yr in pres_pairs:
         early_key = f"president_{early_yr}"
@@ -129,7 +116,7 @@ def build_electoral_features(
         d_shift = _logodds(merged["dem_share_late"]) - _logodds(merged["dem_share_early"])
         merged[f"pres_shift_{early_yr}_{late_yr}"] = d_shift
 
-        # Turnout shift (proportional)
+        # Proportional turnout shift
         early_total = merged["votes_total_early"].replace(0, np.nan)
         merged[f"pres_turnout_shift_{early_yr}_{late_yr}"] = (
             (merged["votes_total_late"] - merged["votes_total_early"]) / early_total
@@ -141,27 +128,50 @@ def build_electoral_features(
         ]
         result = result.merge(merged[["GEOID"] + shift_cols], on="GEOID", how="left")
 
-    # -- Turnout shift (standalone) --------------------------------------------
+    # Standalone turnout-shift aliases (mirror the pres_turnout_shift_ columns)
     for early_yr, late_yr in pres_pairs:
-        col = f"turnout_shift_{early_yr}_{late_yr}"
         pres_col = f"pres_turnout_shift_{early_yr}_{late_yr}"
         if pres_col in result.columns:
-            result[col] = result[pres_col]
+            result[f"turnout_shift_{early_yr}_{late_yr}"] = result[pres_col]
 
-    # -- Off-cycle shifts (governor, senate, house) with state-centering -------
-    # Off-cycle shifts are state-centered: subtract the state mean within each
-    # state (identified by first 2 chars of tract GEOID = state FIPS).
-    # This is a proxy for candidate effect removal — different governor/senate
-    # candidates in each state add state-level bias that must be removed before
-    # cross-state clustering.
+    return result
+
+
+def _state_center_series(raw_shift: pd.Series, state_fips: pd.Series) -> pd.Series:
+    """Subtract each state's mean from raw_shift, in-place by state group.
+
+    Tracts with only one observation per state are left uncentered (stable
+    mean is not computable with N=1).
+    """
+    centered = raw_shift.copy()
+    for st in state_fips.unique():
+        mask = state_fips == st
+        st_vals = raw_shift[mask]
+        valid = st_vals.dropna()
+        if len(valid) > 1:
+            centered[mask] = st_vals - valid.mean()
+    return centered
+
+
+def _build_offcycle_shifts(
+    tract_votes: dict[str, pd.DataFrame],
+    result: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge state-centered off-cycle (governor, senate, house) shifts into result.
+
+    Off-cycle shifts are state-centered by subtracting the within-state mean.
+    This is a proxy for candidate-effect removal: different candidates in each
+    state add state-level bias that must be removed before cross-state clustering.
+    """
     _OFFCYCLE_RACE_PREFIX = {
         "governor": "gov",
         "senate": "sen",
         "house": "house",
     }
-    offcycle_pairs: list[tuple[str, str, str]] = []
 
-    for race, prefix in _OFFCYCLE_RACE_PREFIX.items():
+    # Build (race, early_year, late_year) tuples for all consecutive pairs
+    offcycle_pairs: list[tuple[str, str, str]] = []
+    for race in _OFFCYCLE_RACE_PREFIX:
         race_years = sorted(
             int(k.split("_")[1])
             for k in tract_votes
@@ -189,38 +199,72 @@ def build_electoral_features(
         prefix = _OFFCYCLE_RACE_PREFIX[race]
         col_name = f"{prefix}_shift_{early_yr}_{late_yr}"
 
-        # Raw log-odds shift
         raw_shift = _logodds(merged["dem_share_late"]) - _logodds(merged["dem_share_early"])
-
-        # State-center using GEOID prefix (first 2 chars = state FIPS)
         state_fips = merged["GEOID"].str[:2]
-        centered = raw_shift.copy()
-        for st in state_fips.unique():
-            mask = state_fips == st
-            st_vals = raw_shift[mask]
-            valid = st_vals.dropna()
-            if len(valid) > 1:
-                centered[mask] = st_vals - valid.mean()
+        merged[col_name] = _state_center_series(raw_shift, state_fips)
 
-        merged[col_name] = centered
         result = result.merge(merged[["GEOID", col_name]], on="GEOID", how="left")
 
-    # -- Split ticket ----------------------------------------------------------
+    return result
+
+
+def _build_split_ticket(
+    tract_votes: dict[str, pd.DataFrame],
+    result: pd.DataFrame,
+) -> pd.DataFrame:
+    """Merge abs(pres_dem_share - house_dem_share) split-ticket columns into result."""
     for year in (2016, 2020):
         pres_key = f"president_{year}"
         house_key = f"house_{year}"
-        if pres_key in tract_votes and house_key in tract_votes:
-            pres_df = tract_votes[pres_key][["GEOID", "dem_share"]].rename(
-                columns={"dem_share": "pres_dem"}
-            )
-            house_df = tract_votes[house_key][["GEOID", "dem_share"]].rename(
-                columns={"dem_share": "house_dem"}
-            )
-            merged = pres_df.merge(house_df, on="GEOID", how="inner")
-            merged[f"split_ticket_{year}"] = (merged["pres_dem"] - merged["house_dem"]).abs()
-            result = result.merge(
-                merged[["GEOID", f"split_ticket_{year}"]], on="GEOID", how="left"
-            )
+        if pres_key not in tract_votes or house_key not in tract_votes:
+            continue
+
+        pres_df = tract_votes[pres_key][["GEOID", "dem_share"]].rename(
+            columns={"dem_share": "pres_dem"}
+        )
+        house_df = tract_votes[house_key][["GEOID", "dem_share"]].rename(
+            columns={"dem_share": "house_dem"}
+        )
+        merged = pres_df.merge(house_df, on="GEOID", how="inner")
+        merged[f"split_ticket_{year}"] = (merged["pres_dem"] - merged["house_dem"]).abs()
+        result = result.merge(
+            merged[["GEOID", f"split_ticket_{year}"]], on="GEOID", how="left"
+        )
+
+    return result
+
+
+def build_electoral_features(
+    tract_votes: dict[str, pd.DataFrame],
+    tract_areas: pd.Series,
+    state_fips_map: dict[str, str],
+) -> pd.DataFrame:
+    """Compute shifts, lean, turnout, density, split-ticket from tract votes.
+
+    Parameters
+    ----------
+    tract_votes : dict[str, pd.DataFrame]
+        Keys like "president_2020", "president_2024", "house_2020", "governor_2018".
+        Each DataFrame has columns: GEOID, votes_dem, votes_rep, votes_total, dem_share, state, year, race.
+    tract_areas : pd.Series
+        GEOID → area in sq km.
+    state_fips_map : dict[str, str]
+        FIPS prefix → state abbreviation (e.g. "12" → "FL").
+
+    Returns
+    -------
+    DataFrame with GEOID + all electoral feature columns.
+    """
+    # Collect all GEOIDs across all vote DataFrames
+    all_geoids = sorted(
+        set(geoid for df in tract_votes.values() for geoid in df["GEOID"].values)
+    )
+    result = pd.DataFrame({"GEOID": all_geoids})
+
+    result = _build_presidential_levels(tract_votes, tract_areas, result)
+    result = _build_presidential_shifts(tract_votes, result)
+    result = _build_offcycle_shifts(tract_votes, result)
+    result = _build_split_ticket(tract_votes, result)
 
     return result
 
@@ -337,23 +381,17 @@ def build_religion_features(
 # ── Full pipeline ────────────────────────────────────────────────────────────
 
 
-def build_all_features() -> pd.DataFrame:
-    """Load all sources, build complete feature matrix, save to data/tracts/tract_features.parquet.
+def _load_tract_votes(tracts_dir: Path) -> dict[str, pd.DataFrame]:
+    """Load tract vote DataFrames from DRA stacked file and/or per-election parquets.
 
-    Returns the combined DataFrame.
+    Supports two formats:
+      1. DRA stacked file: tract_votes_dra.parquet — single file with `race` and `year`
+         columns and `tract_geoid` as the key.
+      2. Per-election files: tract_votes_{state}_{year}_{race}.parquet — one file per
+         state/year/race combination with a `GEOID` key column.
+
+    Returns a dict keyed by "{race}_{year}".
     """
-    tracts_dir = PROJECT_ROOT / "data" / "tracts"
-    assembled_dir = PROJECT_ROOT / "data" / "assembled"
-    out_path = tracts_dir / "tract_features.parquet"
-
-    state_fips_map = {v: k for k, v in _cfg.STATES.items()}
-
-    # -- Load tract vote parquets --
-    # Supports two formats:
-    #   1. DRA stacked file: tract_votes_dra.parquet — single file with `race` and `year`
-    #      columns and `tract_geoid` as the key.
-    #   2. Per-election files: tract_votes_{state}_{year}_{race}.parquet — one file per
-    #      state/year/race combination with a `GEOID` key column.
     tract_votes: dict[str, pd.DataFrame] = {}
 
     dra_path = tracts_dir / "tract_votes_dra.parquet"
@@ -363,10 +401,8 @@ def build_all_features() -> pd.DataFrame:
         # Normalize key column name to GEOID for downstream compatibility
         if "tract_geoid" in dra_df.columns and "GEOID" not in dra_df.columns:
             dra_df = dra_df.rename(columns={"tract_geoid": "GEOID"})
-        # Split into per-election DataFrames keyed by "{race}_{year}"
         for (race, year), grp in dra_df.groupby(["race", "year"]):
-            key = f"{race}_{year}"
-            tract_votes[key] = grp.reset_index(drop=True)
+            tract_votes[f"{race}_{year}"] = grp.reset_index(drop=True)
         log.info("  Loaded %d election datasets from DRA file", len(tract_votes))
 
     # Also load any per-election parquet files (legacy / supplementary)
@@ -379,69 +415,82 @@ def build_all_features() -> pd.DataFrame:
         if len(parts) < 5:
             log.warning("Skipping unrecognized tract vote file: %s", fpath.name)
             continue
-        year = parts[3]
-        race = parts[4]
-        key = f"{race}_{year}"
+        key = f"{parts[4]}_{parts[3]}"  # "{race}_{year}"
         if key in tract_votes:
             tract_votes[key] = pd.concat([tract_votes[key], df], ignore_index=True)
         else:
             tract_votes[key] = df
 
-    if not tract_votes:
-        log.warning("No tract vote files found in %s — skipping electoral features", tracts_dir)
-        return pd.DataFrame()
+    return tract_votes
 
-    # Compute tract areas from TIGER (placeholder: use vote density = 0 if not available)
-    # For now, create a stub tract_areas series
-    all_geoids = set()
-    for df in tract_votes.values():
-        all_geoids.update(df["GEOID"].values)
-    all_geoids_sorted = sorted(all_geoids)
-    tract_areas = pd.Series(1.0, index=pd.Index(all_geoids_sorted, name="GEOID"))
 
-    log.info("Building electoral features from %d vote datasets", len(tract_votes))
-    electoral = build_electoral_features(tract_votes, tract_areas, state_fips_map)
-
-    # -- Load ACS tract data --
+def _load_demographic_features(assembled_dir: Path) -> pd.DataFrame | None:
+    """Load and normalize ACS tract demographics; return None if file not found."""
     acs_path = assembled_dir / "acs_tracts_2022.parquet"
-    if acs_path.exists():
-        log.info("Loading ACS tract data from %s", acs_path)
-        acs_df = pd.read_parquet(acs_path)
-        # Normalize key column: ACS uses tract_geoid; feature builder expects GEOID
-        if "tract_geoid" in acs_df.columns and "GEOID" not in acs_df.columns:
-            acs_df = acs_df.rename(columns={"tract_geoid": "GEOID"})
-        demographic = build_demographic_features(acs_df)
-    else:
+    if not acs_path.exists():
         log.warning(
             "ACS tract data not found at %s. "
             "Run 'python -m src.assembly.fetch_acs --tracts' first. "
             "Skipping demographic features.",
             acs_path,
         )
-        demographic = None
+        return None
 
-    # -- Load RCMS county data --
+    log.info("Loading ACS tract data from %s", acs_path)
+    acs_df = pd.read_parquet(acs_path)
+    # Normalize key column: ACS uses tract_geoid; feature builder expects GEOID
+    if "tract_geoid" in acs_df.columns and "GEOID" not in acs_df.columns:
+        acs_df = acs_df.rename(columns={"tract_geoid": "GEOID"})
+    return build_demographic_features(acs_df)
+
+
+def _load_religion_features(
+    assembled_dir: Path, all_geoids_sorted: list[str]
+) -> pd.DataFrame | None:
+    """Load RCMS county religion data and map to tracts; return None if not found."""
     rcms_path = assembled_dir / "county_rcms_features.parquet"
-    if rcms_path.exists():
-        log.info("Loading RCMS county data from %s", rcms_path)
-        rcms_df = pd.read_parquet(rcms_path)
-        tract_geoid_series = pd.Series(all_geoids_sorted)
-        religion = build_religion_features(rcms_df, tract_geoid_series)
-    else:
-        log.warning(
-            "RCMS data not found at %s. Skipping religion features.",
-            rcms_path,
-        )
-        religion = None
+    if not rcms_path.exists():
+        log.warning("RCMS data not found at %s. Skipping religion features.", rcms_path)
+        return None
 
-    # -- Merge all features --
-    result = electoral
+    log.info("Loading RCMS county data from %s", rcms_path)
+    rcms_df = pd.read_parquet(rcms_path)
+    return build_religion_features(rcms_df, pd.Series(all_geoids_sorted))
+
+
+def build_all_features() -> pd.DataFrame:
+    """Load all sources, build complete feature matrix, save to data/tracts/tract_features.parquet.
+
+    Returns the combined DataFrame.
+    """
+    tracts_dir = PROJECT_ROOT / "data" / "tracts"
+    assembled_dir = PROJECT_ROOT / "data" / "assembled"
+    out_path = tracts_dir / "tract_features.parquet"
+
+    state_fips_map = {v: k for k, v in _cfg.STATES.items()}
+
+    tract_votes = _load_tract_votes(tracts_dir)
+    if not tract_votes:
+        log.warning("No tract vote files found in %s — skipping electoral features", tracts_dir)
+        return pd.DataFrame()
+
+    # Build stub tract_areas (placeholder: TIGER areas not yet integrated)
+    all_geoids_sorted = sorted(
+        set(geoid for df in tract_votes.values() for geoid in df["GEOID"].values)
+    )
+    tract_areas = pd.Series(1.0, index=pd.Index(all_geoids_sorted, name="GEOID"))
+
+    log.info("Building electoral features from %d vote datasets", len(tract_votes))
+    result = build_electoral_features(tract_votes, tract_areas, state_fips_map)
+
+    demographic = _load_demographic_features(assembled_dir)
     if demographic is not None:
         result = result.merge(demographic, on="GEOID", how="left")
+
+    religion = _load_religion_features(assembled_dir, all_geoids_sorted)
     if religion is not None:
         result = result.merge(religion, on="GEOID", how="left")
 
-    # -- Save --
     tracts_dir.mkdir(parents=True, exist_ok=True)
     result.to_parquet(out_path, index=False)
     log.info(

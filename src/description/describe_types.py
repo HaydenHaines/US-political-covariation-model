@@ -50,6 +50,107 @@ FEC_PATH = _ROOT / "data" / "assembled" / "fec_county_contributions.parquet"
 OUTPUT_PATH = _ROOT / "data" / "communities" / "type_profiles.parquet"
 
 
+def _filter_demographics_to_year(
+    demographics: pd.DataFrame,
+    election_year: int | None,
+) -> pd.DataFrame:
+    """Return the demographics slice for the requested year.
+
+    If ``election_year`` is None, uses the latest year in the DataFrame.
+    If there is no ``year`` column (e.g. a single-snapshot ACS file), returns
+    the entire DataFrame unchanged.
+    """
+    if "year" not in demographics.columns:
+        return demographics.copy()
+    if election_year is not None:
+        return demographics[demographics["year"] == election_year].copy()
+    return demographics[demographics["year"] == demographics["year"].max()].copy()
+
+
+def _merge_feature_sources(
+    merged: pd.DataFrame,
+    rcms_features: pd.DataFrame | None,
+    extra_features: list[pd.DataFrame] | None,
+) -> tuple[pd.DataFrame, list[str], list[str]]:
+    """Merge RCMS and extra feature DataFrames into ``merged``.
+
+    Returns the updated DataFrame, plus lists of RCMS and extra column names
+    that were actually added (for downstream column ordering).
+    """
+    rcms_cols_used: list[str] = []
+    if rcms_features is not None:
+        available_rcms = [c for c in RCMS_COLS if c in rcms_features.columns]
+        if available_rcms:
+            rcms = rcms_features[["county_fips"] + available_rcms].copy()
+            rcms["county_fips"] = rcms["county_fips"].astype(str).str.zfill(5)
+            merged = merged.merge(rcms, on="county_fips", how="left")
+            rcms_cols_used = available_rcms
+
+    extra_cols_used: list[str] = []
+    if extra_features:
+        existing_cols = set(merged.columns)
+        for extra_df in extra_features:
+            extra_df = extra_df.copy()
+            extra_df["county_fips"] = extra_df["county_fips"].astype(str).str.zfill(5)
+            # Only add columns not already present (skip county_fips and duplicates)
+            new_cols = [
+                c for c in extra_df.columns
+                if c != "county_fips" and c not in existing_cols
+            ]
+            if new_cols:
+                merged = merged.merge(
+                    extra_df[["county_fips"] + new_cols], on="county_fips", how="left"
+                )
+                extra_cols_used.extend(new_cols)
+                existing_cols.update(new_cols)
+
+    return merged, rcms_cols_used, extra_cols_used
+
+
+def _weighted_feature_row(
+    type_idx: int,
+    score_col: str,
+    merged: pd.DataFrame,
+    all_feature_cols: list[str],
+) -> dict:
+    """Compute one type's score-weighted demographic profile row.
+
+    Weights = abs(score) for each county.  NaN values in individual feature
+    columns are excluded from both numerator and denominator so sparse features
+    (e.g. Alaska Census Areas missing ACS data) are not dragged toward zero.
+    """
+    weights = merged[score_col].abs().fillna(0.0)
+    total_weight = weights.sum()
+    n_counties = int((merged["dominant_type"] == type_idx).sum())
+
+    # Population: score-weighted mean of pop_total (or raw county count if absent)
+    if "pop_total" in merged.columns:
+        pop = merged["pop_total"].fillna(0.0)
+        total_pop = float((pop * weights).sum() / total_weight) if total_weight > 0 else float(pop.sum())
+    else:
+        total_pop = float(n_counties)
+
+    row: dict = {
+        "type_id": int(type_idx),
+        "n_counties": n_counties,
+        "pop_total": total_pop,
+    }
+
+    for col in all_feature_cols:
+        if col not in merged.columns or col == "pop_total":
+            continue
+        mask = merged[col].notna()
+        if mask.sum() == 0:
+            row[col] = float("nan")
+            continue
+        col_vals = merged.loc[mask, col]
+        w = weights[mask]
+        w_sum = w.sum()
+        row[col] = float((col_vals * w).sum() / w_sum) if w_sum > 0 else float(col_vals.mean())
+
+    return row
+
+
 def describe_types(
     type_assignments: pd.DataFrame,
     demographics: pd.DataFrame,
@@ -94,16 +195,8 @@ def describe_types(
     )
     j = len(score_cols)
 
-    # Resolve election year for demographics
-    if "year" in demographics.columns:
-        if election_year is not None:
-            demo_year = demographics[demographics["year"] == election_year].copy()
-        else:
-            latest_year = demographics["year"].max()
-            demo_year = demographics[demographics["year"] == latest_year].copy()
-    else:
-        # No year column — use as-is (e.g. ACS features, single snapshot)
-        demo_year = demographics.copy()
+    # Slice demographics to the requested year
+    demo_year = _filter_demographics_to_year(demographics, election_year)
 
     # Normalise county_fips to 5-digit string for join safety
     ta = type_assignments.copy()
@@ -111,105 +204,31 @@ def describe_types(
     demo_year["county_fips"] = demo_year["county_fips"].astype(str).str.zfill(5)
 
     # Demographic columns: everything except county_fips and year
-    skip = {"county_fips", "year"}
-    demo_cols = [c for c in demo_year.columns if c not in skip]
+    demo_cols = [c for c in demo_year.columns if c not in {"county_fips", "year"}]
 
-    # Merge type assignments with demographics
+    # Merge type assignments with demographics, then RCMS and extras
     merged = ta.merge(demo_year[["county_fips"] + demo_cols], on="county_fips", how="left")
-
-    # Merge RCMS if provided
-    rcms_cols_used: list[str] = []
-    if rcms_features is not None:
-        available_rcms = [c for c in RCMS_COLS if c in rcms_features.columns]
-        if available_rcms:
-            rcms = rcms_features[["county_fips"] + available_rcms].copy()
-            rcms["county_fips"] = rcms["county_fips"].astype(str).str.zfill(5)
-            merged = merged.merge(rcms, on="county_fips", how="left")
-            rcms_cols_used = available_rcms
-
-    # Merge extra feature sources (urbanicity, migration, BEA, ACS extras, etc.)
-    extra_cols_used: list[str] = []
-    if extra_features:
-        existing_cols = set(merged.columns)
-        for extra_df in extra_features:
-            extra_df = extra_df.copy()
-            extra_df["county_fips"] = extra_df["county_fips"].astype(str).str.zfill(5)
-            # Only add columns not already present (skip county_fips and duplicates)
-            new_cols = [
-                c for c in extra_df.columns
-                if c != "county_fips" and c not in existing_cols
-            ]
-            if new_cols:
-                merged = merged.merge(
-                    extra_df[["county_fips"] + new_cols], on="county_fips", how="left"
-                )
-                extra_cols_used.extend(new_cols)
-                existing_cols.update(new_cols)
+    merged, rcms_cols_used, extra_cols_used = _merge_feature_sources(
+        merged, rcms_features, extra_features
+    )
 
     all_feature_cols = demo_cols + rcms_cols_used + extra_cols_used
 
-    records = []
-    for type_idx in range(j):
-        score_col = score_cols[type_idx]
-
-        # Weight each county by its absolute score on this type
-        weights = merged[score_col].abs().fillna(0.0)
-        total_weight = weights.sum()
-
-        # n_counties: count where dominant_type == type_idx
-        n_counties = int((merged["dominant_type"] == type_idx).sum())
-
-        # pop_total: sum of pop_total weighted by score (or raw pop sum if no pop col)
-        if "pop_total" in merged.columns:
-            pop = merged["pop_total"].fillna(0.0)
-            if total_weight > 0:
-                total_pop = float((pop * weights).sum() / total_weight)
-            else:
-                total_pop = float(pop.sum())
-        else:
-            total_pop = float(n_counties)
-
-        row: dict = {
-            "type_id": int(type_idx),
-            "n_counties": n_counties,
-            "pop_total": total_pop,
-        }
-
-        # Score-weighted mean of every feature column.
-        # Only weight non-null values: NaN counties are excluded from
-        # both numerator and denominator.  This prevents sparse features
-        # (e.g. Alaska Census Areas missing ACS data) from being dragged
-        # toward zero by fillna(0.0).
-        for col in all_feature_cols:
-            if col not in merged.columns or col == "pop_total":
-                continue
-            mask = merged[col].notna()
-            if mask.sum() == 0:
-                row[col] = float("nan")
-                continue
-            col_vals = merged.loc[mask, col]
-            w = weights[mask]
-            w_sum = w.sum()
-            if w_sum > 0:
-                row[col] = float((col_vals * w).sum() / w_sum)
-            else:
-                row[col] = float(col_vals.mean())
-
-        records.append(row)
-
+    records = [
+        _weighted_feature_row(type_idx, score_cols[type_idx], merged, all_feature_cols)
+        for type_idx in range(j)
+    ]
     profiles = pd.DataFrame(records)
 
-    # Consistent column ordering
+    # Consistent column ordering, deduplicated
     col_order_raw = ["type_id", "n_counties", "pop_total"] + demo_cols + rcms_cols_used + extra_cols_used
-    # Deduplicate while preserving order
     seen: set[str] = set()
     col_order: list[str] = []
     for c in col_order_raw:
         if c not in seen and c in profiles.columns:
             col_order.append(c)
             seen.add(c)
-    profiles = profiles[col_order]
-    return profiles.reset_index(drop=True)
+    return profiles[col_order].reset_index(drop=True)
 
 
 def main() -> None:

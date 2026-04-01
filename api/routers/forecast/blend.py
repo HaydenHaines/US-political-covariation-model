@@ -15,10 +15,14 @@ from api.models import (
 )
 
 from ._helpers import (
-    _STATE_STD_CAP,
+    _DEFAULT_DEM_SHARE_PRIOR,
+    _SLIDER_NORM,
     _STATE_STD_FALLBACK,
     _STATE_STD_FLOOR,
+    _VOTE_WEIGHTED_STATE_PRED_SQL,
     _Z90,
+    _apply_behavior_if_needed,
+    _compute_state_std,
     slug_to_race,
 )
 
@@ -83,13 +87,9 @@ def recalculate_blend(
     # Blend controls have no effect when there is nothing to blend.
     if polls_df.empty:
         pred_row = db.execute(
-            """
+            f"""
             SELECT
-                CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                     THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                          / SUM(COALESCE(c.total_votes_2024, 0))
-                     ELSE AVG(p.pred_dem_share)
-                END AS state_pred,
+                {_VOTE_WEIGHTED_STATE_PRED_SQL} AS state_pred,
                 AVG(p.pred_std) AS mean_std
             FROM predictions p
             JOIN counties c ON p.county_fips = c.county_fips
@@ -110,12 +110,10 @@ def recalculate_blend(
         )
 
     # Normalise 0-100 percentage weights to [0, 2] multipliers.
-    # 100 / 50 = 2.0 keeps the scale symmetric around the default of 1.0.
-    norm = 50.0
     sw = SectionWeights(
-        model_prior=body.model_prior / norm,
-        state_polls=body.state_polls / norm,
-        national_polls=body.national_polls / norm,
+        model_prior=body.model_prior / _SLIDER_NORM,
+        state_polls=body.state_polls / _SLIDER_NORM,
+        national_polls=body.national_polls / _SLIDER_NORM,
     )
 
     type_scores = getattr(request.app.state, "type_scores", None)
@@ -126,13 +124,9 @@ def recalculate_blend(
     # If type model isn't loaded, fall back to the stored prediction
     if not all(x is not None for x in [type_scores, type_covariance, type_priors, type_county_fips]):
         pred_row = db.execute(
-            """
+            f"""
             SELECT
-                CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                     THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                          / SUM(COALESCE(c.total_votes_2024, 0))
-                     ELSE AVG(p.pred_dem_share)
-                END AS state_pred
+                {_VOTE_WEIGHTED_STATE_PRED_SQL} AS state_pred
             FROM predictions p
             JOIN counties c ON p.county_fips = c.county_fips
             WHERE p.version_id = ? AND p.race = ? AND c.state_abbr = ?
@@ -168,28 +162,12 @@ def recalculate_blend(
 
     ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
     county_priors = (
-        np.array([ridge_priors.get(f, 0.45) for f in fips_list])
+        np.array([ridge_priors.get(f, _DEFAULT_DEM_SHARE_PRIOR) for f in fips_list])
         if ridge_priors
         else None
     )
 
-    # Apply behavior adjustment for off-cycle races
-    behavior_tau = getattr(request.app.state, "behavior_tau", None)
-    behavior_delta = getattr(request.app.state, "behavior_delta", None)
-    race_str = race.lower()
-    is_offcycle = not any(kw in race_str for kw in ["president", "pres"])
-
-    if (
-        behavior_tau is not None
-        and behavior_delta is not None
-        and county_priors is not None
-        and is_offcycle
-        and type_scores.shape[1] == len(behavior_tau)
-    ):
-        from src.behavior.voter_behavior import apply_behavior_adjustment
-        county_priors = apply_behavior_adjustment(
-            county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True
-        )
+    county_priors = _apply_behavior_if_needed(request, county_priors, race)
 
     result_df = predict_race(
         race=race,
@@ -221,15 +199,7 @@ def recalculate_blend(
 
     # Derive state-level std from county-level CI data
     preds = state_rows["pred_dem_share"].values.astype(float)
-    if total_w > 0 and len(preds) > 1:
-        weights_norm = vote_weights / total_w
-        county_var = float(np.sum(weights_norm * (preds - pred) ** 2))
-        n_eff = max(1.0, 1.0 / np.sum(weights_norm ** 2))
-        state_std = float(np.sqrt(county_var / n_eff))
-        state_std = max(state_std, _STATE_STD_FLOOR)
-        state_std = min(state_std, _STATE_STD_CAP)
-    else:
-        state_std = _STATE_STD_FALLBACK
+    state_std = _compute_state_std(preds, vote_weights, pred)
 
     return BlendResult(
         prediction=pred,

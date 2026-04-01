@@ -8,13 +8,19 @@ from fastapi import APIRouter
 
 from api.models import ChangelogEntry, ChangelogRaceDiff, ChangelogResponse
 
+from ._helpers import _MIN_CHANGELOG_DELTA
+
 router = APIRouter(tags=["forecast"])
 
 SNAPSHOTS_DIR = Path(__file__).resolve().parents[3] / "data" / "forecast_snapshots"
 
-# Races that have real poll-adjusted predictions (not just baseline copies).
+# Races with real poll-adjusted predictions (not just baseline copies).
 # Only show changes for these to avoid cluttering with 60+ identical baseline races.
-TRACKED_RACES = {
+#
+# UPDATE WHEN: a new race gets poll-adjusted predictions added to the model.
+# A race should appear here once it has at least one poll ingested and produces
+# predictions distinct from the structural baseline.
+TRACKED_RACES: set[str] = {
     "2026 FL Senate", "2026 FL Governor", "2026 GA Senate", "2026 GA Governor",
     "2026 IA Senate", "2026 ME Senate", "2026 MI Senate", "2026 MI Governor",
     "2026 MN Senate", "2026 MN Governor", "2026 NC Senate", "2026 NH Senate",
@@ -84,7 +90,7 @@ def get_forecast_changelog() -> ChangelogResponse:
 
             if b is not None and a is not None:
                 delta = a - b
-                if abs(delta) < 0.002:  # < 0.2pp — not meaningful
+                if abs(delta) < _MIN_CHANGELOG_DELTA:
                     continue
             else:
                 delta = None

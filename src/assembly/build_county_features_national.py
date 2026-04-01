@@ -80,6 +80,22 @@ USDA_PATH = PROJECT_ROOT / "data" / "assembled" / "usda_typology_features.parque
 TRANSPORT_PATH = PROJECT_ROOT / "data" / "assembled" / "transportation_features.parquet"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
 
+# How many malformed FIPS to show in the error log before truncating.
+MAX_FIPS_IN_LOG = 5
+
+# Columns logged in the per-feature summary at the end of main().
+SUMMARY_LOG_COLS = [
+    "pct_white_nh",
+    "pct_black",
+    "pct_hispanic",
+    "pct_bachelors_plus",
+    "median_hh_income",
+    "evangelical_share",
+    "catholic_share",
+    "pct_broadband",
+    "pct_no_internet",
+]
+
 RCMS_FEATURE_COLS = [
     "evangelical_share",
     "mainline_share",
@@ -503,7 +519,67 @@ def build_national_features(
     return merged.reset_index(drop=True)
 
 
+def _load_optional_source(path: Path, label: str) -> pd.DataFrame | None:
+    """Load a parquet file if it exists, returning None and a warning if it does not.
+
+    All optional feature sources follow the same load-or-skip pattern. This helper
+    eliminates the 12 near-identical if/else blocks in main().
+    """
+    if not path.exists():
+        log.warning("%s features not found at %s — skipping", label, path)
+        return None
+    log.info("Loading %s features from %s", label, path)
+    df = pd.read_parquet(path)
+    log.info("  %d rows × %d cols", len(df), len(df.columns))
+    return df
+
+
+def _log_quality_report(features: pd.DataFrame) -> None:
+    """Log NaN counts per column and flag any malformed FIPS values.
+
+    Called after build_national_features() to surface data quality issues before
+    writing to disk. Warnings here indicate imputation gaps or source schema drift.
+    """
+    n_na_any = features.isnull().any(axis=1).sum()
+    log.info(
+        "Built %d county feature rows × %d columns | %d counties with ≥1 NaN",
+        len(features),
+        len(features.columns),
+        n_na_any,
+    )
+
+    if n_na_any > 0:
+        log.warning("Columns with remaining NaN:")
+        for col in features.columns:
+            n = features[col].isna().sum()
+            if n > 0:
+                log.warning("  %-35s  %d NaN", col, n)
+
+    bad_fips = features[~features["county_fips"].str.match(r"^\d{5}$")]
+    if len(bad_fips):
+        log.error(
+            "%d rows with malformed county_fips: %s",
+            len(bad_fips),
+            bad_fips["county_fips"].tolist()[:MAX_FIPS_IN_LOG],
+        )
+
+
+def _log_feature_summary(features: pd.DataFrame) -> None:
+    """Log Q1/median/Q3 for key demographic and political features.
+
+    Quick sanity check that imputation hasn't produced out-of-range values
+    and that the feature distributions look reasonable.
+    """
+    log.info("\nFeature summary (all counties):")
+    for col in SUMMARY_LOG_COLS:
+        if col not in features.columns:
+            continue
+        q1, med, q3 = features[col].quantile([0.25, 0.5, 0.75])
+        log.info("  %-30s  Q1=%.3f  median=%.3f  Q3=%.3f", col, q1, med, q3)
+
+
 def main() -> None:
+    # ── Required sources (always present) ───────────────────────────────────
     log.info("Loading ACS county features from %s", ACS_PATH)
     acs = pd.read_parquet(ACS_PATH)
     log.info("  %d counties × %d cols", len(acs), len(acs.columns))
@@ -512,114 +588,21 @@ def main() -> None:
     rcms = pd.read_parquet(RCMS_PATH)
     log.info("  %d counties × %d cols", len(rcms), len(rcms.columns))
 
-    # Load QCEW (industry) features if available
-    qcew: pd.DataFrame | None = None
-    if QCEW_PATH.exists():
-        log.info("Loading QCEW county features from %s", QCEW_PATH)
-        qcew = pd.read_parquet(QCEW_PATH)
-        log.info("  %d rows × %d cols (county × year)", len(qcew), len(qcew.columns))
-    else:
-        log.warning("QCEW features not found at %s — skipping", QCEW_PATH)
+    # ── Optional sources (skip gracefully if file is absent) ────────────────
+    qcew = _load_optional_source(QCEW_PATH, "QCEW county")
+    chr_df = _load_optional_source(CHR_PATH, "CHR county")
+    migration = _load_optional_source(MIGRATION_PATH, "Migration county")
+    urbanicity = _load_optional_source(URBANICITY_PATH, "Urbanicity county")
+    sci = _load_optional_source(SCI_PATH, "SCI county")
+    broadband = _load_optional_source(BROADBAND_PATH, "Broadband county")
+    bea = _load_optional_source(BEA_PATH, "BEA county")
+    cdc_mortality = _load_optional_source(CDC_MORTALITY_PATH, "CDC mortality county")
+    covid = _load_optional_source(COVID_PATH, "COVID vaccination county")
+    va = _load_optional_source(VA_PATH, "VA disability county")
+    usda = _load_optional_source(USDA_PATH, "USDA typology county")
+    transport = _load_optional_source(TRANSPORT_PATH, "Transportation county")
 
-    # Load CHR (County Health Rankings) features if available
-    chr_df: pd.DataFrame | None = None
-    if CHR_PATH.exists():
-        log.info("Loading CHR county features from %s", CHR_PATH)
-        chr_df = pd.read_parquet(CHR_PATH)
-        log.info("  %d counties × %d cols", len(chr_df), len(chr_df.columns))
-    else:
-        log.warning("CHR features not found at %s — skipping", CHR_PATH)
-
-    # Load Migration features if available
-    migration: pd.DataFrame | None = None
-    if MIGRATION_PATH.exists():
-        log.info("Loading Migration county features from %s", MIGRATION_PATH)
-        migration = pd.read_parquet(MIGRATION_PATH)
-        log.info("  %d counties × %d cols", len(migration), len(migration.columns))
-    else:
-        log.warning("Migration features not found at %s — skipping", MIGRATION_PATH)
-
-    # Load Urbanicity features if available
-    urbanicity: pd.DataFrame | None = None
-    if URBANICITY_PATH.exists():
-        log.info("Loading Urbanicity county features from %s", URBANICITY_PATH)
-        urbanicity = pd.read_parquet(URBANICITY_PATH)
-        log.info("  %d counties × %d cols", len(urbanicity), len(urbanicity.columns))
-    else:
-        log.warning("Urbanicity features not found at %s — skipping", URBANICITY_PATH)
-
-    # Load SCI features if available
-    sci: pd.DataFrame | None = None
-    if SCI_PATH.exists():
-        log.info("Loading SCI county features from %s", SCI_PATH)
-        sci = pd.read_parquet(SCI_PATH)
-        log.info("  %d counties × %d cols", len(sci), len(sci.columns))
-    else:
-        log.warning("SCI features not found at %s — skipping", SCI_PATH)
-
-    # Load Broadband features if available
-    broadband: pd.DataFrame | None = None
-    if BROADBAND_PATH.exists():
-        log.info("Loading Broadband county features from %s", BROADBAND_PATH)
-        broadband = pd.read_parquet(BROADBAND_PATH)
-        log.info("  %d counties × %d cols", len(broadband), len(broadband.columns))
-    else:
-        log.warning("Broadband features not found at %s — skipping", BROADBAND_PATH)
-
-    # Load BEA income/GDP features if available
-    bea: pd.DataFrame | None = None
-    if BEA_PATH.exists():
-        log.info("Loading BEA county features from %s", BEA_PATH)
-        bea = pd.read_parquet(BEA_PATH)
-        log.info("  %d counties × %d cols", len(bea), len(bea.columns))
-    else:
-        log.warning("BEA features not found at %s — skipping", BEA_PATH)
-
-    # Load CDC mortality features if available
-    cdc_mortality: pd.DataFrame | None = None
-    if CDC_MORTALITY_PATH.exists():
-        log.info("Loading CDC mortality features from %s", CDC_MORTALITY_PATH)
-        cdc_mortality = pd.read_parquet(CDC_MORTALITY_PATH)
-        log.info("  %d counties × %d cols", len(cdc_mortality), len(cdc_mortality.columns))
-    else:
-        log.warning("CDC mortality features not found at %s — skipping", CDC_MORTALITY_PATH)
-
-    # Load COVID vaccination features if available
-    covid: pd.DataFrame | None = None
-    if COVID_PATH.exists():
-        log.info("Loading COVID vaccination features from %s", COVID_PATH)
-        covid = pd.read_parquet(COVID_PATH)
-        log.info("  %d counties × %d cols", len(covid), len(covid.columns))
-    else:
-        log.warning("COVID features not found at %s — skipping", COVID_PATH)
-
-    # Load VA disability features if available
-    va: pd.DataFrame | None = None
-    if VA_PATH.exists():
-        log.info("Loading VA disability features from %s", VA_PATH)
-        va = pd.read_parquet(VA_PATH)
-        log.info("  %d counties × %d cols", len(va), len(va.columns))
-    else:
-        log.warning("VA disability features not found at %s — skipping", VA_PATH)
-
-    # Load USDA typology features if available
-    usda: pd.DataFrame | None = None
-    if USDA_PATH.exists():
-        log.info("Loading USDA typology features from %s", USDA_PATH)
-        usda = pd.read_parquet(USDA_PATH)
-        log.info("  %d counties × %d cols", len(usda), len(usda.columns))
-    else:
-        log.warning("USDA typology features not found at %s — skipping", USDA_PATH)
-
-    # Load transportation features if available
-    transport: pd.DataFrame | None = None
-    if TRANSPORT_PATH.exists():
-        log.info("Loading transportation features from %s", TRANSPORT_PATH)
-        transport = pd.read_parquet(TRANSPORT_PATH)
-        log.info("  %d counties × %d cols", len(transport), len(transport.columns))
-    else:
-        log.warning("Transportation features not found at %s — skipping", TRANSPORT_PATH)
-
+    # ── Build ────────────────────────────────────────────────────────────────
     features = build_national_features(
         acs,
         rcms,
@@ -637,52 +620,14 @@ def main() -> None:
         transport=transport,
     )
 
-    n_na_any = features.isnull().any(axis=1).sum()
-    log.info(
-        "Built %d county feature rows × %d columns | %d counties with ≥1 NaN",
-        len(features),
-        len(features.columns),
-        n_na_any,
-    )
-
-    if n_na_any > 0:
-        log.warning("Columns with remaining NaN:")
-        for col in features.columns:
-            n = features[col].isna().sum()
-            if n > 0:
-                log.warning("  %-35s  %d NaN", col, n)
-
-    # Sanity check: FIPS format
-    bad_fips = features[~features["county_fips"].str.match(r"^\d{5}$")]
-    if len(bad_fips):
-        log.error(
-            "%d rows with malformed county_fips: %s",
-            len(bad_fips),
-            bad_fips["county_fips"].tolist()[:5],
-        )
+    # ── Quality checks, save, summary ────────────────────────────────────────
+    _log_quality_report(features)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     features.to_parquet(OUTPUT_PATH, index=False)
     log.info("Saved → %s", OUTPUT_PATH)
 
-    # Summary stats for key features
-    log.info("\nFeature summary (all counties):")
-    summary_cols = [
-        "pct_white_nh",
-        "pct_black",
-        "pct_hispanic",
-        "pct_bachelors_plus",
-        "median_hh_income",
-        "evangelical_share",
-        "catholic_share",
-        "pct_broadband",
-        "pct_no_internet",
-    ]
-    for col in summary_cols:
-        if col not in features.columns:
-            continue
-        q1, med, q3 = features[col].quantile([0.25, 0.5, 0.75])
-        log.info("  %-30s  Q1=%.3f  median=%.3f  Q3=%.3f", col, q1, med, q3)
+    _log_feature_summary(features)
 
 
 if __name__ == "__main__":

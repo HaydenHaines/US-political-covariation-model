@@ -21,6 +21,92 @@ log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _ridge_loo_for_dimension(
+    X: np.ndarray,
+    y: np.ndarray,
+    alpha: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute exact LOO predictions for one Ridge dimension via the hat matrix.
+
+    Uses the augmented hat matrix formula y_loo_i = y_i - e_i / (1 - H_ii),
+    where H is the hat matrix for [1 | X] with the intercept unpenalized.
+    This matches sklearn's fit_intercept=True behavior.
+
+    Parameters
+    ----------
+    X : ndarray of shape (N, F)
+        Feature matrix (without intercept column).
+    y : ndarray of shape (N,)
+        Target vector.
+    alpha : float
+        Ridge regularization strength.
+
+    Returns
+    -------
+    y_loo : ndarray of shape (N,)
+        LOO predictions.
+    h : ndarray of shape (N,)
+        Hat matrix diagonal (leverage scores).
+    """
+    n, n_feat = X.shape
+    X_aug = np.column_stack([np.ones(n), X])  # (N, n_feat+1)
+    pen = alpha * np.eye(n_feat + 1)
+    pen[0, 0] = 0.0  # intercept is unpenalized
+    A = X_aug.T @ X_aug + pen
+    A_inv = np.linalg.inv(A)
+    h = np.einsum("ij,ij->i", X_aug @ A_inv, X_aug)  # hat diag
+    beta = A_inv @ X_aug.T @ y
+    y_hat = X_aug @ beta
+    e = y - y_hat
+    denom = 1.0 - h
+    denom = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
+    y_loo = y - e / denom
+    return y_loo, h
+
+
+def _compute_loo_metrics(
+    X: np.ndarray,
+    shift_matrix: np.ndarray,
+    holdout_cols: list[int],
+    alphas: np.ndarray,
+    RidgeCV: type,
+) -> tuple[list[float], list[float], list[float]]:
+    """Run LOO Ridge regression over all holdout dimensions.
+
+    Selects alpha via GCV for each dimension, computes exact LOO predictions
+    via the hat matrix, and accumulates per-dimension r and RMSE.
+
+    Returns
+    -------
+    per_dim_r, per_dim_rmse, best_alphas : lists of floats, one per holdout dim
+    """
+    per_dim_r: list[float] = []
+    per_dim_rmse: list[float] = []
+    best_alphas: list[float] = []
+
+    for col in holdout_cols:
+        y = shift_matrix[:, col].astype(float)
+
+        # GCV alpha selection
+        rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
+        rcv.fit(X, y)
+        alpha = float(rcv.alpha_)
+        best_alphas.append(alpha)
+
+        y_loo, _ = _ridge_loo_for_dimension(X, y, alpha)
+
+        if np.std(y) < 1e-10 or np.std(y_loo) < 1e-10:
+            per_dim_r.append(0.0)
+        else:
+            r, _ = pearsonr(y, y_loo)
+            per_dim_r.append(float(np.clip(r, -1.0, 1.0)))
+
+        rmse = float(np.sqrt(np.mean((y - y_loo) ** 2)))
+        per_dim_rmse.append(rmse)
+
+    return per_dim_r, per_dim_rmse, best_alphas
+
+
 def holdout_accuracy_ridge(
     scores: np.ndarray,
     shift_matrix: np.ndarray,
@@ -66,7 +152,6 @@ def holdout_accuracy_ridge(
     except ImportError as exc:
         raise ImportError("scikit-learn required for holdout_accuracy_ridge") from exc
 
-    n, j = scores.shape
     training_data = shift_matrix[:, training_cols]
     county_training_means = training_data.mean(axis=1)  # (N,)
 
@@ -77,42 +162,9 @@ def holdout_accuracy_ridge(
         X = scores  # (N, J)
 
     alphas = np.logspace(-3, 6, 100)
-    per_dim_r: list[float] = []
-    per_dim_rmse: list[float] = []
-    best_alphas: list[float] = []
-
-    for col in holdout_cols:
-        y = shift_matrix[:, col].astype(float)
-
-        # GCV alpha selection
-        rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
-        rcv.fit(X, y)
-        alpha = float(rcv.alpha_)
-        best_alphas.append(alpha)
-
-        # Exact LOO via augmented hat matrix
-        N_feat = X.shape[1]
-        X_aug = np.column_stack([np.ones(n), X])  # (N, N_feat+1)
-        pen = alpha * np.eye(N_feat + 1)
-        pen[0, 0] = 0.0  # unpenalized intercept
-        A = X_aug.T @ X_aug + pen
-        A_inv = np.linalg.inv(A)
-        h = np.einsum("ij,ij->i", X_aug @ A_inv, X_aug)  # (N,) hat diag
-        beta = A_inv @ X_aug.T @ y
-        y_hat = X_aug @ beta
-        e = y - y_hat
-        denom = 1.0 - h
-        denom = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
-        y_loo = y - e / denom  # exact LOO predictions
-
-        if np.std(y) < 1e-10 or np.std(y_loo) < 1e-10:
-            per_dim_r.append(0.0)
-        else:
-            r, _ = pearsonr(y, y_loo)
-            per_dim_r.append(float(np.clip(r, -1.0, 1.0)))
-
-        rmse = float(np.sqrt(np.mean((y - y_loo) ** 2)))
-        per_dim_rmse.append(rmse)
+    per_dim_r, per_dim_rmse, best_alphas = _compute_loo_metrics(
+        X, shift_matrix, holdout_cols, alphas, RidgeCV
+    )
 
     mean_r = float(np.mean(per_dim_r)) if per_dim_r else 0.0
     mean_rmse = float(np.mean(per_dim_rmse)) if per_dim_rmse else 0.0
@@ -124,6 +176,56 @@ def holdout_accuracy_ridge(
         "per_dim_rmse": per_dim_rmse,
         "best_alphas": best_alphas,
     }
+
+
+def _load_and_standardize_demographics(
+    demo_path: Path,
+    county_fips: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, list[str]] | None:
+    """Load demographics parquet, inner-join on county_fips, and standardize.
+
+    Parameters
+    ----------
+    demo_path : Path
+        Resolved path to the demographics parquet file.
+    county_fips : ndarray of shape (N,)
+        FIPS codes aligned with the model's score/shift rows.
+
+    Returns
+    -------
+    (row_mask, demo_std_feat, demo_numeric_cols) if successful, else None.
+    row_mask : ndarray of int indices into the original N rows after inner join.
+    demo_std_feat : ndarray of shape (n_matched, n_demo), standardized.
+    demo_numeric_cols : list of demographic column names used.
+    """
+    import pandas as pd
+
+    demo_df = pd.read_parquet(demo_path)
+    demo_numeric_cols = [c for c in demo_df.columns if c != "county_fips"]
+    demo_df = demo_df[["county_fips"] + demo_numeric_cols].copy()
+
+    idx_df = pd.DataFrame({"county_fips": county_fips, "_row_idx": np.arange(len(county_fips))})
+    merged = idx_df.merge(demo_df, on="county_fips", how="inner")
+
+    if merged.empty:
+        log.warning("holdout_accuracy_ridge_augmented: inner join produced no rows; skipping")
+        return None
+
+    row_mask = merged["_row_idx"].values  # indices into scores/shift_matrix
+
+    # Standardize demographic features (impute NaN with column means)
+    demo_raw = merged[demo_numeric_cols].values.astype(float)
+    col_means = np.nanmean(demo_raw, axis=0)
+    nan_mask = np.isnan(demo_raw)
+    if nan_mask.any():
+        col_idx = np.where(nan_mask)
+        demo_raw[col_idx] = col_means[col_idx[1]]
+    demo_mean = demo_raw.mean(axis=0)
+    demo_std = demo_raw.std(axis=0)
+    demo_std = np.where(demo_std < 1e-10, 1.0, demo_std)
+    demo_std_feat = (demo_raw - demo_mean) / demo_std
+
+    return row_mask, demo_std_feat, demo_numeric_cols
 
 
 def holdout_accuracy_ridge_augmented(
@@ -183,7 +285,7 @@ def holdout_accuracy_ridge_augmented(
         raise ImportError("scikit-learn required for holdout_accuracy_ridge_augmented") from exc
 
     try:
-        import pandas as pd
+        import pandas as pd  # noqa: F401 — imported for type-checking; used via _load_and_standardize_demographics
     except ImportError as exc:
         raise ImportError("pandas required for holdout_accuracy_ridge_augmented") from exc
 
@@ -199,41 +301,19 @@ def holdout_accuracy_ridge_augmented(
         )
         return None
 
-    # Load demographics and standardize numeric features
-    demo_df = pd.read_parquet(demo_path)
-    demo_numeric_cols = [c for c in demo_df.columns if c != "county_fips"]
-    demo_df = demo_df[["county_fips"] + demo_numeric_cols].copy()
-
-    # Build index DataFrame from county_fips array
-    idx_df = pd.DataFrame({"county_fips": county_fips, "_row_idx": np.arange(len(county_fips))})
-
-    # Inner join
-    merged = idx_df.merge(demo_df, on="county_fips", how="inner")
-    if merged.empty:
-        log.warning("holdout_accuracy_ridge_augmented: inner join produced no rows; skipping")
+    demo_result = _load_and_standardize_demographics(demo_path, county_fips)
+    if demo_result is None:
         return None
+    row_mask, demo_std_feat, demo_numeric_cols = demo_result
 
-    row_mask = merged["_row_idx"].values  # indices into scores/shift_matrix
     n_matched = len(row_mask)
     n_demo = len(demo_numeric_cols)
 
-    # Standardize demographic features (impute NaN with column means)
-    demo_raw = merged[demo_numeric_cols].values.astype(float)
-    col_means = np.nanmean(demo_raw, axis=0)
-    nan_mask = np.isnan(demo_raw)
-    if nan_mask.any():
-        col_idx = np.where(nan_mask)
-        demo_raw[col_idx] = col_means[col_idx[1]]
-    demo_mean = demo_raw.mean(axis=0)
-    demo_std = demo_raw.std(axis=0)
-    demo_std = np.where(demo_std < 1e-10, 1.0, demo_std)
-    demo_std_feat = (demo_raw - demo_mean) / demo_std  # (n_matched, n_demo)
-
     # Subset arrays to matched rows
-    scores_sub = scores[row_mask]           # (n_matched, J)
-    shift_sub = shift_matrix[row_mask]     # (n_matched, D)
+    scores_sub = scores[row_mask]
+    shift_sub = shift_matrix[row_mask]
     training_data = shift_sub[:, training_cols]
-    county_training_means = training_data.mean(axis=1)  # (n_matched,)
+    county_training_means = training_data.mean(axis=1)
 
     # Build augmented feature matrix
     if include_county_mean:
@@ -241,45 +321,10 @@ def holdout_accuracy_ridge_augmented(
     else:
         X = np.column_stack([scores_sub, demo_std_feat])
 
-    n = n_matched
     alphas = np.logspace(-3, 6, 100)
-    per_dim_r: list[float] = []
-    per_dim_rmse: list[float] = []
-    best_alphas: list[float] = []
-
-    for col in holdout_cols:
-        y = shift_sub[:, col].astype(float)
-
-        # GCV alpha selection
-        rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
-        rcv.fit(X, y)
-        alpha = float(rcv.alpha_)
-        best_alphas.append(alpha)
-
-        # Exact LOO via augmented hat matrix (intercept unpenalized)
-        N_feat = X.shape[1]
-        X_aug = np.column_stack([np.ones(n), X])  # (n, N_feat+1)
-        pen = alpha * np.eye(N_feat + 1)
-        pen[0, 0] = 0.0  # unpenalized intercept
-        A = X_aug.T @ X_aug + pen
-        A_inv = np.linalg.inv(A)
-        h = np.einsum("ij,ij->i", X_aug @ A_inv, X_aug)  # (n,) hat diag
-        beta = A_inv @ X_aug.T @ y
-        y_hat = X_aug @ beta
-        e = y - y_hat
-        denom = 1.0 - h
-        denom = np.where(np.abs(denom) < 1e-10, 1e-10, denom)
-        y_loo = y - e / denom
-
-        if np.std(y) < 1e-10 or np.std(y_loo) < 1e-10:
-            per_dim_r.append(0.0)
-        else:
-            from scipy.stats import pearsonr as _pearsonr
-            r, _ = _pearsonr(y, y_loo)
-            per_dim_r.append(float(np.clip(r, -1.0, 1.0)))
-
-        rmse = float(np.sqrt(np.mean((y - y_loo) ** 2)))
-        per_dim_rmse.append(rmse)
+    per_dim_r, per_dim_rmse, best_alphas = _compute_loo_metrics(
+        X, shift_sub, holdout_cols, alphas, RidgeCV
+    )
 
     mean_r = float(np.mean(per_dim_r)) if per_dim_r else 0.0
     mean_rmse = float(np.mean(per_dim_rmse)) if per_dim_rmse else 0.0

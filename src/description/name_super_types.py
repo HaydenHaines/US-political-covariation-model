@@ -108,6 +108,69 @@ def _disambiguate_super(
     return final
 
 
+def _build_super_aggregate_profiles(
+    profiles: pd.DataFrame,
+    county_assignments: pd.DataFrame,
+    super_ids: list[int],
+    numeric_cols: list[str],
+) -> tuple[pd.DataFrame, dict[int, list[int]]]:
+    """Build one aggregate demographic row per super-type.
+
+    Each fine type within a super-type is weighted by county_count × pop_total,
+    producing a county-population weighted average over the fine types.
+
+    Returns (agg_df, type_id_lists) where type_id_lists maps super_id → sorted
+    list of constituent fine type IDs.
+    """
+    agg_rows: list[dict] = []
+    type_id_lists: dict[int, list[int]] = {}
+
+    for sid in super_ids:
+        st_counties = county_assignments[county_assignments["super_type"] == sid]
+        type_counts = st_counties["dominant_type"].value_counts()
+        type_ids_in = [t for t in type_counts.index if t in profiles["type_id"].values]
+        type_id_lists[sid] = sorted(type_ids_in)
+
+        subset = profiles[profiles["type_id"].isin(type_ids_in)].copy()
+        county_w = subset["type_id"].map(type_counts).fillna(1.0)
+        pop_w = subset["pop_total"].fillna(1.0)
+        weights = (county_w * pop_w).values.astype(float)
+        total_w = max(weights.sum(), 1.0)  # guard against zero-weight edge case
+
+        row: dict = {"type_id": sid, "pop_total": float(weights.sum())}
+        for col in numeric_cols:
+            if col in subset.columns:
+                vals = subset[col].fillna(0.0).values.astype(float)
+                row[col] = float(np.dot(weights, vals) / total_w)
+        agg_rows.append(row)
+
+    return pd.DataFrame(agg_rows), type_id_lists
+
+
+def _build_raw_super_names(
+    agg_df: pd.DataFrame,
+    z_super: pd.DataFrame,
+    sfeat_cols: list[str],
+    super_ids: list[int],
+) -> dict[int, str]:
+    """Generate a raw (possibly non-unique) name for each super-type from the vocab."""
+    raw_super: dict[int, str] = {}
+    for sid in super_ids:
+        z_sub = z_super.loc[z_super["type_id"] == sid, sfeat_cols]
+        raw_row = agg_df[agg_df["type_id"] == sid].iloc[0]
+        if z_sub.empty:
+            raw_super[sid] = f"Type-{sid}"
+            continue
+        tokens = _top_tokens(z_sub.iloc[0], _SUPER_VOCAB, n=2, raw_row=raw_row)
+        if len(tokens) >= 2:
+            raw_super[sid] = f"{tokens[0]} {tokens[1]}"
+        elif len(tokens) == 1:
+            raw_super[sid] = f"{tokens[0]} Coalition"
+        else:
+            raw_super[sid] = "Mixed Coalition"
+    return raw_super
+
+
 def name_super_types(
     profiles: pd.DataFrame | None = None,
     county_assignments: pd.DataFrame | None = None,
@@ -150,64 +213,21 @@ def name_super_types(
         return pd.DataFrame(columns=["super_type_id", "display_name"])
 
     super_ids = sorted(county_assignments["super_type"].unique())
-
-    # Build aggregate profile per super-type
-    # Weight each fine type by the number of counties assigned to it within the super
     numeric_cols = [
         c for c in profiles.columns
         if c not in ("type_id", "display_name") and profiles[c].dtype.kind in "fi"
     ]
-    agg_rows: list[dict] = []
-    type_id_lists: dict[int, list[int]] = {}
 
-    for sid in super_ids:
-        st_counties = county_assignments[county_assignments["super_type"] == sid]
-        type_counts = st_counties["dominant_type"].value_counts()
-        type_ids_in = [t for t in type_counts.index if t in profiles["type_id"].values]
-        type_id_lists[sid] = sorted(type_ids_in)
-
-        subset = profiles[profiles["type_id"].isin(type_ids_in)].copy()
-        # Weight = county_count × pop_total (county-population weighted average)
-        county_w = subset["type_id"].map(type_counts).fillna(1.0)
-        pop_w = subset["pop_total"].fillna(1.0)
-        weights = (county_w * pop_w).values.astype(float)
-        total_w = weights.sum()
-        if total_w <= 0:
-            total_w = 1.0
-
-        row: dict = {"type_id": sid, "pop_total": float(weights.sum())}
-        for col in numeric_cols:
-            if col in subset.columns:
-                vals = subset[col].fillna(0.0).values.astype(float)
-                row[col] = float(np.dot(weights, vals) / total_w)
-        agg_rows.append(row)
-
-    agg_df = pd.DataFrame(agg_rows)
+    agg_df, type_id_lists = _build_super_aggregate_profiles(
+        profiles, county_assignments, super_ids, numeric_cols
+    )
 
     # Compute z-scores across super-types (national reference = all super-types)
-    super_features = [e[0] for e in _SUPER_VOCAB]
-    unique_sf = list(dict.fromkeys(super_features))
+    unique_sf = list(dict.fromkeys(e[0] for e in _SUPER_VOCAB))
     z_super = compute_zscores(agg_df, unique_sf, weight_col="pop_total")
     sfeat_cols = [c for c in z_super.columns if c != "type_id"]
 
-    # Build raw names from vocab
-    raw_super: dict[int, str] = {}
-    for sid in super_ids:
-        z_sub = z_super.loc[z_super["type_id"] == sid, sfeat_cols]
-        raw_row = agg_df[agg_df["type_id"] == sid].iloc[0]
-        if z_sub.empty:
-            raw_super[sid] = f"Type-{sid}"
-            continue
-        z_row = z_sub.iloc[0]
-        tokens = _top_tokens(z_row, _SUPER_VOCAB, n=2, raw_row=raw_row)
-        if len(tokens) >= 2:
-            raw_super[sid] = f"{tokens[0]} {tokens[1]}"
-        elif len(tokens) == 1:
-            raw_super[sid] = f"{tokens[0]} Coalition"
-        else:
-            raw_super[sid] = "Mixed Coalition"
-
-    # Ensure uniqueness with disambiguation
+    raw_super = _build_raw_super_names(agg_df, z_super, sfeat_cols, super_ids)
     final_super = _disambiguate_super(raw_super, agg_df, z_super, sfeat_cols)
 
     result = pd.DataFrame(
@@ -219,7 +239,6 @@ def name_super_types(
         result.to_parquet(SUPER_TYPES_PATH, index=False)
         log.info("Saved super-type display names to %s", SUPER_TYPES_PATH)
 
-    # Log summary
     for sid, name in sorted(final_super.items()):
         n_types = len(type_id_lists.get(sid, []))
         log.info(

@@ -9,13 +9,21 @@ from . import blend, changelog, comparisons, overview, polls, race_detail
 
 # Re-export helpers that tests and other modules import directly
 from ._helpers import (  # noqa: F401
+    _BASELINE_YEAR,
+    _DEFAULT_DEM_SHARE_PRIOR,
+    _DEFAULT_SAMPLE_SIZE,
     _HISTORICAL_RESULTS,
     _HISTORICAL_RESULTS_PATH,
     _MATRIX_JITTER,
+    _MIN_CHANGELOG_DELTA,
+    _SLIDER_NORM,
+    _VOTE_WEIGHTED_STATE_PRED_SQL,
     _STATE_STD_CAP,
     _STATE_STD_FALLBACK,
     _STATE_STD_FLOOR,
     _Z90,
+    _apply_behavior_if_needed,
+    _compute_state_std,
     _format_baseline_label,
     _load_historical_results,
     _lookup_pollster_grade,

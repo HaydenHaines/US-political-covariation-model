@@ -83,6 +83,9 @@ PRES_2024_PATH = DATA_DIR / "assembled" / "medsl_county_presidential_2024.parque
 COUNTY_ACS_FEATURES_PATH = DATA_DIR / "assembled" / "county_acs_features.parquet"
 DEMOGRAPHICS_INTERPOLATED_PATH = DATA_DIR / "assembled" / "demographics_interpolated.parquet"
 
+# ── DRY helpers re-exported for backward compat ──────────────────────────────
+from src.db._utils import normalize_fips, cycle_connection  # noqa: E402, F401
+
 # ── Sub-module imports ────────────────────────────────────────────────────────
 from src.db.schema import create_schema as _create_schema  # noqa: E402
 from src.db.ingest import ingest_all as _ingest_data  # noqa: E402
@@ -167,20 +170,15 @@ def build(db_path: Path, reset: bool = False, project_root: Path | None = None) 
 
     con = duckdb.connect(str(db_path))
     _create_schema(con)
-    # _ingest_data manages its own connection cycling internally and closes the
-    # connection before returning (del con + gc.collect at each checkpoint).
-    del con
-    gc.collect()
+    # _ingest_data manages its own connection cycling internally.
+    con = cycle_connection(con, db_path, "post-schema")
 
-    _ingest_data(duckdb.connect(str(db_path)), db_path, paths, _project_root)
+    _ingest_data(con, db_path, paths, _project_root)
 
     con = duckdb.connect(str(db_path))
     _report_summary(con, db_path)
     _validate_integrity(con)
-    # Use `del con` (not close()) — close() crashes on corrupted glibc heap.
-    # See S204/S246 for DuckDB 1.5.x malloc bug context.
-    del con
-    gc.collect()
+    con = cycle_connection(con, db_path, "post-validate")
 
 
 def main() -> None:

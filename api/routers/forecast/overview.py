@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from api.db import get_db
 from api.models import ForecastRow, GenericBallotInfo
 
-from ._helpers import _format_baseline_label, race_to_slug
+from ._helpers import _BASELINE_YEAR, _format_baseline_label, race_to_slug
 
 router = APIRouter(tags=["forecast"])
 
@@ -164,6 +164,6 @@ def get_generic_ballot(
         shift_pp=info.shift * 100,
         n_polls=info.n_polls,
         source=info.source,
-        baseline_year=2024,
+        baseline_year=_BASELINE_YEAR,
         baseline_label=_format_baseline_label(PRES_DEM_SHARE_2024_NATIONAL),
     )

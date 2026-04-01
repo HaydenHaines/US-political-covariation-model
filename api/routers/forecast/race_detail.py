@@ -20,11 +20,12 @@ from api.models import (
 )
 
 from ._helpers import (
+    _DEFAULT_SAMPLE_SIZE,
     _HISTORICAL_RESULTS,
-    _STATE_STD_CAP,
     _STATE_STD_FALLBACK,
-    _STATE_STD_FLOOR,
+    _VOTE_WEIGHTED_STATE_PRED_SQL,
     _Z90,
+    _compute_state_std,
     _lookup_pollster_grade,
     slug_to_race,
 )
@@ -130,11 +131,7 @@ def get_race_detail(
     pred_row = db.execute(
         f"""
         SELECT
-            CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                 THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                      / SUM(COALESCE(c.total_votes_2024, 0))
-                 ELSE AVG(p.pred_dem_share)
-            END AS state_pred,
+            {_VOTE_WEIGHTED_STATE_PRED_SQL} AS state_pred,
             COUNT(*) AS n_counties
         FROM predictions p
         JOIN counties c ON p.county_fips = c.county_fips
@@ -168,23 +165,7 @@ def get_race_detail(
         if not ci_rows.empty and len(ci_rows) > 1:
             votes = ci_rows["votes"].values.astype(float)
             preds = ci_rows["pred_dem_share"].values.astype(float)
-            total_votes = votes.sum()
-
-            if total_votes > 0:
-                weights = votes / total_votes
-                # Weighted variance of county predictions around the state mean
-                county_var = float(np.sum(weights * (preds - prediction) ** 2))
-                # Scale by sqrt(1/N_eff) — effective number of independent
-                # observations, bounded by number of types represented
-                n_eff = max(1.0, 1.0 / np.sum(weights ** 2))
-                state_std = float(np.sqrt(county_var / n_eff))
-                # Floor: model LOO RMSE of 0.059 ensures we don't understate
-                # uncertainty even when all counties agree
-                state_std = max(state_std, _STATE_STD_FLOOR)
-                # Cap: never wider than 15pp (uninformative)
-                state_std = min(state_std, _STATE_STD_CAP)
-            else:
-                state_std = _STATE_STD_FALLBACK  # fallback to historical estimate
+            state_std = _compute_state_std(preds, votes, prediction)
         else:
             state_std = _STATE_STD_FALLBACK
 
@@ -196,13 +177,9 @@ def get_race_detail(
     other_pred_row = None
     if _has_mode:
         other_pred_row = db.execute(
-            """
+            f"""
             SELECT
-                CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                     THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                          / SUM(COALESCE(c.total_votes_2024, 0))
-                     ELSE AVG(p.pred_dem_share)
-                END AS state_pred
+                {_VOTE_WEIGHTED_STATE_PRED_SQL} AS state_pred
             FROM predictions p
             JOIN counties c ON p.county_fips = c.county_fips
             WHERE p.version_id = ? AND p.race = ? AND c.state_abbr = ?
@@ -420,7 +397,7 @@ def _compute_poll_trend(polls_df: "pd.DataFrame") -> PollTrend | None:
         return None
 
     # Replace missing sample sizes with the median
-    median_n = int(polls_df["n_sample"].median()) if polls_df["n_sample"].notna().any() else 600
+    median_n = int(polls_df["n_sample"].median()) if polls_df["n_sample"].notna().any() else _DEFAULT_SAMPLE_SIZE
     polls_df["_n"] = polls_df["n_sample"].fillna(median_n).astype(float)
 
     window_days = pd.Timedelta(days=30)

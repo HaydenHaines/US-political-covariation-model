@@ -38,10 +38,8 @@ _SIGMA_DIAGONAL_VARIANCE = 0.01   # per-community variance in test sigma matrix
 _SIGMA_OFF_DIAGONAL_COV = 0.005   # shared covariance between communities in test matrix
 
 
-def _build_test_db() -> duckdb.DuckDBPyConnection:
-    """Build an in-memory DuckDB with synthetic data matching the real schema."""
-    con = duckdb.connect(":memory:")
-
+def _add_core_tables(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate the base county and model_version tables."""
     con.execute("""
         CREATE TABLE counties (
             county_fips      VARCHAR PRIMARY KEY,
@@ -76,6 +74,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
         [TEST_VERSION, TEST_K],
     )
 
+
+def _add_community_tables(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate community_assignments and type_assignments tables."""
     con.execute("""
         CREATE TABLE community_assignments (
             county_fips VARCHAR NOT NULL,
@@ -107,6 +108,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
             [cid, TEST_K, cid % 7, TEST_VERSION],
         )
 
+
+def _add_prediction_tables(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate predictions and races tables."""
     con.execute("""
         CREATE TABLE predictions (
             county_fips VARCHAR NOT NULL,
@@ -141,6 +145,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
     """)
     con.execute("INSERT INTO races VALUES ('FL_Senate', 'senate', 'FL', 2026, NULL)")
 
+
+def _add_shift_table(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate county_shifts table with a minimal schema."""
     # Minimal schema: only one shift column. Extend when shift_profile endpoints need it.
     con.execute("""
         CREATE TABLE county_shifts (
@@ -153,6 +160,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
     for fips in TEST_FIPS:
         con.execute("INSERT INTO county_shifts VALUES (?, ?, 0.01)", [fips, TEST_VERSION])
 
+
+def _add_covariance_table(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate community_sigma with a diagonal-dominant test covariance matrix."""
     con.execute("""
         CREATE TABLE community_sigma (
             community_id_row INTEGER NOT NULL,
@@ -170,7 +180,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
                 [i, j, float(sigma[i, j]), TEST_VERSION],
             )
 
-    # ── Type-primary tables ────────────────────────────────────────────────
+
+def _add_type_primary_tables(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate types, super_types, and county_type_assignments tables."""
     con.execute("""
         CREATE TABLE types (
             type_id INTEGER NOT NULL,
@@ -223,7 +235,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
             [fips, dt, st, TEST_VERSION],
         )
 
-    # ── County demographics ──────────────────────────────────────────────
+
+def _add_demographics_table(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate county_demographics with synthetic demographic data."""
     con.execute("""
         CREATE TABLE county_demographics (
             county_fips VARCHAR PRIMARY KEY,
@@ -256,6 +270,9 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
             list(d),
         )
 
+
+def _add_polling_tables(con: duckdb.DuckDBPyConnection) -> None:
+    """Create and populate polls, poll_crosstabs, and poll_notes tables."""
     con.execute("""
         CREATE TABLE polls (
             poll_id   VARCHAR NOT NULL,
@@ -279,6 +296,18 @@ def _build_test_db() -> duckdb.DuckDBPyConnection:
     con.execute("CREATE TABLE poll_notes (poll_id VARCHAR, note_type VARCHAR, note_value VARCHAR)")
     con.execute("INSERT INTO poll_notes VALUES ('abc123', 'grade', 'A')")
 
+
+def _build_test_db() -> duckdb.DuckDBPyConnection:
+    """Build an in-memory DuckDB with synthetic data matching the real schema."""
+    con = duckdb.connect(":memory:")
+    _add_core_tables(con)
+    _add_community_tables(con)
+    _add_prediction_tables(con)
+    _add_shift_table(con)
+    _add_covariance_table(con)
+    _add_type_primary_tables(con)
+    _add_demographics_table(con)
+    _add_polling_tables(con)
     return con
 
 

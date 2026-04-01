@@ -179,6 +179,107 @@ def load_target(county_fips: list[str], assembled_dir: Path) -> np.ndarray:
     return np.array([share_map.get(f, float("nan")) for f in county_fips])
 
 
+def _resolve_ridge_paths(
+    type_assignments_path: Path | None,
+    demographics_path: Path | None,
+    assembled_dir: Path | None,
+    output_dir: Path | None,
+) -> tuple[Path, Path, Path, Path]:
+    """Fill in default paths for the Ridge training pipeline."""
+    if type_assignments_path is None:
+        type_assignments_path = PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet"
+    if demographics_path is None:
+        demographics_path = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
+    if assembled_dir is None:
+        assembled_dir = PROJECT_ROOT / "data" / "assembled"
+    if output_dir is None:
+        output_dir = PROJECT_ROOT / "data" / "models" / "ridge_model"
+    return type_assignments_path, demographics_path, assembled_dir, output_dir
+
+
+def _load_ridge_training_data(
+    type_assignments_path: Path,
+    demographics_path: Path,
+    assembled_dir: Path,
+) -> tuple[list[str], np.ndarray, pd.DataFrame, int, np.ndarray, np.ndarray]:
+    """Load all inputs for Ridge training: type assignments, demographics, targets.
+
+    Returns
+    -------
+    county_fips : list[str]
+    scores : ndarray (N, J)
+    demo_df : DataFrame
+    n_demo : int
+    county_mean : ndarray (N,)
+    y_full : ndarray (N,)  — 2024 presidential Dem share, NaN where missing
+    """
+    log.info("Loading type assignments from %s", type_assignments_path)
+    ta_df = pd.read_parquet(type_assignments_path)
+    county_fips = ta_df["county_fips"].astype(str).str.zfill(5).tolist()
+    score_cols = sorted([c for c in ta_df.columns if c.endswith("_score")])
+    scores = ta_df[score_cols].values.astype(float)
+    log.info("Type assignments: %d counties, J=%d types", len(county_fips), scores.shape[1])
+
+    log.info("Loading demographics from %s", demographics_path)
+    demo_df = pd.read_parquet(demographics_path)
+    demo_df["county_fips"] = demo_df["county_fips"].astype(str).str.zfill(5)
+    n_demo = len([c for c in demo_df.columns if c != "county_fips"])
+    log.info("Demographics: %d counties, %d features", len(demo_df), n_demo)
+
+    log.info("Computing county historical mean Dem share (years: %s)", _HISTORY_YEARS)
+    county_mean = compute_county_historical_mean(county_fips, assembled_dir)
+
+    log.info("Loading 2024 presidential Dem share (target)")
+    y_full = load_target(county_fips, assembled_dir)
+
+    return county_fips, scores, demo_df, n_demo, county_mean, y_full
+
+
+def _fit_ridge(X_fit: np.ndarray, y_fit: np.ndarray) -> tuple[RidgeCV, float, float]:
+    """Fit RidgeCV over a log-spaced alpha grid and return model + metrics.
+
+    Returns
+    -------
+    rcv : fitted RidgeCV
+    alpha : best regularization parameter
+    r2 : training R² at the selected alpha
+    """
+    alphas = np.logspace(-3, 6, 100)
+    rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
+    rcv.fit(X_fit, y_fit)
+    alpha = float(rcv.alpha_)
+    r2 = float(rcv.score(X_fit, y_fit))
+    log.info("RidgeCV: alpha=%.4g, train R²=%.4f", alpha, r2)
+    return rcv, alpha, r2
+
+
+def _save_ridge_artifacts(
+    output_dir: Path,
+    matched_fips: np.ndarray,
+    y_pred_matched: np.ndarray,
+    meta: dict,
+) -> tuple[Path, Path]:
+    """Write county priors parquet and metadata JSON to output_dir.
+
+    Returns
+    -------
+    out_parquet, out_json : paths to saved files
+    """
+    priors_df = pd.DataFrame({
+        "county_fips": matched_fips,
+        "ridge_pred_dem_share": y_pred_matched,
+    })
+    out_parquet = output_dir / "ridge_county_priors.parquet"
+    priors_df.to_parquet(out_parquet, index=False)
+    log.info("Saved %d county priors to %s", len(priors_df), out_parquet)
+
+    out_json = output_dir / "ridge_meta.json"
+    out_json.write_text(json.dumps(meta, indent=2))
+    log.info("Saved metadata to %s", out_json)
+
+    return out_parquet, out_json
+
+
 def train_and_save(
     type_assignments_path: Path | None = None,
     demographics_path: Path | None = None,
@@ -191,43 +292,16 @@ def train_and_save(
     -------
     dict with keys: alpha, r2, n_counties, output_parquet, output_json
     """
-    if type_assignments_path is None:
-        type_assignments_path = PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet"
-    if demographics_path is None:
-        demographics_path = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
-    if assembled_dir is None:
-        assembled_dir = PROJECT_ROOT / "data" / "assembled"
-    if output_dir is None:
-        output_dir = PROJECT_ROOT / "data" / "models" / "ridge_model"
-
+    type_assignments_path, demographics_path, assembled_dir, output_dir = (
+        _resolve_ridge_paths(type_assignments_path, demographics_path, assembled_dir, output_dir)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Load type assignments ────────────────────────────────────────────────
-    log.info("Loading type assignments from %s", type_assignments_path)
-    ta_df = pd.read_parquet(type_assignments_path)
-    county_fips = ta_df["county_fips"].astype(str).str.zfill(5).tolist()
-    score_cols = sorted([c for c in ta_df.columns if c.endswith("_score")])
-    scores = ta_df[score_cols].values.astype(float)
+    county_fips, scores, demo_df, n_demo, county_mean, y_full = _load_ridge_training_data(
+        type_assignments_path, demographics_path, assembled_dir
+    )
     J = scores.shape[1]
-    N = len(county_fips)
-    log.info("Type assignments: %d counties, J=%d types", N, J)
 
-    # ── Load demographics ────────────────────────────────────────────────────
-    log.info("Loading demographics from %s", demographics_path)
-    demo_df = pd.read_parquet(demographics_path)
-    demo_df["county_fips"] = demo_df["county_fips"].astype(str).str.zfill(5)
-    n_demo = len([c for c in demo_df.columns if c != "county_fips"])
-    log.info("Demographics: %d counties, %d features", len(demo_df), n_demo)
-
-    # ── Compute county historical mean (2008-2020, excludes 2024 target) ────
-    log.info("Computing county historical mean Dem share (years: %s)", _HISTORY_YEARS)
-    county_mean = compute_county_historical_mean(county_fips, assembled_dir)
-
-    # ── Load 2024 target ─────────────────────────────────────────────────────
-    log.info("Loading 2024 presidential Dem share (target)")
-    y_full = load_target(county_fips, assembled_dir)
-
-    # ── Build feature matrix (inner join with demographics) ──────────────────
     log.info("Building feature matrix (inner join with demographics)...")
     X, feature_names, row_mask = build_feature_matrix(
         scores, np.array(county_fips), demo_df, county_mean
@@ -238,45 +312,24 @@ def train_and_save(
     valid_mask = ~np.isnan(y)
     X_fit = X[valid_mask]
     y_fit = y[valid_mask]
-    row_mask_valid = row_mask[valid_mask]
 
     n_fit = len(y_fit)
     log.info("Training Ridge on %d counties, %d features", n_fit, X_fit.shape[1])
-
     if n_fit < 10:
         raise ValueError(f"Too few valid training samples: {n_fit}. Check data.")
 
-    # ── Fit RidgeCV ──────────────────────────────────────────────────────────
-    alphas = np.logspace(-3, 6, 100)
-    rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
-    rcv.fit(X_fit, y_fit)
+    rcv, alpha, r2 = _fit_ridge(X_fit, y_fit)
 
-    alpha = float(rcv.alpha_)
-    r2 = float(rcv.score(X_fit, y_fit))
-    log.info("RidgeCV: alpha=%.4g, train R²=%.4f", alpha, r2)
-
-    # ── Generate predictions for ALL matched counties (incl. those without 2024) ─
-    # Use ALL row_mask (not just valid_mask) so counties without 2024 target
-    # still get Ridge priors (model uses all history features).
-    y_pred_matched = rcv.predict(X)  # shape: (n_matched,)
-    y_pred_matched = np.clip(y_pred_matched, 0.0, 1.0)
-
+    # Predict for ALL matched counties (including those without a 2024 target)
+    # so that Ridge priors are available everywhere the model has history features.
+    y_pred_matched = np.clip(rcv.predict(X), 0.0, 1.0)
     matched_fips = np.array(county_fips)[row_mask]
-
-    # ── Save outputs ─────────────────────────────────────────────────────────
-    priors_df = pd.DataFrame({
-        "county_fips": matched_fips,
-        "ridge_pred_dem_share": y_pred_matched,
-    })
-    out_parquet = output_dir / "ridge_county_priors.parquet"
-    priors_df.to_parquet(out_parquet, index=False)
-    log.info("Saved %d county priors to %s", len(priors_df), out_parquet)
 
     meta = {
         "alpha": alpha,
         "r2_train": r2,
         "feature_names": feature_names,
-        "n_counties": int(len(priors_df)),
+        "n_counties": int(len(matched_fips)),
         "n_training_samples": int(n_fit),
         "date_trained": str(date.today()),
         "target": "pres_dem_share_2024",
@@ -284,18 +337,16 @@ def train_and_save(
         "n_type_scores": J,
         "n_demo_features": n_demo,
     }
-    out_json = output_dir / "ridge_meta.json"
-    out_json.write_text(json.dumps(meta, indent=2))
-    log.info("Saved metadata to %s", out_json)
+    out_parquet, out_json = _save_ridge_artifacts(output_dir, matched_fips, y_pred_matched, meta)
 
     print(f"Ridge model trained: alpha={alpha:.4g}, train R²={r2:.4f}")
-    print(f"County priors saved: {len(priors_df)} counties → {out_parquet}")
+    print(f"County priors saved: {len(matched_fips)} counties → {out_parquet}")
     print(f"Prediction range: [{y_pred_matched.min():.3f}, {y_pred_matched.max():.3f}]")
 
     return {
         "alpha": alpha,
         "r2": r2,
-        "n_counties": len(priors_df),
+        "n_counties": len(matched_fips),
         "output_parquet": out_parquet,
         "output_json": out_json,
     }

@@ -94,6 +94,105 @@ def _read_loo_metric(method_name: str) -> float | None:
     return None
 
 
+def _resolve_ensemble_paths(
+    type_assignments_path: Path | None,
+    demographics_path: Path | None,
+    assembled_dir: Path | None,
+    output_dir: Path | None,
+) -> tuple[Path, Path, Path, Path]:
+    """Fill in default paths for the ensemble training pipeline."""
+    if type_assignments_path is None:
+        type_assignments_path = PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet"
+    if demographics_path is None:
+        demographics_path = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
+    if assembled_dir is None:
+        assembled_dir = PROJECT_ROOT / "data" / "assembled"
+    if output_dir is None:
+        output_dir = PROJECT_ROOT / "data" / "models" / "ridge_model"
+    return type_assignments_path, demographics_path, assembled_dir, output_dir
+
+
+def _fit_ensemble_models(
+    X_fit: np.ndarray,
+    y_fit: np.ndarray,
+) -> tuple[RidgeCV, HistGradientBoostingRegressor, float, float, float]:
+    """Fit RidgeCV and HGB on the training data.
+
+    Returns
+    -------
+    rcv, hgb : fitted models
+    alpha : RidgeCV selected regularization parameter
+    r2_ridge, r2_hgb : training R² for each model
+    """
+    log.info("Fitting RidgeCV...")
+    alphas = np.logspace(-3, 6, 100)
+    rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
+    rcv.fit(X_fit, y_fit)
+    alpha = float(rcv.alpha_)
+    r2_ridge = float(rcv.score(X_fit, y_fit))
+    log.info("RidgeCV: alpha=%.4g, train R²=%.4f", alpha, r2_ridge)
+
+    hgb_params = _ENSEMBLE_CONFIG["hgb"]
+    log.info("Fitting HGB with params: %s", hgb_params)
+    hgb = HistGradientBoostingRegressor(**hgb_params)
+    hgb.fit(X_fit, y_fit)
+    r2_hgb = float(hgb.score(X_fit, y_fit))
+    log.info("HGB train R²=%.4f", r2_hgb)
+
+    return rcv, hgb, alpha, r2_ridge, r2_hgb
+
+
+def _blend_predictions(
+    rcv: RidgeCV,
+    hgb: HistGradientBoostingRegressor,
+    X: np.ndarray,
+) -> np.ndarray:
+    """Generate blended ensemble predictions for all matched counties.
+
+    Uses ALL X rows (not just training rows) so counties without a 2024
+    target still receive ensemble priors from historical features.
+    """
+    ridge_weight = _ENSEMBLE_CONFIG["ensemble"]["ridge_weight"]
+    hgb_weight = _ENSEMBLE_CONFIG["ensemble"]["hgb_weight"]
+    ensemble_pred = ridge_weight * rcv.predict(X) + hgb_weight * hgb.predict(X)
+    return np.clip(ensemble_pred, 0.0, 1.0)
+
+
+def _save_ensemble_artifacts(
+    output_dir: Path,
+    matched_fips: np.ndarray,
+    ensemble_pred: np.ndarray,
+    meta: dict,
+    training_metrics: dict,
+) -> tuple[Path, Path]:
+    """Write county priors parquet, ridge_meta.json, and training_metrics.json.
+
+    Column name for the parquet output stays ridge_pred_dem_share for
+    backward compatibility with the production API.
+
+    Returns
+    -------
+    out_parquet, out_json : paths to saved files
+    """
+    priors_df = pd.DataFrame({
+        "county_fips": matched_fips,
+        "ridge_pred_dem_share": ensemble_pred,
+    })
+    out_parquet = output_dir / "ridge_county_priors.parquet"
+    priors_df.to_parquet(out_parquet, index=False)
+    log.info("Saved %d county ensemble priors to %s", len(priors_df), out_parquet)
+
+    out_json = output_dir / "ridge_meta.json"
+    out_json.write_text(json.dumps(meta, indent=2))
+    log.info("Saved metadata to %s", out_json)
+
+    _TRAINING_METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    _TRAINING_METRICS_PATH.write_text(json.dumps(training_metrics, indent=2))
+    log.info("Saved training metrics to %s", _TRAINING_METRICS_PATH)
+
+    return out_parquet, out_json
+
+
 def train_and_save(
     type_assignments_path: Path | None = None,
     demographics_path: Path | None = None,
@@ -106,104 +205,41 @@ def train_and_save(
     -------
     dict with keys: alpha, r2_ridge, r2_hgb, n_counties, output_parquet, output_json
     """
-    if type_assignments_path is None:
-        type_assignments_path = PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet"
-    if demographics_path is None:
-        demographics_path = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
-    if assembled_dir is None:
-        assembled_dir = PROJECT_ROOT / "data" / "assembled"
-    if output_dir is None:
-        output_dir = PROJECT_ROOT / "data" / "models" / "ridge_model"
-
+    type_assignments_path, demographics_path, assembled_dir, output_dir = (
+        _resolve_ensemble_paths(type_assignments_path, demographics_path, assembled_dir, output_dir)
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # ── Load type assignments ────────────────────────────────────────────────
-    log.info("Loading type assignments from %s", type_assignments_path)
-    ta_df = pd.read_parquet(type_assignments_path)
-    county_fips = ta_df["county_fips"].astype(str).str.zfill(5).tolist()
-    score_cols = sorted([c for c in ta_df.columns if c.endswith("_score")])
-    scores = ta_df[score_cols].values.astype(float)
+    # Re-use the data loading logic from train_ridge_model (same inputs)
+    from src.prediction.train_ridge_model import _load_ridge_training_data
+    county_fips, scores, demo_df, n_demo, county_mean, y_full = _load_ridge_training_data(
+        type_assignments_path, demographics_path, assembled_dir
+    )
     J = scores.shape[1]
-    N = len(county_fips)
-    log.info("Type assignments: %d counties, J=%d types", N, J)
 
-    # ── Load demographics ────────────────────────────────────────────────────
-    log.info("Loading demographics from %s", demographics_path)
-    demo_df = pd.read_parquet(demographics_path)
-    demo_df["county_fips"] = demo_df["county_fips"].astype(str).str.zfill(5)
-    n_demo = len([c for c in demo_df.columns if c != "county_fips"])
-    log.info("Demographics: %d counties, %d features", len(demo_df), n_demo)
-
-    # ── Compute county historical mean (2008-2020, excludes 2024 target) ────
-    log.info("Computing county historical mean Dem share (years: %s)", _HISTORY_YEARS)
-    county_mean = compute_county_historical_mean(county_fips, assembled_dir)
-
-    # ── Load 2024 target ─────────────────────────────────────────────────────
-    log.info("Loading 2024 presidential Dem share (target)")
-    y_full = load_target(county_fips, assembled_dir)
-
-    # ── Build feature matrix (inner join with demographics) ──────────────────
     log.info("Building feature matrix (inner join with demographics)...")
     X, feature_names, row_mask = build_feature_matrix(
         scores, np.array(county_fips), demo_df, county_mean
     )
     y = y_full[row_mask]
 
-    # Drop rows where target is NaN
     valid_mask = ~np.isnan(y)
     X_fit = X[valid_mask]
     y_fit = y[valid_mask]
 
     n_fit = len(y_fit)
     log.info("Training ensemble on %d counties, %d features", n_fit, X_fit.shape[1])
-
     if n_fit < 10:
         raise ValueError(f"Too few valid training samples: {n_fit}. Check data.")
 
-    # ── Fit RidgeCV ──────────────────────────────────────────────────────────
-    log.info("Fitting RidgeCV...")
-    alphas = np.logspace(-3, 6, 100)
-    rcv = RidgeCV(alphas=alphas, fit_intercept=True, gcv_mode="auto")
-    rcv.fit(X_fit, y_fit)
+    rcv, hgb, alpha, r2_ridge, r2_hgb = _fit_ensemble_models(X_fit, y_fit)
 
-    alpha = float(rcv.alpha_)
-    r2_ridge = float(rcv.score(X_fit, y_fit))
-    log.info("RidgeCV: alpha=%.4g, train R²=%.4f", alpha, r2_ridge)
-
-    # ── Fit HistGradientBoostingRegressor ────────────────────────────────────
-    hgb_params = _ENSEMBLE_CONFIG["hgb"]
-    log.info("Fitting HGB with params: %s", hgb_params)
-    hgb = HistGradientBoostingRegressor(**hgb_params)
-    hgb.fit(X_fit, y_fit)
-
-    r2_hgb = float(hgb.score(X_fit, y_fit))
-    log.info("HGB train R²=%.4f", r2_hgb)
-
-    # ── Generate predictions for ALL matched counties ─────────────────────────
-    # Use ALL row_mask (not just valid_mask) so counties without 2024 target
-    # still get priors (model uses all history features).
-    ridge_pred_matched = rcv.predict(X)    # shape: (n_matched,)
-    hgb_pred_matched = hgb.predict(X)     # shape: (n_matched,)
+    ensemble_pred = _blend_predictions(rcv, hgb, X)
+    matched_fips = np.array(county_fips)[row_mask]
 
     ridge_weight = _ENSEMBLE_CONFIG["ensemble"]["ridge_weight"]
     hgb_weight = _ENSEMBLE_CONFIG["ensemble"]["hgb_weight"]
-    ensemble_pred = (
-        ridge_weight * ridge_pred_matched
-        + hgb_weight * hgb_pred_matched
-    )
-    ensemble_pred = np.clip(ensemble_pred, 0.0, 1.0)
-
-    matched_fips = np.array(county_fips)[row_mask]
-
-    # ── Save outputs ─────────────────────────────────────────────────────────
-    # Column name stays ridge_pred_dem_share for backward compat with API
-    priors_df = pd.DataFrame({
-        "county_fips": matched_fips,
-        "ridge_pred_dem_share": ensemble_pred,
-    })
-    out_parquet = output_dir / "ridge_county_priors.parquet"
-    priors_df.to_parquet(out_parquet, index=False)
-    log.info("Saved %d county ensemble priors to %s", len(priors_df), out_parquet)
+    hgb_params = _ENSEMBLE_CONFIG["hgb"]
 
     meta = {
         "alpha": alpha,
@@ -221,7 +257,7 @@ def train_and_save(
         "loo_r_hgb": _read_loo_metric("Ridge+HGB ensemble"),  # closest proxy
         "loo_r_ensemble": _read_loo_metric("Ridge+HGB ensemble"),
         "feature_names": feature_names,
-        "n_counties": int(len(priors_df)),
+        "n_counties": int(len(matched_fips)),
         "n_training_samples": int(n_fit),
         "date_trained": str(date.today()),
         "target": "pres_dem_share_2024",
@@ -229,26 +265,16 @@ def train_and_save(
         "n_type_scores": J,
         "n_demo_features": n_demo,
     }
-    out_json = output_dir / "ridge_meta.json"
-    out_json.write_text(json.dumps(meta, indent=2))
-    log.info("Saved metadata to %s", out_json)
 
-    # ── Write training_metrics.json (standalone record of this retrain) ────
     training_metrics = {
         "date_trained": str(date.today()),
         "n_training_samples": int(n_fit),
-        "n_counties_output": int(len(priors_df)),
+        "n_counties_output": int(len(matched_fips)),
         "n_features": int(X_fit.shape[1]),
         "n_type_scores": J,
         "n_demo_features": n_demo,
-        "ridge": {
-            "alpha": alpha,
-            "train_r2": r2_ridge,
-        },
-        "hgb": {
-            "train_r2": r2_hgb,
-            **hgb_params,
-        },
+        "ridge": {"alpha": alpha, "train_r2": r2_ridge},
+        "hgb": {"train_r2": r2_hgb, **hgb_params},
         "ensemble": {
             "method": f"{int(ridge_weight * 100)}pct_ridge_{int(hgb_weight * 100)}pct_hgb",
             "ridge_weight": ridge_weight,
@@ -262,13 +288,14 @@ def train_and_save(
         "target": "pres_dem_share_2024",
         "history_years": _HISTORY_YEARS,
     }
-    _TRAINING_METRICS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    _TRAINING_METRICS_PATH.write_text(json.dumps(training_metrics, indent=2))
-    log.info("Saved training metrics to %s", _TRAINING_METRICS_PATH)
+
+    out_parquet, out_json = _save_ensemble_artifacts(
+        output_dir, matched_fips, ensemble_pred, meta, training_metrics
+    )
 
     print(f"Ridge: alpha={alpha:.4g}, train R²={r2_ridge:.4f}")
     print(f"HGB:   train R²={r2_hgb:.4f}")
-    print(f"Ensemble (50/50): {len(priors_df)} counties saved → {out_parquet}")
+    print(f"Ensemble (50/50): {len(matched_fips)} counties saved → {out_parquet}")
     print(f"Prediction range: [{ensemble_pred.min():.3f}, {ensemble_pred.max():.3f}]")
 
     return {
@@ -276,7 +303,7 @@ def train_and_save(
         "r2_ridge": r2_ridge,
         "r2_hgb": r2_hgb,
         "r2": r2_ridge,  # backward compat
-        "n_counties": len(priors_df),
+        "n_counties": len(matched_fips),
         "output_parquet": out_parquet,
         "output_json": out_json,
     }

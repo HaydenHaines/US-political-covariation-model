@@ -33,109 +33,143 @@ def _has_table(db: duckdb.DuckDBPyConnection, table_name: str) -> bool:
     return result is not None and result[0] > 0
 
 
+# ── list_counties helpers ─────────────────────────────────────────────────────
+
+def _query_counties_with_types_and_predictions(
+    db: duckdb.DuckDBPyConnection, version_id: str
+) -> pd.DataFrame:
+    """Query counties with type assignments, community assignments, and predictions."""
+    return db.execute(
+        """
+        SELECT c.county_fips, c.state_abbr,
+               ca.community_id,
+               cta.dominant_type, cta.super_type,
+               AVG(p.pred_dem_share) AS pred_dem_share
+        FROM counties c
+        JOIN county_type_assignments cta
+            ON c.county_fips = cta.county_fips
+        LEFT JOIN community_assignments ca
+            ON c.county_fips = ca.county_fips
+            AND ca.version_id = ?
+        LEFT JOIN predictions p
+            ON c.county_fips = p.county_fips
+        GROUP BY c.county_fips, c.state_abbr, ca.community_id,
+                 cta.dominant_type, cta.super_type
+        ORDER BY c.county_fips
+        """,
+        [version_id],
+    ).fetchdf()
+
+
+def _query_counties_with_types(
+    db: duckdb.DuckDBPyConnection, version_id: str
+) -> pd.DataFrame:
+    """Query counties with type assignments and community assignments (no predictions)."""
+    return db.execute(
+        """
+        SELECT c.county_fips, c.state_abbr,
+               ca.community_id,
+               cta.dominant_type, cta.super_type
+        FROM counties c
+        JOIN county_type_assignments cta
+            ON c.county_fips = cta.county_fips
+        LEFT JOIN community_assignments ca
+            ON c.county_fips = ca.county_fips
+            AND ca.version_id = ?
+        ORDER BY c.county_fips
+        """,
+        [version_id],
+    ).fetchdf()
+
+
+def _query_counties_with_communities(
+    db: duckdb.DuckDBPyConnection, version_id: str
+) -> pd.DataFrame:
+    """Query counties with community assignments only (no type info)."""
+    return db.execute(
+        """
+        SELECT c.county_fips, c.state_abbr, ca.community_id
+        FROM counties c
+        JOIN community_assignments ca
+            ON c.county_fips = ca.county_fips
+            AND ca.version_id = ?
+        ORDER BY c.county_fips
+        """,
+        [version_id],
+    ).fetchdf()
+
+
+def _query_counties_bare(db: duckdb.DuckDBPyConnection) -> pd.DataFrame:
+    """Query counties with no type or community data."""
+    return db.execute(
+        """
+        SELECT county_fips, state_abbr
+        FROM counties
+        ORDER BY county_fips
+        """,
+    ).fetchdf()
+
+
+def _select_counties_query(
+    db: duckdb.DuckDBPyConnection,
+    version_id: str,
+    has_types: bool,
+    has_predictions: bool,
+    has_communities: bool,
+) -> pd.DataFrame:
+    """Select the appropriate counties query based on available tables."""
+    if has_types:
+        if has_predictions:
+            return _query_counties_with_types_and_predictions(db, version_id)
+        return _query_counties_with_types(db, version_id)
+    if has_communities:
+        return _query_counties_with_communities(db, version_id)
+    return _query_counties_bare(db)
+
+
+def _row_to_county_row(row: pd.Series) -> CountyRow:
+    """Convert a DataFrame row to a CountyRow model, coercing nullable fields."""
+    community_id = None
+    dominant_type = None
+    super_type = None
+    pred_dem_share = None
+    if "community_id" in row.index and not pd.isna(row["community_id"]):
+        community_id = int(row["community_id"])
+    if "dominant_type" in row.index and not pd.isna(row["dominant_type"]):
+        dominant_type = int(row["dominant_type"])
+    if "super_type" in row.index and not pd.isna(row["super_type"]):
+        super_type = int(row["super_type"])
+    if "pred_dem_share" in row.index and not pd.isna(row["pred_dem_share"]):
+        pred_dem_share = float(row["pred_dem_share"])
+    return CountyRow(
+        county_fips=row["county_fips"],
+        state_abbr=row["state_abbr"],
+        community_id=community_id,
+        dominant_type=dominant_type,
+        super_type=super_type,
+        pred_dem_share=pred_dem_share,
+    )
+
+
 @router.get("/counties", response_model=list[CountyRow])
 def list_counties(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)):
     version_id = request.app.state.version_id
 
     has_types = _has_table(db, "county_type_assignments")
     has_communities = _has_table(db, "community_assignments")
-
     has_predictions = _has_table(db, "predictions")
 
-    if has_types:
-        if has_predictions:
-            rows = db.execute(
-                """
-                SELECT c.county_fips, c.state_abbr,
-                       ca.community_id,
-                       cta.dominant_type, cta.super_type,
-                       AVG(p.pred_dem_share) AS pred_dem_share
-                FROM counties c
-                JOIN county_type_assignments cta
-                    ON c.county_fips = cta.county_fips
-                LEFT JOIN community_assignments ca
-                    ON c.county_fips = ca.county_fips
-                    AND ca.version_id = ?
-                LEFT JOIN predictions p
-                    ON c.county_fips = p.county_fips
-                GROUP BY c.county_fips, c.state_abbr, ca.community_id,
-                         cta.dominant_type, cta.super_type
-                ORDER BY c.county_fips
-                """,
-                [version_id],
-            ).fetchdf()
-        else:
-            rows = db.execute(
-                """
-                SELECT c.county_fips, c.state_abbr,
-                       ca.community_id,
-                       cta.dominant_type, cta.super_type
-                FROM counties c
-                JOIN county_type_assignments cta
-                    ON c.county_fips = cta.county_fips
-                LEFT JOIN community_assignments ca
-                    ON c.county_fips = ca.county_fips
-                    AND ca.version_id = ?
-                ORDER BY c.county_fips
-                """,
-                [version_id],
-            ).fetchdf()
-    elif has_communities:
-        rows = db.execute(
-            """
-            SELECT c.county_fips, c.state_abbr, ca.community_id
-            FROM counties c
-            JOIN community_assignments ca
-                ON c.county_fips = ca.county_fips
-                AND ca.version_id = ?
-            ORDER BY c.county_fips
-            """,
-            [version_id],
-        ).fetchdf()
-    else:
-        rows = db.execute(
-            """
-            SELECT county_fips, state_abbr
-            FROM counties
-            ORDER BY county_fips
-            """,
-        ).fetchdf()
-
-    results = []
-    for _, row in rows.iterrows():
-        community_id = None
-        dominant_type = None
-        super_type = None
-        pred_dem_share = None
-        if "community_id" in row.index and not pd.isna(row["community_id"]):
-            community_id = int(row["community_id"])
-        if "dominant_type" in row.index and not pd.isna(row["dominant_type"]):
-            dominant_type = int(row["dominant_type"])
-        if "super_type" in row.index and not pd.isna(row["super_type"]):
-            super_type = int(row["super_type"])
-        if "pred_dem_share" in row.index and not pd.isna(row["pred_dem_share"]):
-            pred_dem_share = float(row["pred_dem_share"])
-        results.append(
-            CountyRow(
-                county_fips=row["county_fips"],
-                state_abbr=row["state_abbr"],
-                community_id=community_id,
-                dominant_type=dominant_type,
-                super_type=super_type,
-                pred_dem_share=pred_dem_share,
-            )
-        )
-    return results
+    rows = _select_counties_query(db, version_id, has_types, has_predictions, has_communities)
+    return [_row_to_county_row(row) for _, row in rows.iterrows()]
 
 
-@router.get("/counties/{fips}", response_model=CountyDetail)
-def get_county_detail(
-    fips: str,
-    db: duckdb.DuckDBPyConnection = Depends(get_db),
-):
-    """Return detailed profile for a single county (SEO county page)."""
-    # ── Core county + type info ───────────────────────────────────────────
-    row = db.execute(
+# ── get_county_detail helpers ─────────────────────────────────────────────────
+
+def _fetch_county_core(
+    db: duckdb.DuckDBPyConnection, fips: str
+) -> tuple:
+    """Fetch core county info: fips, name, state, type assignments, display names, narrative."""
+    return db.execute(
         """
         SELECT c.county_fips, c.county_name, c.state_abbr,
                cta.dominant_type, cta.super_type,
@@ -152,41 +186,43 @@ def get_county_detail(
         [fips],
     ).fetchone()
 
-    if row is None:
-        raise HTTPException(status_code=404, detail=f"County {fips} not found")
 
-    (
-        county_fips, county_name, state_abbr,
-        dominant_type, super_type,
-        type_display_name, super_type_display_name,
-        narrative,
-    ) = row
-
-    # ── Baseline prediction (AVG across races) ────────────────────────────
+def _fetch_county_pred_dem_share(
+    db: duckdb.DuckDBPyConnection, fips: str
+) -> float | None:
+    """Fetch average predicted Dem share across all races for a county."""
     pred_row = db.execute(
         "SELECT AVG(pred_dem_share) FROM predictions WHERE county_fips = ?",
         [fips],
     ).fetchone()
-    pred_dem_share = float(pred_row[0]) if pred_row and pred_row[0] is not None else None
+    return float(pred_row[0]) if pred_row and pred_row[0] is not None else None
 
-    # ── Demographics ──────────────────────────────────────────────────────
+
+def _fetch_county_demographics(
+    db: duckdb.DuckDBPyConnection, fips: str
+) -> dict[str, float]:
+    """Fetch all demographic columns for a county as a float dict."""
     demo_row = db.execute(
         "SELECT * FROM county_demographics WHERE county_fips = ?",
         [fips],
     ).fetchone()
-    demographics: dict[str, float] = {}
-    if demo_row is not None:
-        demo_cols = [
-            desc[0]
-            for desc in db.execute("DESCRIBE county_demographics").fetchall()
-        ]
-        for col, val in zip(demo_cols, demo_row):
-            if col == "county_fips":
-                continue
-            if val is not None:
-                demographics[col] = float(val)
+    if demo_row is None:
+        return {}
+    demo_cols = [
+        desc[0]
+        for desc in db.execute("DESCRIBE county_demographics").fetchall()
+    ]
+    return {
+        col: float(val)
+        for col, val in zip(demo_cols, demo_row)
+        if col != "county_fips" and val is not None
+    }
 
-    # ── Sibling counties (same dominant_type, limit 20) ───────────────────
+
+def _fetch_sibling_counties(
+    db: duckdb.DuckDBPyConnection, dominant_type: int, fips: str
+) -> list[SiblingCounty]:
+    """Fetch up to 20 counties with the same dominant type, excluding the given fips."""
     siblings = db.execute(
         """
         SELECT c.county_fips, c.county_name, c.state_abbr
@@ -198,10 +234,32 @@ def get_county_detail(
         """,
         [dominant_type, fips],
     ).fetchall()
-    sibling_counties = [
+    return [
         SiblingCounty(county_fips=s[0], county_name=s[1], state_abbr=s[2])
         for s in siblings
     ]
+
+
+@router.get("/counties/{fips}", response_model=CountyDetail)
+def get_county_detail(
+    fips: str,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
+):
+    """Return detailed profile for a single county (SEO county page)."""
+    row = _fetch_county_core(db, fips)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"County {fips} not found")
+
+    (
+        county_fips, county_name, state_abbr,
+        dominant_type, super_type,
+        type_display_name, super_type_display_name,
+        narrative,
+    ) = row
+
+    pred_dem_share = _fetch_county_pred_dem_share(db, fips)
+    demographics = _fetch_county_demographics(db, fips)
+    sibling_counties = _fetch_sibling_counties(db, dominant_type, fips)
 
     return CountyDetail(
         county_fips=county_fips,
@@ -245,6 +303,39 @@ def _read_share(path: Path, fips: str, col: str, total_col: str) -> tuple[float,
     return float(val), total_int
 
 
+def _collect_history_points(
+    fips: str,
+    years: list[int],
+    election_type: str,
+    path_template: str,
+    col_template: str,
+    total_template: str,
+) -> list[ElectionHistoryPoint]:
+    """Collect ElectionHistoryPoint entries for a given election type and set of years.
+
+    Args:
+        fips: County FIPS code.
+        years: List of election years to check.
+        election_type: Label for the election type (e.g. "president", "senate", "governor").
+        path_template: Format string for the parquet path, receives `year` as a keyword arg.
+        col_template: Format string for the dem_share column name, receives `year`.
+        total_template: Format string for the total_votes column name, receives `year`.
+    """
+    points = []
+    for year in years:
+        path = _ASSEMBLED / path_template.format(year=year)
+        result = _read_share(path, fips, col_template.format(year=year), total_template.format(year=year))
+        if result is not None:
+            dem_share, total_votes = result
+            points.append(ElectionHistoryPoint(
+                year=year,
+                election_type=election_type,
+                dem_share=dem_share,
+                total_votes=total_votes,
+            ))
+    return points
+
+
 @router.get("/counties/{fips}/history", response_model=list[ElectionHistoryPoint])
 def get_county_history(fips: str):
     """Return raw election results (Dem two-party share) for a county across all available cycles.
@@ -255,57 +346,28 @@ def get_county_history(fips: str):
     """
     points: list[ElectionHistoryPoint] = []
 
-    # Presidential
-    for year in _PRES_YEARS:
-        path = _ASSEMBLED / f"medsl_county_presidential_{year}.parquet"
-        result = _read_share(path, fips, f"pres_dem_share_{year}", f"pres_total_{year}")
-        if result is not None:
-            dem_share, total_votes = result
-            points.append(ElectionHistoryPoint(
-                year=year,
-                election_type="president",
-                dem_share=dem_share,
-                total_votes=total_votes,
-            ))
-
-    # Senate
-    for year in _SEN_YEARS:
-        path = _ASSEMBLED / f"medsl_county_senate_{year}.parquet"
-        result = _read_share(path, fips, f"senate_dem_share_{year}", f"senate_total_{year}")
-        if result is not None:
-            dem_share, total_votes = result
-            points.append(ElectionHistoryPoint(
-                year=year,
-                election_type="senate",
-                dem_share=dem_share,
-                total_votes=total_votes,
-            ))
-
-    # Governor — Algara & Amlani dataset
-    for year in _GOV_YEARS_ALGARA:
-        path = _ASSEMBLED / f"algara_county_governor_{year}.parquet"
-        result = _read_share(path, fips, f"gov_dem_share_{year}", f"gov_total_{year}")
-        if result is not None:
-            dem_share, total_votes = result
-            points.append(ElectionHistoryPoint(
-                year=year,
-                election_type="governor",
-                dem_share=dem_share,
-                total_votes=total_votes,
-            ))
-
-    # Governor — MEDSL 2022
-    for year in _GOV_YEARS_MEDSL:
-        path = _ASSEMBLED / f"medsl_county_2022_governor.parquet"
-        result = _read_share(path, fips, f"gov_dem_share_{year}", f"gov_total_{year}")
-        if result is not None:
-            dem_share, total_votes = result
-            points.append(ElectionHistoryPoint(
-                year=year,
-                election_type="governor",
-                dem_share=dem_share,
-                total_votes=total_votes,
-            ))
+    points += _collect_history_points(
+        fips, _PRES_YEARS, "president",
+        "medsl_county_presidential_{year}.parquet",
+        "pres_dem_share_{year}", "pres_total_{year}",
+    )
+    points += _collect_history_points(
+        fips, _SEN_YEARS, "senate",
+        "medsl_county_senate_{year}.parquet",
+        "senate_dem_share_{year}", "senate_total_{year}",
+    )
+    points += _collect_history_points(
+        fips, _GOV_YEARS_ALGARA, "governor",
+        "algara_county_governor_{year}.parquet",
+        "gov_dem_share_{year}", "gov_total_{year}",
+    )
+    # MEDSL 2022 governor uses a different naming convention for the parquet file
+    # (single combined file for all counties rather than per-year files)
+    points += _collect_history_points(
+        fips, _GOV_YEARS_MEDSL, "governor",
+        "medsl_county_2022_governor.parquet",
+        "gov_dem_share_{year}", "gov_total_{year}",
+    )
 
     # Sort by year, then election_type for consistent ordering
     points.sort(key=lambda p: (p.year, p.election_type))

@@ -74,10 +74,11 @@ _CLASS_II_INCUMBENT: dict[str, str] = {
 # Positive = safe D, negative = safe R.
 _DEFAULT_SAFE_MARGIN = 0.25
 
-# Rating margin thresholds (margin = dem_share - 0.5)
-_TOSSUP_MAX = 0.03
-_LEAN_MAX = 0.08
-_LIKELY_MAX = 0.15
+# Rating margin thresholds — imported from the shared ratings module.
+# Re-exported here so existing imports (e.g. from senate.__init__) continue to work.
+from api.ratings import LEAN_MAX as _LEAN_MAX  # noqa: E402
+from api.ratings import LIKELY_MAX as _LIKELY_MAX  # noqa: E402
+from api.ratings import TOSSUP_MAX as _TOSSUP_MAX  # noqa: E402
 
 # Map colors — Dusty Ink palette.
 # Contested states → rating-based color; non-contested → delegation party color.
@@ -131,17 +132,11 @@ def _rating_to_zone(rating: str, incumbent: str) -> str:
 def _margin_to_rating(margin: float) -> str:
     """Convert signed Dem margin to a rating label.
 
-    margin = state_pred - 0.5 (positive = Dem-favored, negative = GOP-favored)
+    margin = state_pred - 0.5 (positive = Dem-favored, negative = GOP-favored).
+    Delegates to the shared ``api.ratings.margin_to_rating`` implementation.
     """
-    abs_m = abs(margin)
-    if abs_m < _TOSSUP_MAX:
-        return "tossup"
-    direction = "_d" if margin > 0 else "_r"
-    if abs_m < _LEAN_MAX:
-        return f"lean{direction}"
-    if abs_m < _LIKELY_MAX:
-        return f"likely{direction}"
-    return f"safe{direction}"
+    from api.ratings import margin_to_rating
+    return margin_to_rating(margin)
 
 
 def _rating_sort_key(rating: str) -> int:

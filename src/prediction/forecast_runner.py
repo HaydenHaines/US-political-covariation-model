@@ -123,73 +123,150 @@ def predict_race(
     if county_names is None:
         county_names = [""] * N
 
-    # ── Type-level Bayesian update ──────────────────────────────────────────
-    type_means = type_priors.copy().astype(float)
-    type_cov = type_covariance.copy().astype(float)
-
-    # Scale prior precision by prior_weight (lower weight = less informative prior,
-    # so polls pull predictions further from the baseline).
+    # Apply prior_weight scaling to type covariance before any Bayesian update.
+    # Lower weight = less informative prior = polls pull predictions further from baseline.
     # At pw=0 the user wants "trust only polls" — inflate covariance enormously
     # so the Bayesian update posterior collapses onto the poll likelihood.
+    type_cov = _scale_prior_covariance(type_covariance, prior_weight)
+
+    # Run Bayesian update if polls are provided, otherwise keep the prior
+    type_means = type_priors.copy().astype(float)
+    if polls:
+        type_means, type_cov = _apply_poll_updates(
+            polls, type_means, type_cov, type_scores, states, J
+        )
+
+    # Map updated type estimates back to county-level predictions
+    pred_dem_share = _compute_county_predictions(
+        type_scores, type_means, type_priors, county_priors, prior_weight
+    )
+
+    # Compute 90% credible intervals from type covariance diagonal
+    ci_lower, ci_upper = _compute_credible_intervals(pred_dem_share, type_scores, type_cov)
+
+    result = _assemble_result(
+        county_fips, states, county_names, pred_dem_share, ci_lower, ci_upper, type_scores
+    )
+
+    if state_filter is not None:
+        result = result[result["state"] == state_filter].reset_index(drop=True)
+
+    return result
+
+
+def _scale_prior_covariance(type_covariance: np.ndarray, prior_weight: float) -> np.ndarray:
+    """Scale the type covariance matrix to reflect prior_weight.
+
+    prior_weight=1.0 → no change (default, full Ridge model trust).
+    prior_weight<1.0 → divide by weight, making prior less informative.
+    prior_weight=0.0 → multiply by 1e6, collapsing posterior onto poll likelihood.
+    """
+    type_cov = type_covariance.copy().astype(float)
     if prior_weight == 0.0:
         type_cov = type_cov * 1e6
     elif prior_weight != 1.0:
         type_cov = type_cov / prior_weight
+    return type_cov
 
-    if polls:
-        # Each poll contributes one W row: the type composition of its state.
-        # Stacking all rows into a single update preserves geographic information
-        # across polls covering different states (vs. collapsing to one scalar).
-        W_rows = []
-        y_vals = []
-        sigma_vals = []
-        for poll_tuple in polls:
-            dem_share = poll_tuple[0]
-            n = poll_tuple[1]
-            poll_state = poll_tuple[2]
-            w_override = poll_tuple[3] if len(poll_tuple) > 3 else None
 
-            if w_override is not None:
-                # Crosstab-derived W vector: use directly
-                w_sum = float(w_override.sum())
-                W_row = w_override / w_sum if w_sum > 0 else np.ones(J) / J
-            elif poll_state:
-                state_mask = np.array([s == poll_state for s in states])
-                if state_mask.any():
-                    state_scores = type_scores[state_mask]
-                    W_row = np.abs(state_scores).mean(axis=0)
-                    W_sum = W_row.sum()
-                    W_row = W_row / W_sum if W_sum > 0 else np.ones(J) / J
-                else:
-                    W_row = np.ones(J) / J
-            else:
-                W_row = np.ones(J) / J
-            W_rows.append(W_row)
-            y_vals.append(dem_share)
-            sigma_vals.append(np.sqrt(dem_share * (1 - dem_share) / n))
+def _build_poll_W_row(
+    poll_tuple: tuple,
+    type_scores: np.ndarray,
+    states: list[str],
+    J: int,
+) -> np.ndarray:
+    """Build the observation equation row W for a single poll.
 
-        type_means, type_cov = _bayesian_update(
-            mu_prior=type_means,
-            sigma_prior=type_cov,
-            W=np.array(W_rows),
-            y=np.array(y_vals),
-            sigma_polls=np.array(sigma_vals),
-        )
+    W is the type composition of the polled geography. This tells the Bayesian
+    update which combination of type means the poll is observing.
 
-    # ── Map type estimates back to counties ─────────────────────────────────
+    Three cases:
+    - Explicit W override (crosstab-derived): use directly, normalize.
+    - Poll state known: average absolute type scores across that state's counties.
+    - No state info: uniform weight across all types (fallback).
+    """
+    w_override = poll_tuple[3] if len(poll_tuple) > 3 else None
+    poll_state = poll_tuple[2]
+
+    if w_override is not None:
+        # Crosstab-derived W vector: normalize and use directly
+        w_sum = float(w_override.sum())
+        return w_override / w_sum if w_sum > 0 else np.ones(J) / J
+
+    if poll_state:
+        state_mask = np.array([s == poll_state for s in states])
+        if state_mask.any():
+            state_scores = type_scores[state_mask]
+            W_row = np.abs(state_scores).mean(axis=0)
+            W_sum = W_row.sum()
+            return W_row / W_sum if W_sum > 0 else np.ones(J) / J
+
+    # Fallback: uniform type weights
+    return np.ones(J) / J
+
+
+def _apply_poll_updates(
+    polls: list,
+    type_means: np.ndarray,
+    type_cov: np.ndarray,
+    type_scores: np.ndarray,
+    states: list[str],
+    J: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Stack all polls into a single Bayesian update and return posterior.
+
+    Each poll contributes one W row (the type composition of its state).
+    Stacking all rows into a single update preserves geographic information
+    across polls covering different states, vs. collapsing to one scalar.
+    """
+    W_rows = []
+    y_vals = []
+    sigma_vals = []
+
+    for poll_tuple in polls:
+        dem_share = poll_tuple[0]
+        n = poll_tuple[1]
+        W_row = _build_poll_W_row(poll_tuple, type_scores, states, J)
+        W_rows.append(W_row)
+        y_vals.append(dem_share)
+        sigma_vals.append(np.sqrt(dem_share * (1 - dem_share) / n))
+
+    return _bayesian_update(
+        mu_prior=type_means,
+        sigma_prior=type_cov,
+        W=np.array(W_rows),
+        y=np.array(y_vals),
+        sigma_polls=np.array(sigma_vals),
+    )
+
+
+def _compute_county_predictions(
+    type_scores: np.ndarray,
+    type_means: np.ndarray,
+    type_priors: np.ndarray,
+    county_priors: np.ndarray | None,
+    prior_weight: float,
+) -> np.ndarray:
+    """Map type-level estimates to county-level Dem share predictions.
+
+    Two modes:
+    - County-prior mode: county baseline + score-weighted type shift. The
+      prior_weight slider blends between the Ridge county baseline (pw=1) and
+      the type-mean baseline (pw=0), controlling how much historical county
+      specificity is preserved vs. type-average behavior.
+    - Legacy mode (county_priors is None): pure type-mean weighted prediction.
+    """
     abs_scores = np.abs(type_scores)
     weight_sums = abs_scores.sum(axis=1)
     weight_sums = np.where(weight_sums == 0, 1.0, weight_sums)  # avoid div by zero
 
     if county_priors is not None:
-        # County-level prior approach:
         # 1. Compute the type-level shift from the Bayesian update
         type_shift = type_means - type_priors.astype(float)
         # 2. Each county's adjustment = score-weighted average of type shifts
         county_adjustment = (abs_scores * type_shift[None, :]).sum(axis=1) / weight_sums
         # 3. Blend county priors toward type-weighted baseline using prior_weight.
         #    pw=1.0 → use county_priors (Ridge model); pw=0.0 → use type-mean baseline.
-        #    This is what the forecast weight slider controls in the UI.
         type_prior_baseline = (
             (abs_scores * type_priors.astype(float)[None, :]).sum(axis=1) / weight_sums
         )
@@ -203,24 +280,51 @@ def predict_race(
         # Legacy: type-mean weighted predictions
         pred_dem_share = (abs_scores * type_means[None, :]).sum(axis=1) / weight_sums
 
-    # Clip to [0, 1]
-    pred_dem_share = np.clip(pred_dem_share, 0.0, 1.0)
+    return np.clip(pred_dem_share, 0.0, 1.0)
 
-    # ── Uncertainty from covariance diagonal + type weights ─────────────────
+
+def _compute_credible_intervals(
+    pred_dem_share: np.ndarray,
+    type_scores: np.ndarray,
+    type_cov: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute 90% credible intervals from the posterior type covariance.
+
+    County-level standard deviation is the score-weighted average of the
+    per-type posterior standard deviations (diagonal of Sigma_post).
+    """
+    abs_scores = np.abs(type_scores)
+    weight_sums = abs_scores.sum(axis=1)
+    weight_sums = np.where(weight_sums == 0, 1.0, weight_sums)
+
     type_std = np.sqrt(np.diag(type_cov))
     county_std = (abs_scores * type_std[None, :]).sum(axis=1) / weight_sums
 
     ci_lower = np.clip(pred_dem_share - 1.645 * county_std, 0.0, 1.0)
     ci_upper = np.clip(pred_dem_share + 1.645 * county_std, 0.0, 1.0)
+    return ci_lower, ci_upper
 
-    # Dominant type per county
+
+def _assemble_result(
+    county_fips: list[str],
+    states: list[str],
+    county_names: list[str],
+    pred_dem_share: np.ndarray,
+    ci_lower: np.ndarray,
+    ci_upper: np.ndarray,
+    type_scores: np.ndarray,
+) -> pd.DataFrame:
+    """Pack all county-level arrays into the output DataFrame.
+
+    super_type is set to -1 here; callers should join against
+    type_assignments.parquet (which has the authoritative super_type from
+    nest_types) to populate this column.
+    """
+    N = len(county_fips)
     dominant_type = np.argmax(np.abs(type_scores), axis=1)
-
-    # Super-type: set to -1 here; the calling code should join against
-    # type_assignments.parquet (which has the authoritative super_type from nest_types).
     super_type = np.full(N, -1, dtype=int)
 
-    result = pd.DataFrame({
+    return pd.DataFrame({
         "county_fips": county_fips,
         "state": states,
         "county_name": county_names,
@@ -230,11 +334,6 @@ def predict_race(
         "dominant_type": dominant_type,
         "super_type": super_type,
     })
-
-    if state_filter is not None:
-        result = result[result["state"] == state_filter].reset_index(drop=True)
-
-    return result
 
 
 def _bayesian_update(

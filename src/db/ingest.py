@@ -14,6 +14,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from src.db._utils import normalize_fips as _normalize_fips, cycle_connection as _cycle_connection
 from src.db.transforms import (
     build_community_assignments,
     build_counties,
@@ -67,16 +68,7 @@ def insert_via_parquet(
         con.unregister(_VIEW)
 
 
-def _cycle_connection(con: duckdb.DuckDBPyConnection, db_path: Path, label: str) -> duckdb.DuckDBPyConnection:
-    """Close and reopen a DuckDB connection to reset allocator state.
-
-    Uses ``del con`` (not ``close()``) because close() crashes on corrupted heap.
-    """
-    del con
-    gc.collect()
-    new_con = duckdb.connect(str(db_path))
-    log.info("Connection cycled (%s)", label)
-    return new_con
+# _cycle_connection imported from src.db._utils
 
 
 
@@ -163,7 +155,7 @@ def _ingest_predictions(
     # HAC predictions — fill in races not covered by the primary predictions
     if paths["predictions_hac"].exists():
         pred_hac = pd.read_parquet(paths["predictions_hac"])
-        pred_hac["county_fips"] = pred_hac["county_fips"].astype(str).str.zfill(5)
+        pred_hac["county_fips"] = pred_hac["county_fips"].pipe(_normalize_fips)
         pred_hac_rows = build_predictions(pred_hac, current_version_id)
         existing_races = set(con.execute("SELECT DISTINCT race FROM predictions").fetchdf()["race"])
         new_rows = pred_hac_rows[~pred_hac_rows["race"].isin(existing_races)]
@@ -176,7 +168,7 @@ def _ingest_predictions(
     # Types predictions take precedence over base predictions for overlapping races
     if paths["predictions_types"].exists():
         pred_types = pd.read_parquet(paths["predictions_types"])
-        pred_types["county_fips"] = pred_types["county_fips"].astype(str).str.zfill(5)
+        pred_types["county_fips"] = pred_types["county_fips"].pipe(_normalize_fips)
         pred_types_rows = build_predictions(pred_types, current_version_id)
         existing_races = set(con.execute("SELECT DISTINCT race FROM predictions").fetchdf()["race"])
         overlap_races = set(pred_types_rows["race"].unique()) & existing_races
@@ -277,13 +269,13 @@ def _load_source_data(paths: dict[str, Path]) -> dict:
     if paths["shifts"].exists():
         log.info("Loading shifts from %s", paths["shifts"])
         result["shifts"] = pd.read_parquet(paths["shifts"])
-        result["shifts"]["county_fips"] = result["shifts"]["county_fips"].astype(str).str.zfill(5)
+        result["shifts"]["county_fips"] = result["shifts"]["county_fips"].pipe(_normalize_fips)
     else:
         log.warning("Shifts file not found: %s; skipping core ingestion", paths["shifts"])
     if paths["assignments"].exists():
         log.info("Loading community assignments from %s", paths["assignments"])
         assignments = pd.read_parquet(paths["assignments"])
-        assignments["county_fips"] = assignments["county_fips"].astype(str).str.zfill(5)
+        assignments["county_fips"] = assignments["county_fips"].pipe(_normalize_fips)
         if "community_id" not in assignments.columns and "community" in assignments.columns:
             assignments = assignments.rename(columns={"community": "community_id"})
         result["assignments"] = assignments
@@ -295,7 +287,7 @@ def _load_source_data(paths: dict[str, Path]) -> dict:
     if paths["predictions"].exists():
         log.info("Loading predictions from %s", paths["predictions"])
         result["predictions"] = pd.read_parquet(paths["predictions"])
-        result["predictions"]["county_fips"] = result["predictions"]["county_fips"].astype(str).str.zfill(5)
+        result["predictions"]["county_fips"] = result["predictions"]["county_fips"].pipe(_normalize_fips)
     result["version_metas"] = load_version_meta(paths["versions_dir"])
     return result
 
@@ -373,7 +365,7 @@ def ingest_all(
         log.info("No community_profiles.parquet found; skipping")
     if paths["county_acs"].exists():
         cd_df = pd.read_parquet(paths["county_acs"])
-        cd_df["county_fips"] = cd_df["county_fips"].astype(str).str.zfill(5)
+        cd_df["county_fips"] = cd_df["county_fips"].pipe(_normalize_fips)
         insert_via_parquet(con, "county_demographics", cd_df, mode="create")
         log.info("Ingested county_demographics: %d rows (%d columns)", len(cd_df), len(cd_df.columns))
     else:
@@ -391,7 +383,7 @@ def ingest_all(
     # Demographics interpolated
     if paths["demographics_interpolated"].exists():
         di_df = pd.read_parquet(paths["demographics_interpolated"])
-        di_df["county_fips"] = di_df["county_fips"].astype(str).str.zfill(5)
+        di_df["county_fips"] = di_df["county_fips"].pipe(_normalize_fips)
         insert_via_parquet(con, "demographics_interpolated", di_df, mode="create")
         log.info("Ingested demographics_interpolated: %d rows", len(di_df))
     else:

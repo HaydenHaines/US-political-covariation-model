@@ -103,6 +103,124 @@ class SCITypeValidationResult:
     partial_p_sci_cosine_given_distance: float = 0.0
 
 
+def _compute_same_type_comparison(
+    pairs: pd.DataFrame,
+    result: SCITypeValidationResult,
+) -> None:
+    """Fill same-type vs different-type SCI comparison fields on result (in-place)."""
+    same_mask = pairs["same_type"]
+    result.mean_sci_same_type = float(pairs.loc[same_mask, "scaled_sci"].mean())
+    result.mean_sci_diff_type = float(pairs.loc[~same_mask, "scaled_sci"].mean())
+    result.sci_ratio_same_over_diff = (
+        result.mean_sci_same_type / result.mean_sci_diff_type
+        if result.mean_sci_diff_type > 0
+        else float("inf")
+    )
+    result.mean_log_sci_same_type = float(pairs.loc[same_mask, "log_sci"].mean())
+    result.mean_log_sci_diff_type = float(pairs.loc[~same_mask, "log_sci"].mean())
+
+
+def _compute_correlations(
+    pairs: pd.DataFrame,
+    sample_size: int | None,
+    result: SCITypeValidationResult,
+) -> None:
+    """Fill Pearson/Spearman correlation fields on result (in-place)."""
+    sample = pairs.sample(n=sample_size, random_state=42) if sample_size and len(pairs) > sample_size else pairs
+
+    r_p, p_p = pearsonr(sample["log_sci"], sample["cosine_sim"])
+    result.pearson_r_log_sci_vs_cosine = float(r_p)
+    result.pearson_p_log_sci_vs_cosine = float(p_p)
+
+    r_s, p_s = spearmanr(sample["log_sci"], sample["cosine_sim"])
+    result.spearman_r_log_sci_vs_cosine = float(r_s)
+    result.spearman_p_log_sci_vs_cosine = float(p_s)
+
+
+def _compute_same_state_controls(
+    pairs: pd.DataFrame,
+    result: SCITypeValidationResult,
+) -> None:
+    """Fill same-state cross-state comparison fields on result (in-place)."""
+    same_mask = pairs["same_type"]
+    same_state_mask = pairs["same_state"]
+    same_type_diff_state = pairs.loc[same_mask & ~same_state_mask]
+    diff_type_diff_state = pairs.loc[~same_mask & ~same_state_mask]
+
+    if len(pairs.loc[same_mask & same_state_mask]) > 0:
+        result.pct_same_type_same_state = float(same_mask[same_state_mask].mean())
+    if len(same_type_diff_state) > 0:
+        result.pct_same_type_diff_state = float(same_mask[~same_state_mask].mean())
+        result.mean_sci_same_type_diff_state = float(same_type_diff_state["scaled_sci"].mean())
+    if len(diff_type_diff_state) > 0:
+        result.mean_sci_diff_type_diff_state = float(diff_type_diff_state["scaled_sci"].mean())
+    if result.mean_sci_diff_type_diff_state > 0:
+        result.sci_ratio_same_over_diff_across_states = (
+            result.mean_sci_same_type_diff_state / result.mean_sci_diff_type_diff_state
+        )
+
+
+def _compute_distance_controls(
+    pairs: pd.DataFrame,
+    centroids: pd.DataFrame,
+    sample_size: int | None,
+    result: SCITypeValidationResult,
+) -> None:
+    """Fill partial correlation and distance-bin fields on result (in-place)."""
+    pairs_with_dist = add_geodesic_distance(pairs, centroids)
+
+    # Partial correlation: log(SCI) vs cosine_sim | log(distance)
+    dist_sample = (
+        pairs_with_dist.sample(n=sample_size, random_state=42)
+        if sample_size and len(pairs_with_dist) > sample_size
+        else pairs_with_dist
+    )
+    valid = dist_sample.dropna(subset=["log_sci", "cosine_sim", "log_distance"])
+    if len(valid) > 100:
+        pr, pp = compute_partial_correlation(
+            valid["log_sci"].values,
+            valid["cosine_sim"].values,
+            valid["log_distance"].values,
+        )
+        result.partial_r_sci_cosine_given_distance = float(pr)
+        result.partial_p_sci_cosine_given_distance = float(pp)
+
+    # Distance-binned analysis
+    pairs_with_dist["distance_bin"] = pd.cut(
+        pairs_with_dist["distance_km"],
+        bins=DISTANCE_BINS,
+        labels=DISTANCE_LABELS,
+        right=True,
+    )
+    for bin_label in DISTANCE_LABELS:
+        bin_data = pairs_with_dist[pairs_with_dist["distance_bin"] == bin_label]
+        if len(bin_data) < 10:
+            continue
+        bin_same = bin_data[bin_data["same_type"]]
+        bin_diff = bin_data[~bin_data["same_type"]]
+        mean_same = float(bin_same["scaled_sci"].mean()) if len(bin_same) > 0 else 0.0
+        mean_diff = float(bin_diff["scaled_sci"].mean()) if len(bin_diff) > 0 else 0.0
+        ratio = mean_same / mean_diff if mean_diff > 0 else float("inf")
+
+        # Correlation within this distance bin
+        if len(bin_data) > 30:
+            bin_r, bin_p = pearsonr(bin_data["log_sci"], bin_data["cosine_sim"])
+        else:
+            bin_r, bin_p = float("nan"), float("nan")
+
+        result.distance_bin_results.append({
+            "distance_bin": bin_label,
+            "n_pairs": len(bin_data),
+            "n_same_type": len(bin_same),
+            "pct_same_type": float(bin_data["same_type"].mean()),
+            "mean_sci_same_type": mean_same,
+            "mean_sci_diff_type": mean_diff,
+            "sci_ratio": ratio,
+            "pearson_r": float(bin_r),
+            "pearson_p": float(bin_p),
+        })
+
+
 def run_validation(
     sci_pairs: pd.DataFrame,
     type_assignments: pd.DataFrame,
@@ -144,117 +262,105 @@ def run_validation(
     )
     result.n_pairs = len(pairs)
 
-    # --- Basic same-type vs different-type comparison ---
-    same_mask = pairs["same_type"]
-    result.mean_sci_same_type = float(pairs.loc[same_mask, "scaled_sci"].mean())
-    result.mean_sci_diff_type = float(pairs.loc[~same_mask, "scaled_sci"].mean())
-    result.sci_ratio_same_over_diff = (
-        result.mean_sci_same_type / result.mean_sci_diff_type
-        if result.mean_sci_diff_type > 0
-        else float("inf")
-    )
-    result.mean_log_sci_same_type = float(pairs.loc[same_mask, "log_sci"].mean())
-    result.mean_log_sci_diff_type = float(pairs.loc[~same_mask, "log_sci"].mean())
+    _compute_same_type_comparison(pairs, result)
+    _compute_correlations(pairs, sample_size, result)
+    _compute_same_state_controls(pairs, result)
 
-    # --- Correlation: log(SCI) vs cosine similarity ---
-    if sample_size and len(pairs) > sample_size:
-        sample = pairs.sample(n=sample_size, random_state=42)
-    else:
-        sample = pairs
-
-    r_p, p_p = pearsonr(sample["log_sci"], sample["cosine_sim"])
-    result.pearson_r_log_sci_vs_cosine = float(r_p)
-    result.pearson_p_log_sci_vs_cosine = float(p_p)
-
-    r_s, p_s = spearmanr(sample["log_sci"], sample["cosine_sim"])
-    result.spearman_r_log_sci_vs_cosine = float(r_s)
-    result.spearman_p_log_sci_vs_cosine = float(p_s)
-
-    # --- Same-state control ---
-    same_state_mask = pairs["same_state"]
-    same_type_same_state = pairs.loc[same_mask & same_state_mask]
-    same_type_diff_state = pairs.loc[same_mask & ~same_state_mask]
-    diff_type_diff_state = pairs.loc[~same_mask & ~same_state_mask]
-
-    if len(same_type_same_state) > 0:
-        result.pct_same_type_same_state = float(
-            same_mask[same_state_mask].mean()
-        )
-    if len(same_type_diff_state) > 0:
-        result.pct_same_type_diff_state = float(
-            same_mask[~same_state_mask].mean()
-        )
-
-    if len(same_type_diff_state) > 0:
-        result.mean_sci_same_type_diff_state = float(
-            same_type_diff_state["scaled_sci"].mean()
-        )
-    if len(diff_type_diff_state) > 0:
-        result.mean_sci_diff_type_diff_state = float(
-            diff_type_diff_state["scaled_sci"].mean()
-        )
-    if result.mean_sci_diff_type_diff_state > 0:
-        result.sci_ratio_same_over_diff_across_states = (
-            result.mean_sci_same_type_diff_state
-            / result.mean_sci_diff_type_diff_state
-        )
-
-    # --- Distance controls (if centroids available) ---
     if centroids is not None and len(centroids) > 0:
-        pairs_with_dist = add_geodesic_distance(pairs, centroids)
-
-        # Partial correlation: log(SCI) vs cosine_sim | log(distance)
-        if sample_size and len(pairs_with_dist) > sample_size:
-            dist_sample = pairs_with_dist.sample(n=sample_size, random_state=42)
-        else:
-            dist_sample = pairs_with_dist
-
-        valid = dist_sample.dropna(subset=["log_sci", "cosine_sim", "log_distance"])
-        if len(valid) > 100:
-            pr, pp = compute_partial_correlation(
-                valid["log_sci"].values,
-                valid["cosine_sim"].values,
-                valid["log_distance"].values,
-            )
-            result.partial_r_sci_cosine_given_distance = float(pr)
-            result.partial_p_sci_cosine_given_distance = float(pp)
-
-        # Distance-binned analysis
-        pairs_with_dist["distance_bin"] = pd.cut(
-            pairs_with_dist["distance_km"],
-            bins=DISTANCE_BINS,
-            labels=DISTANCE_LABELS,
-            right=True,
-        )
-        for bin_label in DISTANCE_LABELS:
-            bin_data = pairs_with_dist[pairs_with_dist["distance_bin"] == bin_label]
-            if len(bin_data) < 10:
-                continue
-            bin_same = bin_data[bin_data["same_type"]]
-            bin_diff = bin_data[~bin_data["same_type"]]
-            mean_same = float(bin_same["scaled_sci"].mean()) if len(bin_same) > 0 else 0.0
-            mean_diff = float(bin_diff["scaled_sci"].mean()) if len(bin_diff) > 0 else 0.0
-            ratio = mean_same / mean_diff if mean_diff > 0 else float("inf")
-
-            # Correlation within this distance bin
-            if len(bin_data) > 30:
-                bin_r, bin_p = pearsonr(bin_data["log_sci"], bin_data["cosine_sim"])
-            else:
-                bin_r, bin_p = float("nan"), float("nan")
-
-            result.distance_bin_results.append({
-                "distance_bin": bin_label,
-                "n_pairs": len(bin_data),
-                "n_same_type": len(bin_same),
-                "pct_same_type": float(bin_data["same_type"].mean()),
-                "mean_sci_same_type": mean_same,
-                "mean_sci_diff_type": mean_diff,
-                "sci_ratio": ratio,
-                "pearson_r": float(bin_r),
-                "pearson_p": float(bin_p),
-            })
+        _compute_distance_controls(pairs, centroids, sample_size, result)
 
     return result
+
+
+def _format_finding_1(result: SCITypeValidationResult) -> list[str]:
+    """Format the same-type vs different-type SCI comparison section."""
+    return [
+        "## Finding 1: Same-Type Counties Are More Socially Connected",
+        "",
+        "| Metric | Same Type | Different Type | Ratio |",
+        "|--------|-----------|----------------|-------|",
+        f"| Mean SCI | {result.mean_sci_same_type:,.0f} | {result.mean_sci_diff_type:,.0f} | {result.sci_ratio_same_over_diff:.2f}x |",
+        f"| Mean log10(SCI) | {result.mean_log_sci_same_type:.3f} | {result.mean_log_sci_diff_type:.3f} | +{result.mean_log_sci_same_type - result.mean_log_sci_diff_type:.3f} |",
+        "",
+    ]
+
+
+def _format_finding_2(result: SCITypeValidationResult) -> list[str]:
+    """Format the log(SCI) vs cosine similarity correlation section."""
+    return [
+        "## Finding 2: SCI Correlates with Type Similarity",
+        "",
+        "Correlation between log10(SCI) and cosine similarity of soft type",
+        "membership vectors:",
+        "",
+        f"- **Pearson r**: {result.pearson_r_log_sci_vs_cosine:.4f} (p={result.pearson_p_log_sci_vs_cosine:.2e})",
+        f"- **Spearman r**: {result.spearman_r_log_sci_vs_cosine:.4f} (p={result.spearman_p_log_sci_vs_cosine:.2e})",
+        "",
+    ]
+
+
+def _format_finding_3(result: SCITypeValidationResult) -> list[str]:
+    """Format the cross-state persistence section."""
+    return [
+        "## Finding 3: Effect Persists Across State Lines",
+        "",
+        "Same-state pairs are both closer AND more likely to share a type.",
+        "The critical test: does the SCI-type relationship hold for",
+        "cross-state pairs?",
+        "",
+        f"- **% same-type among same-state pairs**: {100 * result.pct_same_type_same_state:.1f}%",
+        f"- **% same-type among cross-state pairs**: {100 * result.pct_same_type_diff_state:.1f}%",
+        "",
+        "Cross-state only:",
+        "",
+        f"- Mean SCI (same type, cross-state): {result.mean_sci_same_type_diff_state:,.0f}",
+        f"- Mean SCI (diff type, cross-state): {result.mean_sci_diff_type_diff_state:,.0f}",
+        f"- **Cross-state SCI ratio**: {result.sci_ratio_same_over_diff_across_states:.2f}x",
+        "",
+    ]
+
+
+def _format_finding_4(result: SCITypeValidationResult) -> list[str]:
+    """Format the geographic proximity partial correlation section (omitted if not computed)."""
+    if result.partial_r_sci_cosine_given_distance == 0.0:
+        return []
+    return [
+        "## Finding 4: SCI Signal Beyond Geographic Proximity",
+        "",
+        "Partial correlation of log(SCI) vs type cosine similarity,",
+        "controlling for log(geodesic distance):",
+        "",
+        f"- **Partial r**: {result.partial_r_sci_cosine_given_distance:.4f} (p={result.partial_p_sci_cosine_given_distance:.2e})",
+        "",
+        "This measures whether SCI adds information about type similarity",
+        "beyond what geographic distance alone provides.",
+        "",
+    ]
+
+
+def _format_finding_5(result: SCITypeValidationResult) -> list[str]:
+    """Format the distance-binned SCI ratio table (omitted if no bin results)."""
+    if not result.distance_bin_results:
+        return []
+    lines = [
+        "## Finding 5: SCI-Type Relationship by Distance Bin",
+        "",
+        "Holding distance roughly constant, same-type pairs still have",
+        "higher SCI than different-type pairs:",
+        "",
+        "| Distance | N pairs | % Same Type | Mean SCI (same) | Mean SCI (diff) | Ratio | Pearson r |",
+        "|----------|---------|-------------|-----------------|-----------------|-------|-----------|",
+    ]
+    for b in result.distance_bin_results:
+        r_str = f"{b['pearson_r']:.3f}" if not np.isnan(b["pearson_r"]) else "n/a"
+        lines.append(
+            f"| {b['distance_bin']} | {b['n_pairs']:,} | "
+            f"{100 * b['pct_same_type']:.1f}% | "
+            f"{b['mean_sci_same_type']:,.0f} | {b['mean_sci_diff_type']:,.0f} | "
+            f"{b['sci_ratio']:.2f}x | {r_str} |"
+        )
+    lines.append("")
+    return lines
 
 
 def format_results(result: SCITypeValidationResult) -> str:
@@ -274,71 +380,13 @@ def format_results(result: SCITypeValidationResult) -> str:
         f"- **County pairs analyzed**: {result.n_pairs:,}",
         f"- **Electoral types (J)**: {result.n_types}",
         "",
-        "## Finding 1: Same-Type Counties Are More Socially Connected",
-        "",
-        "| Metric | Same Type | Different Type | Ratio |",
-        "|--------|-----------|----------------|-------|",
-        f"| Mean SCI | {result.mean_sci_same_type:,.0f} | {result.mean_sci_diff_type:,.0f} | {result.sci_ratio_same_over_diff:.2f}x |",
-        f"| Mean log10(SCI) | {result.mean_log_sci_same_type:.3f} | {result.mean_log_sci_diff_type:.3f} | +{result.mean_log_sci_same_type - result.mean_log_sci_diff_type:.3f} |",
-        "",
-        "## Finding 2: SCI Correlates with Type Similarity",
-        "",
-        "Correlation between log10(SCI) and cosine similarity of soft type",
-        "membership vectors:",
-        "",
-        f"- **Pearson r**: {result.pearson_r_log_sci_vs_cosine:.4f} (p={result.pearson_p_log_sci_vs_cosine:.2e})",
-        f"- **Spearman r**: {result.spearman_r_log_sci_vs_cosine:.4f} (p={result.spearman_p_log_sci_vs_cosine:.2e})",
-        "",
-        "## Finding 3: Effect Persists Across State Lines",
-        "",
-        "Same-state pairs are both closer AND more likely to share a type.",
-        "The critical test: does the SCI-type relationship hold for",
-        "cross-state pairs?",
-        "",
-        f"- **% same-type among same-state pairs**: {100 * result.pct_same_type_same_state:.1f}%",
-        f"- **% same-type among cross-state pairs**: {100 * result.pct_same_type_diff_state:.1f}%",
-        "",
-        "Cross-state only:",
-        "",
-        f"- Mean SCI (same type, cross-state): {result.mean_sci_same_type_diff_state:,.0f}",
-        f"- Mean SCI (diff type, cross-state): {result.mean_sci_diff_type_diff_state:,.0f}",
-        f"- **Cross-state SCI ratio**: {result.sci_ratio_same_over_diff_across_states:.2f}x",
-        "",
     ]
 
-    if result.partial_r_sci_cosine_given_distance != 0.0:
-        lines.extend([
-            "## Finding 4: SCI Signal Beyond Geographic Proximity",
-            "",
-            "Partial correlation of log(SCI) vs type cosine similarity,",
-            "controlling for log(geodesic distance):",
-            "",
-            f"- **Partial r**: {result.partial_r_sci_cosine_given_distance:.4f} (p={result.partial_p_sci_cosine_given_distance:.2e})",
-            "",
-            "This measures whether SCI adds information about type similarity",
-            "beyond what geographic distance alone provides.",
-            "",
-        ])
-
-    if result.distance_bin_results:
-        lines.extend([
-            "## Finding 5: SCI-Type Relationship by Distance Bin",
-            "",
-            "Holding distance roughly constant, same-type pairs still have",
-            "higher SCI than different-type pairs:",
-            "",
-            "| Distance | N pairs | % Same Type | Mean SCI (same) | Mean SCI (diff) | Ratio | Pearson r |",
-            "|----------|---------|-------------|-----------------|-----------------|-------|-----------|",
-        ])
-        for b in result.distance_bin_results:
-            r_str = f"{b['pearson_r']:.3f}" if not np.isnan(b["pearson_r"]) else "n/a"
-            lines.append(
-                f"| {b['distance_bin']} | {b['n_pairs']:,} | "
-                f"{100 * b['pct_same_type']:.1f}% | "
-                f"{b['mean_sci_same_type']:,.0f} | {b['mean_sci_diff_type']:,.0f} | "
-                f"{b['sci_ratio']:.2f}x | {r_str} |"
-            )
-        lines.append("")
+    lines.extend(_format_finding_1(result))
+    lines.extend(_format_finding_2(result))
+    lines.extend(_format_finding_3(result))
+    lines.extend(_format_finding_4(result))
+    lines.extend(_format_finding_5(result))
 
     lines.extend([
         "## Interpretation",

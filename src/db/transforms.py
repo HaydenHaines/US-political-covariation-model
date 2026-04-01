@@ -13,6 +13,7 @@ import pandas as pd
 import yaml
 
 from src.core import config as _cfg
+from src.db._utils import normalize_fips as _normalize_fips
 
 log = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ def build_counties(
     _pres_path = pres_2024_path
     if _pres_path is not None and Path(_pres_path).exists():
         pres_df = pd.read_parquet(_pres_path)
-        pres_df["county_fips"] = pres_df["county_fips"].astype(str).str.zfill(5)
+        pres_df["county_fips"] = pres_df["county_fips"].pipe(_normalize_fips)
         df = df.merge(
             pres_df[["county_fips", "pres_total_2024"]].rename(
                 columns={"pres_total_2024": "total_votes_2024"}

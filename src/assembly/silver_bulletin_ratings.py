@@ -148,231 +148,160 @@ def _name_similarity(a: str, b: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Core loader
+# XLSX loading helpers (shared by all three load_ functions)
+# ---------------------------------------------------------------------------
+
+
+def _load_xlsx_rows(path: Path) -> list[tuple]:
+    """Open the Silver Bulletin XLSX and return all rows as a list of tuples.
+
+    Raises FileNotFoundError if the file is absent.
+    """
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Silver Bulletin XLSX not found at {path}. "
+            "Download it with: curl -sL <url> -o <path>"
+        )
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+    return rows
+
+
+def _detect_name_col(rows: list[tuple]) -> int:
+    """Detect the column index that contains the pollster name string.
+
+    The Silver Bulletin XLSX uses a merged-cell layout: the header row may
+    show "Pollster" at col 0, but the actual name in data rows may be in
+    col 1 because col 0 holds a numeric rank. We peek at the first data row
+    and advance by one if the header column contains a number instead of a
+    string.
+    """
+    if not rows:
+        return 0
+    header = rows[0]
+    col = _find_col(header, "pollster", required=True, fallback=0)
+    if len(rows) > 1 and len(rows[1]) > col:
+        peek = rows[1][col]
+        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
+            col += 1  # name is in the adjacent (None-header) cell
+    return col
+
+
+def _is_banned_row(row: tuple, col_banned: Optional[int]) -> bool:
+    """Return True when the banned column says 'yes' for this row."""
+    if col_banned is None or len(row) <= col_banned:
+        return False
+    return str(row[col_banned] or "").strip().lower() == "yes"
+
+
+def _extract_grade(row: tuple, col_grade: Optional[int]) -> Optional[str]:
+    """Return the raw grade string from this row, or None if absent/empty."""
+    if col_grade is None or len(row) <= col_grade:
+        return None
+    raw = row[col_grade]
+    return str(raw).strip() if raw is not None else None
+
+
+def _open_xlsx(path: Optional[Path | str], default: Path) -> tuple[list[tuple], int, Optional[int], Optional[int]]:
+    """Open XLSX and return (rows, col_name, col_banned, col_grade).
+
+    Centralizes the repeated open-detect-columns boilerplate shared by all
+    three load_ functions. Returns an empty list for rows if the workbook is
+    empty; callers should guard on ``if not rows``.
+    """
+    xlsx_path = Path(path) if path is not None else default
+    rows = _load_xlsx_rows(xlsx_path)
+    if not rows:
+        return [], 0, None, None
+    header = rows[0]
+    col_name = _detect_name_col(rows)
+    col_banned = _find_col(header, "banned", required=False, fallback=5)
+    col_grade = _find_col(header, "sb grade", required=False, fallback=8)
+    return rows, col_name, col_banned, col_grade
+
+
+# ---------------------------------------------------------------------------
+# Core loaders
 # ---------------------------------------------------------------------------
 
 
 def load_pollster_ratings(path: Optional[Path | str] = None) -> dict[str, float]:
-    """Load Silver Bulletin pollster ratings XLSX and return {pollster_name: quality_score}.
+    """Load Silver Bulletin XLSX and return {pollster_name: quality_score}.
 
-    The quality score is a float in [0, 1] derived from the Silver Bulletin
-    letter grade. Higher = better pollster. Banned pollsters receive 0.0.
+    Quality score is a float in [0, 1] derived from the letter grade.
+    Higher = better pollster. Banned pollsters receive 0.0.
+    Unknown pollsters default to 0.5.
 
-    Parameters
-    ----------
-    path:
-        Path to the Silver Bulletin XLSX file. Defaults to
-        ``data/raw/silver_bulletin/pollster_stats_full_2026.xlsx`` relative
-        to the project root.
-
-    Returns
-    -------
-    dict[str, float]
-        Mapping from original pollster name (as in the XLSX) to quality score.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the XLSX file does not exist at the given path.
+    Raises FileNotFoundError if the XLSX is absent.
     """
-    xlsx_path = Path(path) if path is not None else DEFAULT_XLSX_PATH
-
-    if not xlsx_path.exists():
-        raise FileNotFoundError(
-            f"Silver Bulletin XLSX not found at {xlsx_path}. "
-            "Download it with: curl -sL <url> -o <path>"
-        )
-
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = wb.active
-
-    rows = list(ws.iter_rows(values_only=True))
+    rows, col_name, col_banned, col_grade = _open_xlsx(path, DEFAULT_XLSX_PATH)
     if not rows:
         return {}
 
-    # Parse column indices from header row.
-    # The Silver Bulletin XLSX uses a merged-cell layout where the header row
-    # shows "Pollster" at col 0, but col 0 contains the numeric rank in data
-    # rows and col 1 contains the actual pollster name string.  We detect this
-    # by checking whether the first data row's "Pollster" column holds a string
-    # or an integer, and advance by one if it is an integer.
-    header = rows[0]
-    col_name_raw = _find_col(header, "pollster", required=True, fallback=0)
-    # Peek at first data row to check whether we need to shift by 1
-    if len(rows) > 1 and len(rows[1]) > col_name_raw:
-        peek = rows[1][col_name_raw]
-        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
-            col_name_raw += 1  # name is in the adjacent (None-header) cell
-    col_name = col_name_raw
-    col_banned = _find_col(header, "banned", required=False, fallback=5)
-    col_grade = _find_col(header, "sb grade", required=False, fallback=8)
-
     ratings: dict[str, float] = {}
-
     for row in rows[1:]:
-        if row is None or len(row) <= col_name:
+        name = _row_name(row, col_name)
+        if name is None:
             continue
-
-        raw_name = row[col_name]
-        if not raw_name:
+        if _is_banned_row(row, col_banned):
+            ratings[name] = BANNED_SCORE
             continue
-        name = str(raw_name).strip()
-
-        # Banned pollsters
-        if col_banned is not None and len(row) > col_banned:
-            banned_val = str(row[col_banned] or "").strip().lower()
-            if banned_val == "yes":
-                ratings[name] = BANNED_SCORE
-                continue
-
-        # Grade-based score
-        grade = None
-        if col_grade is not None and len(row) > col_grade:
-            raw_grade = row[col_grade]
-            if raw_grade is not None:
-                grade = str(raw_grade).strip()
-
-        score = GRADE_SCORES.get(grade, DEFAULT_SCORE) if grade else DEFAULT_SCORE
-        ratings[name] = score
-
-    wb.close()
+        grade = _extract_grade(row, col_grade)
+        ratings[name] = GRADE_SCORES.get(grade, DEFAULT_SCORE) if grade else DEFAULT_SCORE
     return ratings
 
 
 def load_pollster_grades(path: Optional[Path | str] = None) -> dict[str, str]:
-    """Load Silver Bulletin pollster ratings XLSX and return {pollster_name: grade_str}.
+    """Load Silver Bulletin XLSX and return {pollster_name: grade_str}.
 
-    Returns the raw letter grade (e.g. "A+", "B-", "C") for each pollster.
+    Returns the raw letter grade (e.g. "A+", "B-") for each pollster.
     Banned pollsters receive "Banned". Pollsters without a grade are omitted.
 
-    Parameters
-    ----------
-    path:
-        Path to the Silver Bulletin XLSX file. Defaults to
-        ``data/raw/silver_bulletin/pollster_stats_full_2026.xlsx``.
-
-    Returns
-    -------
-    dict[str, str]
-        Mapping from original pollster name to letter grade string.
+    Raises FileNotFoundError if the XLSX is absent.
     """
-    xlsx_path = Path(path) if path is not None else DEFAULT_XLSX_PATH
-
-    if not xlsx_path.exists():
-        raise FileNotFoundError(
-            f"Silver Bulletin XLSX not found at {xlsx_path}."
-        )
-
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = wb.active
-
-    rows = list(ws.iter_rows(values_only=True))
+    rows, col_name, col_banned, col_grade = _open_xlsx(path, DEFAULT_XLSX_PATH)
     if not rows:
         return {}
 
-    header = rows[0]
-    col_name_raw = _find_col(header, "pollster", required=True, fallback=0)
-    if len(rows) > 1 and len(rows[1]) > col_name_raw:
-        peek = rows[1][col_name_raw]
-        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
-            col_name_raw += 1
-    col_name = col_name_raw
-    col_banned = _find_col(header, "banned", required=False, fallback=5)
-    col_grade = _find_col(header, "sb grade", required=False, fallback=8)
-
     grades: dict[str, str] = {}
-
     for row in rows[1:]:
-        if row is None or len(row) <= col_name:
+        name = _row_name(row, col_name)
+        if name is None:
             continue
-
-        raw_name = row[col_name]
-        if not raw_name:
+        if _is_banned_row(row, col_banned):
+            grades[name] = "Banned"
             continue
-        name = str(raw_name).strip()
-
-        # Banned pollsters
-        if col_banned is not None and len(row) > col_banned:
-            banned_val = str(row[col_banned] or "").strip().lower()
-            if banned_val == "yes":
-                grades[name] = "Banned"
-                continue
-
-        # Extract grade string
-        if col_grade is not None and len(row) > col_grade:
-            raw_grade = row[col_grade]
-            if raw_grade is not None:
-                grade_str = str(raw_grade).strip()
-                if grade_str in GRADE_SCORES:
-                    grades[name] = grade_str
-
-    wb.close()
+        grade = _extract_grade(row, col_grade)
+        if grade and grade in GRADE_SCORES:
+            grades[name] = grade
     return grades
 
 
 def load_pollster_house_effects(path: Optional[Path | str] = None) -> dict[str, float]:
-    """Load Silver Bulletin house effects and return {pollster_name: house_effect_pp}.
+    """Load Silver Bulletin XLSX and return {pollster_name: house_effect_pp}.
 
     House effect is the mean-reverted estimate of partisan bias in percentage
-    points. Positive = pollster overestimates Democrats; negative = overestimates
-    Republicans.
-
-    Uses the same column detection and name normalization as ``load_pollster_ratings``.
+    points. Positive = D-biased; negative = R-biased.
     Rows where the House Effect cell is blank or non-numeric are silently skipped.
 
-    Parameters
-    ----------
-    path:
-        Path to the Silver Bulletin XLSX file. Defaults to
-        ``data/raw/silver_bulletin/pollster_stats_full_2026.xlsx``.
-
-    Returns
-    -------
-    dict[str, float]
-        Mapping from original pollster name to house effect in percentage points.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the XLSX file does not exist at the given path.
+    Raises FileNotFoundError if the XLSX is absent.
     """
     xlsx_path = Path(path) if path is not None else DEFAULT_XLSX_PATH
-
-    if not xlsx_path.exists():
-        raise FileNotFoundError(
-            f"Silver Bulletin XLSX not found at {xlsx_path}. "
-            "Download it with: curl -sL <url> -o <path>"
-        )
-
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
-    ws = wb.active
-
-    rows = list(ws.iter_rows(values_only=True))
+    rows = _load_xlsx_rows(xlsx_path)
     if not rows:
         return {}
 
     header = rows[0]
-
-    # Pollster name column — same offset logic as load_pollster_ratings
-    col_name_raw = _find_col(header, "pollster", required=True, fallback=0)
-    if len(rows) > 1 and len(rows[1]) > col_name_raw:
-        peek = rows[1][col_name_raw]
-        if isinstance(peek, (int, float)) and not isinstance(peek, bool):
-            col_name_raw += 1
-    col_name = col_name_raw
-
+    col_name = _detect_name_col(rows)
     col_house_effect = _find_col(header, _SB_HOUSE_EFFECT_COL, required=False, fallback=None)
 
     house_effects: dict[str, float] = {}
-
     for row in rows[1:]:
-        if row is None or len(row) <= col_name:
+        name = _row_name(row, col_name)
+        if name is None:
             continue
-        raw_name = row[col_name]
-        if not raw_name:
-            continue
-        name = str(raw_name).strip()
-
         if col_house_effect is None or len(row) <= col_house_effect:
             continue
         raw_he = row[col_house_effect]
@@ -382,9 +311,15 @@ def load_pollster_house_effects(path: Optional[Path | str] = None) -> dict[str, 
             house_effects[name] = float(raw_he)
         except (TypeError, ValueError):
             continue
-
-    wb.close()
     return house_effects
+
+
+def _row_name(row: tuple, col_name: int) -> Optional[str]:
+    """Extract the pollster name from a data row, or return None to skip."""
+    if row is None or len(row) <= col_name:
+        return None
+    raw = row[col_name]
+    return str(raw).strip() if raw else None
 
 
 def load_538_bias(path: Optional[Path | str] = None) -> dict[str, float]:
@@ -504,6 +439,41 @@ def _ensure_grades_cache(path: Optional[Path | str] = None) -> None:
         }
 
 
+def _fuzzy_lookup(
+    name: str,
+    cache: dict[str, tuple],
+    threshold: float,
+) -> Optional[tuple]:
+    """Find the best fuzzy match for *name* in a normalized cache.
+
+    Performs three-stage lookup:
+    1. Exact match on normalized name.
+    2. Best Jaccard token-overlap match above *threshold*.
+    3. Returns None if no match meets the threshold.
+
+    The cache maps normalized_name → (original_name, value).
+    Returns the value tuple entry, or None.
+    """
+    norm = _normalize(name)
+    # Stage 1: normalized exact match
+    if norm in cache:
+        return cache[norm]
+
+    # Stage 2: best Jaccard fuzzy match
+    best_entry: Optional[tuple] = None
+    best_sim = 0.0
+    for norm_key, entry in cache.items():
+        sim = _name_similarity(norm, norm_key)
+        if sim > best_sim:
+            best_sim = sim
+            best_entry = entry
+
+    if best_sim >= threshold and best_entry is not None:
+        return best_entry
+
+    return None
+
+
 def get_pollster_quality(
     name: str,
     path: Optional[Path | str] = None,
@@ -538,28 +508,12 @@ def get_pollster_quality(
     assert _RATINGS_CACHE is not None
     assert _NORMALIZED_CACHE is not None
 
-    # 1. Exact match
+    # Exact match on original name first (avoids normalization cost for common case)
     if name in _RATINGS_CACHE:
         return _RATINGS_CACHE[name]
 
-    # 2. Normalised exact match
-    norm = _normalize(name)
-    if norm in _NORMALIZED_CACHE:
-        return _NORMALIZED_CACHE[norm][1]
-
-    # 3. Best Jaccard fuzzy match
-    best_score: Optional[float] = None
-    best_sim = 0.0
-    for norm_key, (_, score) in _NORMALIZED_CACHE.items():
-        sim = _name_similarity(norm, norm_key)
-        if sim > best_sim:
-            best_sim = sim
-            best_score = score
-
-    if best_sim >= threshold and best_score is not None:
-        return best_score
-
-    return DEFAULT_SCORE
+    entry = _fuzzy_lookup(name, _NORMALIZED_CACHE, threshold)
+    return entry[1] if entry is not None else DEFAULT_SCORE
 
 
 def get_pollster_grade(
@@ -591,28 +545,12 @@ def get_pollster_grade(
     assert _GRADES_CACHE is not None
     assert _NORMALIZED_GRADES_CACHE is not None
 
-    # 1. Exact match
+    # Exact match on original name first
     if name in _GRADES_CACHE:
         return _GRADES_CACHE[name]
 
-    # 2. Normalised exact match
-    norm = _normalize(name)
-    if norm in _NORMALIZED_GRADES_CACHE:
-        return _NORMALIZED_GRADES_CACHE[norm][1]
-
-    # 3. Best Jaccard fuzzy match
-    best_grade: str | None = None
-    best_sim = 0.0
-    for norm_key, (_, grade) in _NORMALIZED_GRADES_CACHE.items():
-        sim = _name_similarity(norm, norm_key)
-        if sim > best_sim:
-            best_sim = sim
-            best_grade = grade
-
-    if best_sim >= threshold and best_grade is not None:
-        return best_grade
-
-    return None
+    entry = _fuzzy_lookup(name, _NORMALIZED_GRADES_CACHE, threshold)
+    return entry[1] if entry is not None else None
 
 
 def clear_cache() -> None:

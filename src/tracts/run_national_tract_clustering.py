@@ -338,16 +338,12 @@ def run_j_sweep(
     return best_j, best_r, results
 
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# ── Main helpers ──────────────────────────────────────────────────────────────
 
 
-def main() -> None:
+def _parse_args():
+    """Parse CLI arguments for the national tract clustering script."""
     import argparse
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(message)s",
-    )
 
     parser = argparse.ArgumentParser(description="National tract KMeans clustering")
     parser.add_argument("--j", type=int, default=100, help="Number of types (default: 100)")
@@ -379,7 +375,156 @@ def main() -> None:
         default=None,
         help="Output parquet path (default: data/tracts/national_tract_assignments.parquet)",
     )
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def _select_j(
+    X_train: np.ndarray,
+    X_holdout: np.ndarray,
+    run_sweep: bool,
+    default_j: int,
+) -> tuple[int, list[dict]]:
+    """Select J via sweep or return the provided default.
+
+    Returns (best_j, j_selection_results).
+    """
+    if not run_sweep:
+        log.info("Using J=%d (no sweep)", default_j)
+        return default_j, []
+
+    j_candidates = [20, 30, 40, 50, 60, 70, 80]
+    log.info("Running J sweep over %s ...", j_candidates)
+    best_j, best_r, results = run_j_sweep(X_train, X_holdout, j_candidates, n_init=10)
+    log.info("J sweep complete: best J=%d (holdout r=%.4f)", best_j, best_r)
+    return best_j, results
+
+
+def _fit_kmeans_and_soft_scores(
+    X_train: np.ndarray,
+    best_j: int,
+    temperature: float,
+    n_tracts: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Fit KMeans, compute soft membership scores, and return type size counts.
+
+    Returns (labels, centroids, soft_scores, counts).
+    """
+    log.info("Fitting final KMeans J=%d on %d tracts ...", best_j, n_tracts)
+    km = KMeans(n_clusters=best_j, n_init=10, random_state=42)
+    labels = km.fit_predict(X_train)
+    centroids = km.cluster_centers_
+
+    # Soft membership via temperature-scaled inverse distance
+    dists = np.zeros((n_tracts, best_j))
+    for t in range(best_j):
+        dists[:, t] = np.linalg.norm(X_train - centroids[t], axis=1)
+    soft_scores = temperature_soft_membership(dists, T=temperature)
+
+    _unique, counts = np.unique(labels, return_counts=True)
+    sorted_counts = sorted(counts.tolist(), reverse=True)
+    log.info("Type sizes (sorted): %s", sorted_counts[:20])
+    log.info(
+        "Min type size: %d, max: %d, median: %.0f",
+        min(counts), max(counts), np.median(counts),
+    )
+    return labels, centroids, soft_scores, counts
+
+
+def _nest_into_super_types(
+    df_filt: pd.DataFrame,
+    labels: np.ndarray,
+    centroids: np.ndarray,
+    best_j: int,
+) -> tuple[np.ndarray, object]:
+    """Compute demographic super-type nesting.
+
+    Uses demographic profiles (not centroids) because KMeans centroids at
+    J=100 are degenerate in standardized shift space, collapsing to one super-type.
+    Returns (super_type_labels, nesting).
+    """
+    log.info("Nesting %d types into super-types via demographic profiles ...", best_j)
+    demo_profiles = build_demographic_profiles(df_filt, labels, best_j)
+    nesting_features = demo_profiles if demo_profiles is not None else centroids
+    nesting = nest_types(nesting_features, s_candidates=[6, 7, 8, 9, 10, 11, 12])
+    log.info(
+        "Best super-types: S=%d (silhouette=%.4f)",
+        nesting.best_s,
+        nesting.silhouette_scores[nesting.best_s],
+    )
+    super_type_labels = np.array([nesting.mapping[t] for t in labels])
+    return super_type_labels, nesting
+
+
+def _save_assignments(
+    df_filt: pd.DataFrame,
+    labels: np.ndarray,
+    soft_scores: np.ndarray,
+    super_type_labels: np.ndarray,
+    best_j: int,
+    out_path: Path,
+) -> None:
+    """Build and write the tract assignment parquet."""
+    score_cols = {f"type_{i}_score": soft_scores[:, i] for i in range(best_j)}
+    out_df = pd.concat([
+        pd.DataFrame({"GEOID": df_filt["GEOID"].values}),
+        pd.DataFrame(score_cols),
+        pd.DataFrame({"dominant_type": labels, "super_type": super_type_labels}),
+    ], axis=1)
+    out_df.to_parquet(out_path, index=False)
+    log.info("Saved %d tract assignments → %s", len(out_df), out_path)
+
+
+def _save_validation(
+    out_path: Path,
+    n_tracts_input: int,
+    n_tracts: int,
+    best_j: int,
+    temperature: float,
+    presidential_weight: float,
+    with_demographics: bool,
+    final_r: float,
+    per_dim: list[float],
+    nesting: object,
+    counts: np.ndarray,
+    j_selection_results: list[dict],
+) -> Path:
+    """Write validation metrics JSON and return the path."""
+    val_path = out_path.parent / "national_tract_validation.json"
+    validation = {
+        "n_tracts_input": int(n_tracts_input),
+        "n_tracts_after_pop_filter": int(n_tracts),
+        "pop_filter_threshold": POPULATION_MIN_VOTES,
+        "j": int(best_j),
+        "temperature": float(temperature),
+        "presidential_weight": float(presidential_weight),
+        "with_demographics": bool(with_demographics),
+        "holdout_r": float(final_r),
+        "holdout_per_dim_r": per_dim,
+        "holdout_features": HOLDOUT_FEATURES,
+        "n_super_types": int(nesting.best_s),
+        "super_type_silhouette": {
+            str(s): float(v) for s, v in nesting.silhouette_scores.items()
+        },
+        "type_size_min": int(min(counts)),
+        "type_size_max": int(max(counts)),
+        "type_size_median": float(np.median(counts)),
+        "j_selection_results": j_selection_results,
+    }
+    with open(val_path, "w") as f:
+        json.dump(validation, f, indent=2)
+    log.info("Saved validation → %s", val_path)
+    return val_path
+
+
+# ── Main ─────────────────────────────────────────────────────────────────────
+
+
+def main() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
+    args = _parse_args()
 
     features_path = PROJECT_ROOT / "data" / "tracts" / "tract_features.parquet"
     out_path = Path(args.output) if args.output else (
@@ -391,7 +536,6 @@ def main() -> None:
     log.info("National Tract KMeans Clustering")
     log.info("=" * 60)
 
-    # Load and prepare
     df_filt, X_train, X_holdout, n_tracts_input = load_and_filter_features(
         features_path,
         use_demographics=args.with_demographics,
@@ -400,92 +544,36 @@ def main() -> None:
     n_tracts = len(df_filt)
     log.info("Training matrix: %d tracts × %d dims", *X_train.shape)
 
-    # J selection or use provided J
-    j_selection_results: list[dict] = []
-    if args.j_sweep:
-        j_candidates = [20, 30, 40, 50, 60, 70, 80]
-        log.info("Running J sweep over %s ...", j_candidates)
-        best_j, best_r, j_selection_results = run_j_sweep(
-            X_train, X_holdout, j_candidates, n_init=10
-        )
-        log.info("J sweep complete: best J=%d (holdout r=%.4f)", best_j, best_r)
-    else:
-        best_j = args.j
-        log.info("Using J=%d (no sweep)", best_j)
+    best_j, j_selection_results = _select_j(
+        X_train, X_holdout, run_sweep=args.j_sweep, default_j=args.j
+    )
 
-    # Final KMeans fit
-    log.info("Fitting final KMeans J=%d on %d tracts ...", best_j, n_tracts)
-    km = KMeans(n_clusters=best_j, n_init=10, random_state=42)
-    labels = km.fit_predict(X_train)
-    centroids = km.cluster_centers_
+    labels, centroids, soft_scores, counts = _fit_kmeans_and_soft_scores(
+        X_train, best_j, temperature=args.temperature, n_tracts=n_tracts
+    )
 
-    # Soft membership (temperature-scaled inverse distance)
-    dists = np.zeros((n_tracts, best_j))
-    for t in range(best_j):
-        dists[:, t] = np.linalg.norm(X_train - centroids[t], axis=1)
-    soft_scores = temperature_soft_membership(dists, T=args.temperature)
-
-    # Holdout validation
     final_r, per_dim = compute_holdout_r(labels, X_holdout)
     log.info("Final holdout r=%.4f (per dim: %s)", final_r, [f"{x:.3f}" for x in per_dim])
 
-    # Type size distribution
-    unique, counts = np.unique(labels, return_counts=True)
-    sorted_counts = sorted(counts.tolist(), reverse=True)
-    log.info("Type sizes (sorted): %s", sorted_counts[:20])
-    log.info("Min type size: %d, max: %d, median: %.0f", min(counts), max(counts), np.median(counts))
+    super_type_labels, nesting = _nest_into_super_types(df_filt, labels, centroids, best_j)
 
-    # Super-type nesting via demographic profiles (NOT centroids).
-    # Centroids are in standardized shift space — at J=100 they cluster
-    # degenerately, collapsing all types into one super-type.
-    # Demographic profiles produce meaningful separation (see CLAUDE.md).
-    log.info("Nesting %d types into super-types via demographic profiles ...", best_j)
-    demo_profiles = build_demographic_profiles(df_filt, labels, best_j)
-    nesting_features = demo_profiles if demo_profiles is not None else centroids
-    nesting = nest_types(nesting_features, s_candidates=[6, 7, 8, 9, 10, 11, 12])
-    log.info(
-        "Best super-types: S=%d (silhouette=%.4f)",
-        nesting.best_s,
-        nesting.silhouette_scores[nesting.best_s],
+    _save_assignments(df_filt, labels, soft_scores, super_type_labels, best_j, out_path)
+
+    val_path = _save_validation(
+        out_path=out_path,
+        n_tracts_input=n_tracts_input,
+        n_tracts=n_tracts,
+        best_j=best_j,
+        temperature=args.temperature,
+        presidential_weight=args.presidential_weight,
+        with_demographics=args.with_demographics,
+        final_r=final_r,
+        per_dim=per_dim,
+        nesting=nesting,
+        counts=counts,
+        j_selection_results=j_selection_results,
     )
-    super_type_labels = np.array([nesting.mapping[t] for t in labels])
 
-    # Build output DataFrame (concat all columns at once to avoid fragmentation)
-    score_cols = {f"type_{i}_score": soft_scores[:, i] for i in range(best_j)}
-    out_df = pd.concat([
-        pd.DataFrame({"GEOID": df_filt["GEOID"].values}),
-        pd.DataFrame(score_cols),
-        pd.DataFrame({"dominant_type": labels, "super_type": super_type_labels}),
-    ], axis=1)
-
-    out_df.to_parquet(out_path, index=False)
-    log.info("Saved %d tract assignments → %s", len(out_df), out_path)
-
-    # Save validation metrics
-    val_path = out_path.parent / "national_tract_validation.json"
-    validation = {
-        "n_tracts_input": int(n_tracts_input),
-        "n_tracts_after_pop_filter": int(n_tracts),
-        "pop_filter_threshold": POPULATION_MIN_VOTES,
-        "j": int(best_j),
-        "temperature": float(args.temperature),
-        "presidential_weight": float(args.presidential_weight),
-        "with_demographics": bool(args.with_demographics),
-        "holdout_r": float(final_r),
-        "holdout_per_dim_r": per_dim,
-        "holdout_features": HOLDOUT_FEATURES,
-        "n_super_types": int(nesting.best_s),
-        "super_type_silhouette": {str(s): float(v) for s, v in nesting.silhouette_scores.items()},
-        "type_size_min": int(min(counts)),
-        "type_size_max": int(max(counts)),
-        "type_size_median": float(np.median(counts)),
-        "j_selection_results": j_selection_results,
-    }
-    with open(val_path, "w") as f:
-        json.dump(validation, f, indent=2)
-    log.info("Saved validation → %s", val_path)
-
-    # Summary
     print()
     print("=" * 60)
     print("NATIONAL TRACT CLUSTERING COMPLETE")

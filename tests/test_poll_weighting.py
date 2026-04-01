@@ -346,7 +346,7 @@ class TestSilverBulletinUsed:
 
         # Patch get_pollster_quality to return a known score (A = 0.93)
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=_sb_score_to_multiplier(0.93),
         ):
             result = apply_pollster_quality([poll], use_silver_bulletin=True)
@@ -360,7 +360,7 @@ class TestSilverBulletinUsed:
         poll = _make_poll(n_sample=1000, pollster="NYT/Siena")
 
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=_sb_score_to_multiplier(1.0),
         ):
             result = apply_pollster_quality([poll], use_silver_bulletin=True)
@@ -372,7 +372,7 @@ class TestSilverBulletinUsed:
         poll = _make_poll(n_sample=1000, pollster="Research America (banned)")
 
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=_sb_score_to_multiplier(0.0),
         ):
             result = apply_pollster_quality([poll], use_silver_bulletin=True)
@@ -386,7 +386,7 @@ class TestSilverBulletinUsed:
         neutral_multiplier = _sb_score_to_multiplier(0.5)
 
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=neutral_multiplier,
         ):
             result = apply_pollster_quality([poll], use_silver_bulletin=True)
@@ -410,7 +410,7 @@ class TestSilverBulletinFallback:
 
         # Silver Bulletin raises FileNotFoundError → None returned by _get_sb_quality
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=None,
         ):
             # notes carry a 538 A-grade (numeric 2.5 → "A" → 1.1x)
@@ -438,7 +438,7 @@ class TestSilverBulletinFallback:
         poll = _make_poll(n_sample=1000, pollster="TestPollster")
 
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=None,
         ):
             result = apply_pollster_quality(
@@ -466,7 +466,7 @@ class TestSilverBulletinFallback:
         poll = _make_poll(date="2020-11-03", n_sample=1000, pollster="Emerson College")
         # SB returns score=1.0 → multiplier = _SB_MAX_MULTIPLIER = 1.2
         with patch(
-            "src.propagation.poll_weighting._get_sb_quality",
+            "src.propagation.poll_quality._get_sb_quality",
             return_value=_SB_MAX_MULTIPLIER,
         ):
             result = apply_all_weights(
@@ -644,8 +644,8 @@ class TestHouseEffectsInPipeline:
         )
         # We need to inject the bias; patch the cache directly
         reset_house_effect_cache()
-        with patch("src.propagation.poll_weighting._SB_HOUSE_EFFECTS", {"Biased Pollster": 2.0}), \
-             patch("src.propagation.poll_weighting._538_BIAS", {}):
+        with patch("src.propagation.house_effects._SB_HOUSE_EFFECTS", {"Biased Pollster": 2.0}), \
+             patch("src.propagation.house_effects._538_BIAS", {}):
             result = apply_all_weights(
                 [poll],
                 reference_date="2020-11-03",
@@ -660,8 +660,8 @@ class TestHouseEffectsInPipeline:
     def test_house_effects_disabled_leaves_dem_share(self):
         """apply_house_effects=False bypasses correction entirely."""
         poll = _make_poll(date="2020-11-03", dem_share=0.50, n_sample=1000, pollster="Biased Pollster")
-        with patch("src.propagation.poll_weighting._SB_HOUSE_EFFECTS", {"Biased Pollster": 5.0}), \
-             patch("src.propagation.poll_weighting._538_BIAS", {}):
+        with patch("src.propagation.house_effects._SB_HOUSE_EFFECTS", {"Biased Pollster": 5.0}), \
+             patch("src.propagation.house_effects._538_BIAS", {}):
             result = apply_all_weights(
                 [poll],
                 reference_date="2020-11-03",

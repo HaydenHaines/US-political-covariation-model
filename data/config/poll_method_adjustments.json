@@ -7,9 +7,33 @@
   "lv_downweight_factor": 0.5,
   "rv_downweight_factor": 0.8,
   "method_reach_profiles": {
-    "online_panel": {"log_pop_density_shift": 0.05},
-    "phone_ivr": {},
-    "phone_live": {},
+    "online_panel": {
+      "log_pop_density_shift": 0.08,
+      "pct_owner_occupied_shift": -0.05,
+      "median_hh_income_shift": 0.06
+    },
+    "phone_ivr": {
+      "log_pop_density_shift": -0.06,
+      "pct_owner_occupied_shift": 0.08,
+      "evangelical_share_shift": 0.04,
+      "median_hh_income_shift": -0.04
+    },
+    "phone_live": {
+      "log_pop_density_shift": 0.02,
+      "pct_owner_occupied_shift": 0.03,
+      "median_hh_income_shift": 0.02
+    },
+    "sms": {
+      "log_pop_density_shift": 0.06,
+      "pct_owner_occupied_shift": -0.06,
+      "evangelical_share_shift": -0.03
+    },
+    "mail": {
+      "log_pop_density_shift": -0.05,
+      "pct_owner_occupied_shift": 0.10,
+      "evangelical_share_shift": 0.03,
+      "median_hh_income_shift": -0.03
+    },
     "unknown": {}
   },
   "w_vector_dimensions": {

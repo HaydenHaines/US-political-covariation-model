@@ -93,11 +93,21 @@ def build_W_with_adjustments(
 
 
 def _infer_method_type(poll: dict) -> str:
+    """Infer polling methodology type from poll notes for reach profile lookup.
+
+    Returns one of: online_panel, phone_ivr, phone_live, sms, mail, unknown.
+    Order matters — check most specific signals first (e.g. IVR before generic phone).
+    """
     notes = (poll.get("notes", "") or "").lower()
     if "online" in notes or "panel" in notes:
         return "online_panel"
-    if "ivr" in notes:
+    if "ivr" in notes or "automated" in notes or "robo" in notes:
         return "phone_ivr"
+    # Check SMS/text before generic "phone" to avoid misclassifying text polls
+    if "sms" in notes or "text" in notes:
+        return "sms"
+    if "mail" in notes or "postal" in notes:
+        return "mail"
     if "live" in notes or "phone" in notes:
         return "phone_live"
     return "unknown"

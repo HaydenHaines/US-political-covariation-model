@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Request
 
 from api.db import get_db
 
-from ._helpers import marginToRating, race_to_slug
+from ._helpers import _VOTE_WEIGHTED_STATE_PRED_SQL, marginToRating, race_to_slug
 
 router = APIRouter(tags=["forecast"])
 
@@ -52,14 +52,10 @@ def get_forecast_comparisons(
     # Joining through races.state ensures only in-state counties contribute.
     try:
         rows = db.execute(
-            """
+            f"""
             SELECT
                 p.race,
-                CASE WHEN SUM(COALESCE(c.total_votes_2024, 0)) > 0
-                     THEN SUM(p.pred_dem_share * COALESCE(c.total_votes_2024, 0))
-                          / SUM(COALESCE(c.total_votes_2024, 0))
-                     ELSE AVG(p.pred_dem_share)
-                END AS state_pred,
+                {_VOTE_WEIGHTED_STATE_PRED_SQL} AS state_pred,
                 AVG(p.pred_std) AS avg_std,
                 COUNT(*) AS n_counties
             FROM predictions p

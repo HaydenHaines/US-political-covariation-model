@@ -15,7 +15,13 @@ from api.models import (
     PollRow,
 )
 
-from ._helpers import _MATRIX_JITTER, _Z90, _lookup_pollster_grade
+from ._helpers import (
+    _DEFAULT_DEM_SHARE_PRIOR,
+    _MATRIX_JITTER,
+    _Z90,
+    _apply_behavior_if_needed,
+    _lookup_pollster_grade,
+)
 
 router = APIRouter(tags=["forecast"])
 
@@ -108,24 +114,12 @@ def _forecast_poll_types(
     ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
     if ridge_priors:
         county_priors = np.array(
-            [ridge_priors.get(f, 0.45) for f in type_county_fips]
+            [ridge_priors.get(f, _DEFAULT_DEM_SHARE_PRIOR) for f in type_county_fips]
         )
     else:
         county_priors = None  # falls back to type-mean inside predict_race
 
-    # Apply behavior adjustment for off-cycle races
-    behavior_tau = getattr(request.app.state, "behavior_tau", None)
-    behavior_delta = getattr(request.app.state, "behavior_delta", None)
-    race_str = (poll.race or "").lower()
-    is_offcycle = not any(kw in race_str for kw in ["president", "pres"])
-
-    if (behavior_tau is not None and behavior_delta is not None
-            and county_priors is not None and is_offcycle
-            and type_scores.shape[1] == len(behavior_tau)):
-        from src.behavior.voter_behavior import apply_behavior_adjustment
-        county_priors = apply_behavior_adjustment(
-            county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True
-        )
+    county_priors = _apply_behavior_if_needed(request, county_priors, poll.race)
 
     # poll.state is the authoritative source for which state was polled;
     # passing it explicitly avoids the fragile race-string scan.
@@ -377,23 +371,11 @@ def update_forecast_with_multi_polls(
 
         ridge_priors: dict[str, float] = getattr(request.app.state, "ridge_priors", {})
         county_priors = (
-            np.array([ridge_priors.get(f, 0.45) for f in fips_list])
+            np.array([ridge_priors.get(f, _DEFAULT_DEM_SHARE_PRIOR) for f in fips_list])
             if ridge_priors else None
         )
 
-        # Apply behavior adjustment for off-cycle races
-        behavior_tau = getattr(request.app.state, "behavior_tau", None)
-        behavior_delta = getattr(request.app.state, "behavior_delta", None)
-        race_str = (body.race or "").lower()
-        is_offcycle = not any(kw in race_str for kw in ["president", "pres"])
-
-        if (behavior_tau is not None and behavior_delta is not None
-                and county_priors is not None and is_offcycle
-                and type_scores.shape[1] == len(behavior_tau)):
-            from src.behavior.voter_behavior import apply_behavior_adjustment
-            county_priors = apply_behavior_adjustment(
-                county_priors, type_scores, behavior_tau, behavior_delta, is_offcycle=True
-            )
+        county_priors = _apply_behavior_if_needed(request, county_priors, body.race)
 
         result_df = predict_race(
             race=body.race or race_polls[0][2],

@@ -1,6 +1,6 @@
 """Fetch BEA state-level real GDP and personal income, compute growth rates, map to counties.
 
-Uses the BEA Regional API to pull annual real GDP (SAGDP9N) and personal income
+Uses the BEA Regional API to pull annual real GDP (SAGDP9) and personal income
 (SAINC1) for all US states, 2018–present. Growth rates capture economic *momentum*,
 which predicts electoral behavior better than levels — a state that was always poor
 behaves differently from one that recently lost manufacturing jobs.
@@ -19,9 +19,9 @@ build_bea_state_features.py). Missing states are filled with the national median
 so the feature matrix never has gaps.
 
 API endpoints used:
-  SAGDP9N — Real GDP by state (millions of chained 2017 dollars)
+  SAGDP9 — Real GDP by state (millions of chained 2017 dollars)
     https://apps.bea.gov/api/data?UserID=...&method=GetData&datasetname=Regional
-        &TableName=SAGDP9N&LineCode=1&GeoFips=STATE&Year=ALL&ResultFormat=JSON
+        &TableName=SAGDP9&LineCode=1&GeoFips=STATE&Year=ALL&ResultFormat=JSON
   SAINC1  — State personal income summary
     LineCode 3 = Per capita personal income (dollars)
 
@@ -58,9 +58,9 @@ OUTPUT_PATH = PROJECT_ROOT / "data" / "assembled" / "county_bea_growth_features.
 
 BEA_BASE = "https://apps.bea.gov/api/data"
 
-# SAGDP9N — Real GDP by state in millions of chained 2017 dollars
+# SAGDP9 — Real GDP by state in millions of chained 2017 dollars
 #   LineCode 1 = All industry total
-GDP_TABLE = "SAGDP9N"
+GDP_TABLE = "SAGDP9"
 GDP_LINE_CODE = 1
 
 # SAINC1 — State personal income summary
@@ -178,7 +178,7 @@ def _fetch_bea_state_series(
     Parameters
     ----------
     table_name:
-        BEA table name, e.g. "SAGDP9N" or "SAINC1".
+        BEA table name, e.g. "SAGDP9" or "SAINC1".
     line_code:
         The LineCode integer (e.g. 1 for total GDP, 3 for per-capita income).
     api_key:
@@ -282,7 +282,7 @@ def _parse_data_value(val: object) -> float:
 
 
 def fetch_state_gdp_series(force_refresh: bool = False) -> pd.DataFrame:
-    """Fetch and cache state real GDP series (SAGDP9N, LineCode 1).
+    """Fetch and cache state real GDP series (SAGDP9, LineCode 1).
 
     Cache path: data/raw/bea_growth/sagdp9n_states.parquet
 

@@ -160,6 +160,36 @@ REQUEST_DELAY = 2.0
 #   own_code=1 (federal govt) + 2 (state govt) + 3 (local govt) + 5 (private)
 OWN_CODES_TO_SUM = frozenset({"1", "2", "3", "5"})
 
+# FIPS validation: county FIPS are exactly 5 digits; county suffix "000" means state-level
+FIPS_PATTERN = r"^\d{5}$"
+STATE_LEVEL_COUNTY_SUFFIX = "000"
+
+# Numeric columns that need coercion from string in the raw CSV
+NUMERIC_COLUMNS = [
+    "annual_avg_estabs",
+    "annual_avg_emplvl",
+    "total_annual_wages",
+    "annual_avg_wkly_wage",
+    "avg_annual_pay",
+]
+
+# Output columns for assembled county-level parquet
+OUTPUT_COLUMNS = [
+    "county_fips",
+    "own_code",
+    "industry_code",
+    "year",
+    "annual_avg_estabs",
+    "annual_avg_emplvl",
+    "total_annual_wages",
+]
+
+# Suppression indicator in BLS disclosure_code column
+SUPPRESSED_CODE = "N"
+
+# Annual average quarter code in BLS data
+ANNUAL_QTR_CODE = "A"
+
 
 def build_url(year: int, industry_code: str) -> str:
     """Construct the BLS QCEW API URL for county-level annual data.
@@ -210,15 +240,50 @@ def download_singlefile(year: int) -> bytes | None:
         return None
 
 
-def parse_singlefile(zip_bytes: bytes, year: int) -> pd.DataFrame | None:
-    """Extract and parse the CSV from a QCEW annual singlefile ZIP.
+def _select_and_coerce_columns(
+    df: pd.DataFrame,
+    context: str,
+) -> pd.DataFrame:
+    """Select KEEP_COLUMNS and coerce numeric types from a raw BLS CSV DataFrame.
+
+    Shared helper used by both parse_singlefile() and fetch_county_csv().
+    Strips whitespace from column names, selects target columns, and coerces
+    numeric fields from string dtype (BLS CSVs are read as all-string).
+
+    Args:
+        df: Raw DataFrame read directly from a BLS CSV.
+        context: Human-readable label for warning messages (e.g. "year=2022").
+
+    Returns:
+        DataFrame with KEEP_COLUMNS subset and numeric columns coerced.
+    """
+    df.columns = [c.strip() for c in df.columns]
+
+    available = [c for c in KEEP_COLUMNS if c in df.columns]
+    missing = [c for c in KEEP_COLUMNS if c not in df.columns]
+    if missing:
+        log.warning("  Missing columns for %s: %s", context, missing)
+    df = df[available].copy()
+
+    for col in NUMERIC_COLUMNS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    if "year" in df.columns:
+        df["year"] = pd.to_numeric(df["year"], errors="coerce")
+
+    return df
+
+
+def _open_csv_from_zip(zip_bytes: bytes, year: int) -> tuple[zipfile.ZipFile, str] | None:
+    """Open a QCEW annual singlefile ZIP and locate the CSV entry inside it.
 
     Args:
         zip_bytes: Raw ZIP archive bytes.
         year: Data year (for logging).
 
     Returns:
-        Parsed DataFrame with KEEP_COLUMNS subset, or None on failure.
+        (ZipFile, csv_filename) tuple, or None if the ZIP is malformed or has no CSV.
     """
     try:
         zf = zipfile.ZipFile(io.BytesIO(zip_bytes))
@@ -236,9 +301,25 @@ def parse_singlefile(zip_bytes: bytes, year: int) -> pd.DataFrame | None:
         log.warning("  No CSV in ZIP for year=%d (files: %s)", year, names)
         return None
 
-    csv_name = csv_names[0]
-    log.info("  Parsing %s...", csv_name)
+    return zf, csv_names[0]
 
+
+def parse_singlefile(zip_bytes: bytes, year: int) -> pd.DataFrame | None:
+    """Extract and parse the CSV from a QCEW annual singlefile ZIP.
+
+    Args:
+        zip_bytes: Raw ZIP archive bytes.
+        year: Data year (for logging).
+
+    Returns:
+        Parsed DataFrame with KEEP_COLUMNS subset, or None on failure.
+    """
+    result = _open_csv_from_zip(zip_bytes, year)
+    if result is None:
+        return None
+    zf, csv_name = result
+
+    log.info("  Parsing %s...", csv_name)
     try:
         with zf.open(csv_name) as f:
             df = pd.read_csv(
@@ -256,33 +337,143 @@ def parse_singlefile(zip_bytes: bytes, year: int) -> pd.DataFrame | None:
         log.warning("  Empty CSV in ZIP for year=%d", year)
         return None
 
-    # Strip whitespace from column names
-    df.columns = [c.strip() for c in df.columns]
-
-    # Select only the columns we need (gracefully handle missing columns)
-    available = [c for c in KEEP_COLUMNS if c in df.columns]
-    missing = [c for c in KEEP_COLUMNS if c not in df.columns]
-    if missing:
-        log.warning("  Missing columns for year=%d: %s", year, missing)
-    df = df[available].copy()
-
-    # Coerce numeric columns
-    numeric_cols = [
-        "annual_avg_estabs",
-        "annual_avg_emplvl",
-        "total_annual_wages",
-        "annual_avg_wkly_wage",
-        "avg_annual_pay",
-    ]
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    if "year" in df.columns:
-        df["year"] = pd.to_numeric(df["year"], errors="coerce")
-
+    df = _select_and_coerce_columns(df, context=f"year={year}")
     log.info("  Parsed %d rows from %s", len(df), csv_name)
     return df
+
+
+def _empty_output_frame() -> pd.DataFrame:
+    """Return an empty DataFrame with the standard output column schema."""
+    return pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+
+def _filter_annual_rows(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Keep only annual-average rows (qtr == "A").
+
+    BLS singlefiles include quarterly and annual rows. We only want "A"
+    (annual average), which aggregates all four quarters into a single row.
+    """
+    if "qtr" not in df.columns:
+        return df
+    n_before = len(df)
+    df = df[df["qtr"].astype(str).str.strip() == ANNUAL_QTR_CODE].copy()
+    log.info("  [%d] Annual-average filter: %d → %d rows", year, n_before, len(df))
+    return df
+
+
+def _filter_county_fips(df: pd.DataFrame, fips_col: str, year: int) -> pd.DataFrame:
+    """Keep only county-level FIPS codes for our target states.
+
+    Drops:
+    - State-level aggregates (e.g. "01000" — county suffix "000")
+    - National aggregate ("US000")
+    - States outside TARGET_STATE_FIPS
+    - Any non-numeric or non-5-digit FIPS
+
+    Normalizes FIPS to zero-padded 5-character strings in place.
+    """
+    if fips_col not in df.columns:
+        return df
+    df[fips_col] = df[fips_col].astype(str).str.strip().str.zfill(5)
+    valid_fips = (
+        df[fips_col].str.match(FIPS_PATTERN)
+        & df[fips_col].str[:2].isin(TARGET_STATE_FIPS)
+        & (df[fips_col].str[2:] != STATE_LEVEL_COUNTY_SUFFIX)
+    )
+    n_before = len(df)
+    df = df[valid_fips].copy()
+    log.info("  [%d] County FIPS filter: %d → %d rows", year, n_before, len(df))
+    return df
+
+
+def _filter_target_industries(df: pd.DataFrame, year: int) -> pd.DataFrame:
+    """Keep only rows whose industry_code is in our configured target set."""
+    if "industry_code" not in df.columns:
+        return df
+    target_codes = set(INDUSTRY_CODES.values())
+    n_before = len(df)
+    df = df[df["industry_code"].astype(str).str.strip().isin(target_codes)].copy()
+    log.info("  [%d] Industry filter: %d → %d rows", year, n_before, len(df))
+    return df
+
+
+def _drop_suppressed(df: pd.DataFrame, year: int, label: str) -> pd.DataFrame:
+    """Drop rows where disclosure_code == "N" (data suppressed by BLS).
+
+    Suppressed rows have withheld values to protect employer privacy. Including
+    them in sums would introduce systematic downward bias for small-county sectors.
+    """
+    if "disclosure_code" not in df.columns:
+        return df
+    suppressed = df["disclosure_code"].astype(str).str.strip() == SUPPRESSED_CODE
+    n_dropped = suppressed.sum()
+    if n_dropped > 0:
+        log.info("  [%d] Dropped %d suppressed %s rows", year, n_dropped, label)
+    return df[~suppressed].copy()
+
+
+def _aggregate_total_industry(df_total: pd.DataFrame, year: int) -> pd.DataFrame | None:
+    """Extract pre-aggregated total-industry rows (own_code=0) from the singlefile.
+
+    BLS pre-aggregates industry_code="10" (all industries) with own_code=0 at
+    agglvl=70 (county total). These rows exist directly in the singlefile and
+    represent the total employment/wages across all sectors and ownerships.
+
+    Returns the filtered rows, or None if none survive.
+    """
+    if df_total.empty:
+        return None
+
+    total_own0 = df_total[df_total["own_code"] == OWN_CODE_TOTAL].copy()
+    total_own0 = _drop_suppressed(total_own0, year, "total-industry")
+    if total_own0.empty:
+        return None
+
+    total_own0["own_code"] = OWN_CODE_TOTAL
+    log.info("  [%d] Total-industry rows (own_code=0): %d", year, len(total_own0))
+    return total_own0
+
+
+def _aggregate_sector_rows(
+    df_sectors: pd.DataFrame,
+    fips_col: str,
+    year: int,
+) -> pd.DataFrame | None:
+    """Sum sector employment across ownership codes to produce total-ownership rows.
+
+    For sector codes (23, 31-33, 44-45, etc.), the BLS singlefile does NOT
+    include pre-aggregated own_code=0 rows. We reconstruct them by summing
+    employment and wages across own_codes 1, 2, 3, 5 (federal, state, local,
+    private). This matches what the old per-industry API returned as own_code=0.
+
+    Suppressed rows (disclosure_code="N") are dropped before summing to avoid
+    introducing systematic bias.
+
+    Returns the aggregated DataFrame, or None if no data survives.
+    """
+    if df_sectors.empty:
+        return None
+
+    df_sectors = _drop_suppressed(df_sectors, year, "sector")
+    df_sectors = df_sectors[df_sectors["own_code"].isin(OWN_CODES_TO_SUM)].copy()
+
+    if df_sectors.empty:
+        return None
+
+    # Sum employment and wages by (county, industry, year) across ownership codes
+    agg_cols = {
+        col: "sum"
+        for col in ("annual_avg_estabs", "annual_avg_emplvl", "total_annual_wages")
+        if col in df_sectors.columns
+    }
+    sector_agg = (
+        df_sectors
+        .groupby([fips_col, "industry_code", "year"], as_index=False)
+        .agg(agg_cols)
+    )
+    sector_agg["own_code"] = OWN_CODE_TOTAL  # label reconstructed total as own_code=0
+    log.info("  [%d] Sector aggregated rows: %d", year, len(sector_agg))
+    return sector_agg
 
 
 def filter_singlefile(df: pd.DataFrame, year: int) -> pd.DataFrame:
@@ -313,137 +504,44 @@ def filter_singlefile(df: pd.DataFrame, year: int) -> pd.DataFrame:
           county_fips, own_code, industry_code, year,
           annual_avg_estabs, annual_avg_emplvl, total_annual_wages
     """
-    _empty = pd.DataFrame(
-        columns=[
-            "county_fips",
-            "own_code",
-            "industry_code",
-            "year",
-            "annual_avg_estabs",
-            "annual_avg_emplvl",
-            "total_annual_wages",
-        ]
-    )
-
     if df is None or df.empty:
-        return _empty
+        return _empty_output_frame()
 
-    n_raw = len(df)
-
-    # 1. Annual average rows only
-    if "qtr" in df.columns:
-        df = df[df["qtr"].astype(str).str.strip() == "A"].copy()
-        log.info("  [%d] Annual-average filter: %d → %d rows", year, n_raw, len(df))
-
-    if df.empty:
-        return _empty
-
-    # 2. County FIPS filter
     fips_col = "area_fips"
-    if fips_col in df.columns:
-        df[fips_col] = df[fips_col].astype(str).str.strip().str.zfill(5)
-        valid_fips = (
-            df[fips_col].str.match(r"^\d{5}$")
-            & df[fips_col].str[:2].isin(TARGET_STATE_FIPS)
-            & (df[fips_col].str[2:] != "000")
-        )
-        n_before = len(df)
-        df = df[valid_fips].copy()
-        log.info("  [%d] County FIPS filter: %d → %d rows", year, n_before, len(df))
 
+    # Steps 1-3: row-level filters
+    df = _filter_annual_rows(df, year)
     if df.empty:
-        return _empty
+        return _empty_output_frame()
 
-    # 3. Keep only target industry codes
-    target_codes = set(INDUSTRY_CODES.values())
-    if "industry_code" in df.columns:
-        n_before = len(df)
-        df = df[df["industry_code"].astype(str).str.strip().isin(target_codes)].copy()
-        log.info("  [%d] Industry filter: %d → %d rows", year, n_before, len(df))
-
+    df = _filter_county_fips(df, fips_col, year)
     if df.empty:
-        return _empty
+        return _empty_output_frame()
 
-    # Clean own_code
+    df = _filter_target_industries(df, year)
+    if df.empty:
+        return _empty_output_frame()
+
     if "own_code" in df.columns:
         df["own_code"] = df["own_code"].astype(str).str.strip()
 
-    # 4+5. Separate total-industry rows (industry_code="10") from sector rows
+    # Steps 4-5: separate total-industry (pre-aggregated) from sector codes (needs summing)
     is_total = df["industry_code"].astype(str).str.strip() == TOTAL_INDUSTRY_CODE
-    df_total = df[is_total].copy()
-    df_sectors = df[~is_total].copy()
-
-    frames_out: list[pd.DataFrame] = []
-
-    # 4a. Total-industry: use own_code=0 rows (pre-aggregated by BLS at agglvl=70)
-    if not df_total.empty:
-        total_own0 = df_total[df_total["own_code"] == OWN_CODE_TOTAL].copy()
-        # Drop suppressed
-        if "disclosure_code" in total_own0.columns:
-            n_before = len(total_own0)
-            suppressed = total_own0["disclosure_code"].astype(str).str.strip() == "N"
-            total_own0 = total_own0[~suppressed].copy()
-            if n_before - len(total_own0) > 0:
-                log.info(
-                    "  [%d] Dropped %d suppressed total-industry rows",
-                    year, n_before - len(total_own0),
-                )
-        total_own0["own_code"] = OWN_CODE_TOTAL
-        frames_out.append(total_own0)
-        log.info("  [%d] Total-industry rows (own_code=0): %d", year, len(total_own0))
-
-    # 5a. Sector codes: sum own_codes {1, 2, 3, 5} to get total-ownership figure
-    if not df_sectors.empty:
-        # Drop suppressed rows before summing
-        if "disclosure_code" in df_sectors.columns:
-            n_before = len(df_sectors)
-            suppressed = df_sectors["disclosure_code"].astype(str).str.strip() == "N"
-            df_sectors = df_sectors[~suppressed].copy()
-            n_dropped = n_before - len(df_sectors)
-            if n_dropped > 0:
-                log.info("  [%d] Dropped %d suppressed sector rows", year, n_dropped)
-
-        # Keep only summable ownership codes
-        df_sectors = df_sectors[df_sectors["own_code"].isin(OWN_CODES_TO_SUM)].copy()
-
-        if not df_sectors.empty:
-            # Aggregate by (area_fips, industry_code, year)
-            agg_cols = {
-                "annual_avg_estabs": "sum",
-                "annual_avg_emplvl": "sum",
-                "total_annual_wages": "sum",
-            }
-            # Only aggregate columns that exist
-            agg_cols_available = {
-                col: func for col, func in agg_cols.items() if col in df_sectors.columns
-            }
-
-            sector_agg = (
-                df_sectors.groupby([fips_col, "industry_code", "year"], as_index=False)
-                .agg(agg_cols_available)
-            )
-            sector_agg["own_code"] = OWN_CODE_TOTAL  # label as total
-            frames_out.append(sector_agg)
-            log.info("  [%d] Sector aggregated rows: %d", year, len(sector_agg))
+    frames_out = [
+        f for f in [
+            _aggregate_total_industry(df[is_total].copy(), year),
+            _aggregate_sector_rows(df[~is_total].copy(), fips_col, year),
+        ]
+        if f is not None
+    ]
 
     if not frames_out:
-        return _empty
+        return _empty_output_frame()
 
     combined = pd.concat(frames_out, ignore_index=True)
-
-    # Rename area_fips → county_fips
     combined = combined.rename(columns={fips_col: "county_fips"})
 
-    output_cols = [
-        "county_fips",
-        "own_code",
-        "industry_code",
-        "year",
-        "annual_avg_estabs",
-        "annual_avg_emplvl",
-        "total_annual_wages",
-    ]
-    available_out = [c for c in output_cols if c in combined.columns]
+    available_out = [c for c in OUTPUT_COLUMNS if c in combined.columns]
     return combined[available_out].reset_index(drop=True)
 
 
@@ -485,32 +583,7 @@ def fetch_county_csv(year: int, industry_code: str) -> pd.DataFrame | None:
         log.warning("  Empty CSV for year=%d industry=%s", year, industry_code)
         return None
 
-    # Strip whitespace from column names (BLS sometimes adds spaces)
-    df.columns = [c.strip() for c in df.columns]
-
-    # Select only the columns we need (gracefully handle missing columns)
-    available = [c for c in KEEP_COLUMNS if c in df.columns]
-    missing = [c for c in KEEP_COLUMNS if c not in df.columns]
-    if missing:
-        log.warning("  Missing columns for year=%d industry=%s: %s", year, industry_code, missing)
-    df = df[available].copy()
-
-    # Coerce numeric columns
-    numeric_cols = [
-        "annual_avg_estabs",
-        "annual_avg_emplvl",
-        "total_annual_wages",
-        "annual_avg_wkly_wage",
-        "avg_annual_pay",
-    ]
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # Coerce year to int
-    if "year" in df.columns:
-        df["year"] = pd.to_numeric(df["year"], errors="coerce")
-
+    df = _select_and_coerce_columns(df, context=f"year={year} industry={industry_code}")
     log.info("  Downloaded %d rows", len(df))
     return df
 
@@ -539,26 +612,15 @@ def filter_county_df(
         industry_code, year, annual_avg_estabs, annual_avg_emplvl,
         total_annual_wages.
     """
-    _empty = pd.DataFrame(
-        columns=[
-            "county_fips",
-            "own_code",
-            "industry_code",
-            "year",
-            "annual_avg_estabs",
-            "annual_avg_emplvl",
-            "total_annual_wages",
-        ]
-    )
-
     if df is None or df.empty:
-        return _empty
+        return _empty_output_frame()
 
+    fips_col = "area_fips"
     n_raw = len(df)
 
     # 1. Keep only annual average rows
     if "qtr" in df.columns:
-        df = df[df["qtr"].astype(str).str.strip() == "A"].copy()
+        df = df[df["qtr"].astype(str).str.strip() == ANNUAL_QTR_CODE].copy()
         log.info(
             "  [%d/%s] Annual-average filter: %d → %d rows",
             year, industry_code, n_raw, len(df),
@@ -574,19 +636,17 @@ def filter_county_df(
         )
 
     if df.empty:
-        return _empty
+        return _empty_output_frame()
 
     # 3. Keep only county-level FIPS (5 digits where last 3 are not "000")
     #    State-level records have area_fips like "01000", "12000" (county=000)
     #    US-level record has "US000"
-    fips_col = "area_fips"
     if fips_col in df.columns:
         df[fips_col] = df[fips_col].astype(str).str.strip().str.zfill(5)
-        # Valid county FIPS: 5 digits, numeric, state part in our target set, county != 000
         valid_fips = (
-            df[fips_col].str.match(r"^\d{5}$")
+            df[fips_col].str.match(FIPS_PATTERN)
             & (df[fips_col].str[:2].isin(TARGET_STATE_FIPS))
-            & (df[fips_col].str[2:] != "000")
+            & (df[fips_col].str[2:] != STATE_LEVEL_COUNTY_SUFFIX)
         )
         n_before = len(df)
         df = df[valid_fips].copy()
@@ -596,36 +656,17 @@ def filter_county_df(
         )
 
     if df.empty:
-        return _empty
+        return _empty_output_frame()
 
     # 4. Drop suppressed rows (disclosure_code == "N" means data withheld)
-    if "disclosure_code" in df.columns:
-        n_before = len(df)
-        suppressed = df["disclosure_code"].astype(str).str.strip() == "N"
-        n_suppressed = suppressed.sum()
-        if n_suppressed > 0:
-            log.info(
-                "  [%d/%s] Dropping %d suppressed rows (disclosure_code=N)",
-                year, industry_code, n_suppressed,
-            )
-            df = df[~suppressed].copy()
+    df = _drop_suppressed(df, year, label=f"industry={industry_code}")
 
     if df.empty:
-        return _empty
+        return _empty_output_frame()
 
     # Rename area_fips → county_fips and select output columns
-    df = df.rename(columns={"area_fips": "county_fips"})
-
-    output_cols = [
-        "county_fips",
-        "own_code",
-        "industry_code",
-        "year",
-        "annual_avg_estabs",
-        "annual_avg_emplvl",
-        "total_annual_wages",
-    ]
-    available_out = [c for c in output_cols if c in df.columns]
+    df = df.rename(columns={fips_col: "county_fips"})
+    available_out = [c for c in OUTPUT_COLUMNS if c in df.columns]
     return df[available_out].reset_index(drop=True)
 
 

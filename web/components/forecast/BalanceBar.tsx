@@ -73,10 +73,9 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
   const safeDCount = Math.max(0, Math.min(demSeats, 100 - totalContested - gopSeats));
   const safeRCount = Math.max(0, Math.min(gopSeats, 100 - totalContested - safeDCount));
 
-  // Position of the "51 needed" marker: after demSeats safe segments
-  // The marker sits between segment 50 and 51 (zero-indexed), i.e. at 50% of total 100
-  // We express as a percentage of the full bar width.
-  const markerPct = (demSeats / 100) * 100;
+  // Position of the "51 needed" marker: between segments 50 and 51 (zero-indexed).
+  // Always at 50% — the majority threshold is a fixed structural constant.
+  const markerPct = 50;
 
   // Mobile summary
   const ratingGroups = sorted.reduce<Record<string, SenateRaceData[]>>((acc, race) => {
@@ -128,7 +127,7 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
         {/* Desktop: 100-segment bar (≥768px) */}
         <div
           className="hidden md:block relative w-full"
-          style={{ height: CONTESTED_HEIGHT + 12 }}
+          style={{ height: CONTESTED_HEIGHT + 24 }}
         >
           {/* All 100 segments laid out as a flex row, vertically centered */}
           <div
@@ -171,10 +170,11 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
                         <span
                           className="absolute left-1/2 pointer-events-none select-none"
                           style={{
-                            top: CONTESTED_HEIGHT + 1,
-                            transform: "translateX(-50%) rotate(-90deg)",
-                            transformOrigin: "center center",
-                            fontSize: "8px",
+                            top: CONTESTED_HEIGHT + 2,
+                            transform: "translateX(-50%) rotate(-45deg)",
+                            transformOrigin: "top center",
+                            fontSize: "10px",
+                            fontWeight: 500,
                             lineHeight: 1,
                             color: "var(--color-text-muted)",
                             whiteSpace: "nowrap",
@@ -214,10 +214,16 @@ export function BalanceBar({ races, demSeats, gopSeats }: BalanceBarProps) {
             ))}
           </div>
 
-          {/* "51 needed" marker — spans only the bar height, not the label gutter below */}
+          {/* "51 needed" marker — black line at center, spans full bar height */}
           <div
-            className="absolute top-0 w-px bg-foreground opacity-40 pointer-events-none"
-            style={{ left: `${markerPct}%`, height: CONTESTED_HEIGHT }}
+            className="absolute top-0 pointer-events-none"
+            style={{
+              left: `${markerPct}%`,
+              height: CONTESTED_HEIGHT,
+              width: 2,
+              backgroundColor: "var(--color-text)",
+              transform: "translateX(-50%)",
+            }}
             aria-hidden="true"
           />
         </div>

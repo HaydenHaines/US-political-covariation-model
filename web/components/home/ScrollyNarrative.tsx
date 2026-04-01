@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useScrollZone } from "@/lib/hooks/use-scroll-zone";
 import { RatingBadge } from "@/components/shared/RatingBadge";
 import { MarginDisplay } from "@/components/shared/MarginDisplay";
-import { BalanceBar } from "@/components/forecast/BalanceBar";
 import { SenateScrollySidebar, SenateScrollySidebarMobile } from "@/components/home/SenateScrollySidebar";
 import type { SenateScrollyContextData, SenateRaceData, SenateOverviewData } from "@/lib/api";
 import { DUSTY_INK } from "@/lib/config/palette";
@@ -245,15 +244,6 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
                 not just the ones being polled. Dig into the individual races, or explore the
                 community types the model is actually built on.
               </p>
-            </div>
-
-            {/* Balance bar reprise */}
-            <div className="max-w-2xl mb-8">
-              <BalanceBar
-                races={overviewData.races}
-                demSeats={overviewData.dem_projected}
-                gopSeats={overviewData.gop_projected}
-              />
             </div>
 
             <div className="flex flex-wrap gap-3">

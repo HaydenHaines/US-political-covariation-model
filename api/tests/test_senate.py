@@ -19,6 +19,7 @@ from api.routers.senate import (
     _DEM_CLASS_II_COUNT,
     _GOP_CLASS_II_COUNT,
     _DEM_HOLDOVER_SEATS,
+    _GOP_HOLDOVER_SEATS,
 )
 from api.tests.conftest import _noop_lifespan
 
@@ -74,46 +75,49 @@ class TestRatingSortKey:
 
 class TestBuildHeadline:
     def test_knife_edge(self):
-        """When projected seats are within 2, headline says 'Knife's Edge'."""
-        # DEM_SAFE=47, GOP_SAFE=53. Need dem_favored - gop_favored to bring
-        # the gap to within 2. 6 Dem-leaning races → 53 vs 53 → diff=0.
-        races = [{"rating": "lean_d", "margin": 0.05}] * 6
+        """When projected seats are within 2, headline says 'Knife\'s Edge'."""
+        # Holdovers: _DEM_HOLDOVER_SEATS=33, _GOP_HOLDOVER_SEATS=34 -> diff=-1 -> knife edge.
+        # 1 lean_d race -> 34D vs 34R -> diff=0 -> still knife edge.
+        races = [{"rating": "lean_d", "margin": 0.05}] * 1
         headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Knife" in headline
 
     def test_gop_favored(self):
-        """With no competitive races going Dem, GOP holds its safe-seat lead."""
-        races = [
-            {"rating": "tossup", "margin": 0.01},
-            {"rating": "tossup", "margin": -0.01},
-            {"rating": "tossup", "margin": 0.02},
-        ]
+        """GOP-favored headline requires holdover+wins gap to exceed 2 seats."""
+        # _GOP_HOLDOVER_SEATS(34) - _DEM_HOLDOVER_SEATS(33) = 1 -> within knife-edge range.
+        # Add 2 lean_r races to push GOP to 36, Dem stays 33 -> diff = -3.
+        races = [{"rating": "lean_r", "margin": -0.05}] * 2
         headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Republican" in headline
 
     def test_dem_favored(self):
-        """Enough Dem-favored races to overcome the safe-seat deficit."""
-        # Need 9+ Dem-leaning to get dem_projected=56 vs gop_projected=53, diff=3
-        races = [{"rating": "lean_d", "margin": 0.05}] * 9
+        """Enough Dem-favored races to overcome the holdover deficit."""
+        # _DEM_HOLDOVER_SEATS=33, _GOP_HOLDOVER_SEATS=34.
+        # 4 lean_d -> dem=37 vs gop=34, diff=+3 -> Democrats Favored.
+        races = [{"rating": "lean_d", "margin": 0.05}] * 4
         headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Democrat" in headline
 
     def test_projected_counts_returned(self):
-        """_build_headline returns accurate projected seat counts."""
-        # 6 lean_d races → dem_favored=6, gop_favored=0
-        # dem_projected = 47 + 6 = 53, gop_projected = 53 + 0 = 53
+        """_build_headline returns accurate projected seat counts.
+
+        Projected totals start from HOLDOVER seats (not up in 2026), not
+        the full current chamber. Using DEM_SAFE_SEATS(47)/GOP_SAFE_SEATS(53)
+        as the base double-counts Class II seats (producing 126 instead of 100).
+        """
+        # 6 lean_d races -> dem_favored=6, gop_favored=0
         races = [{"rating": "lean_d", "margin": 0.05}] * 6
         _, _, dem_proj, gop_proj = _build_headline(races)
-        assert dem_proj == DEM_SAFE_SEATS + 6
-        assert gop_proj == GOP_SAFE_SEATS
+        assert dem_proj == _DEM_HOLDOVER_SEATS + 6
+        assert gop_proj == _GOP_HOLDOVER_SEATS
 
     def test_tossups_excluded_from_projections(self):
         """Tossups do not count toward either party's projected total."""
         races = [{"rating": "tossup", "margin": 0.02}] * 5
         _, _, dem_proj, gop_proj = _build_headline(races)
-        # Tossups add 0 to both sides
-        assert dem_proj == DEM_SAFE_SEATS
-        assert gop_proj == GOP_SAFE_SEATS
+        # Tossups add 0 to both sides; baseline is holdover seats not up in 2026
+        assert dem_proj == _DEM_HOLDOVER_SEATS
+        assert gop_proj == _GOP_HOLDOVER_SEATS
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -286,10 +290,14 @@ class TestSenateOverview:
         assert data["gop_seats_safe"] == GOP_SAFE_SEATS
 
     def test_projected_seat_counts_present(self, senate_client):
-        """Projected totals are included and are at least as large as safe totals."""
+        """Projected totals start from holdover seats, not current totals.
+
+        Tossups are excluded from both sides, so D+R <= 100.
+        """
         data = senate_client.get("/api/v1/senate/overview").json()
-        assert data["dem_projected"] >= DEM_SAFE_SEATS
-        assert data["gop_projected"] >= GOP_SAFE_SEATS
+        assert data["dem_projected"] >= _DEM_HOLDOVER_SEATS
+        assert data["gop_projected"] >= _GOP_HOLDOVER_SEATS
+        assert data["dem_projected"] + data["gop_projected"] <= 100
 
     def test_only_senate_races_returned(self, senate_client):
         data = senate_client.get("/api/v1/senate/overview").json()
@@ -662,14 +670,14 @@ class TestOverviewBlend:
         assert isinstance(data["dem_seats"], int)
         assert isinstance(data["rep_seats"], int)
 
-    def test_seat_totals_at_least_safe_counts(self, senate_client):
-        """Projected totals are always >= the safe baseline seat counts."""
+    def test_seat_totals_at_least_holdover_counts(self, senate_client):
+        """Projected totals are always >= the holdover baseline (seats not up in 2026)."""
         data = senate_client.post(
             "/api/v1/forecast/overview/blend",
             json={"model_prior": 60, "state_polls": 30, "national_polls": 10},
         ).json()
-        assert data["dem_seats"] >= DEM_SAFE_SEATS
-        assert data["rep_seats"] >= GOP_SAFE_SEATS
+        assert data["dem_seats"] >= _DEM_HOLDOVER_SEATS
+        assert data["rep_seats"] >= _GOP_HOLDOVER_SEATS
 
     def test_different_weights_accepted(self, senate_client):
         """Any valid weight combination must return 200."""

@@ -30,11 +30,20 @@ interface StateFeatureCollection {
   }[];
 }
 
-/** CONUS-centered initial view, slightly zoomed out to show AK/HI region too. */
+/**
+ * CONUS-centered initial view.
+ *
+ * Latitude shifted north to 39.5° (from 38.5°) so the northeast corner
+ * (Maine ~47°N, Vermont/New Hampshire ~43-44°N) is not clipped on the
+ * 480×300 viewport. Zoom reduced slightly to 2.9 to keep the southern
+ * states (Florida, Texas) fully visible at the same time.
+ *
+ * Issue #99: ME/NH/VT were cropped at the original 38.5°/zoom 3.0 settings.
+ */
 const INITIAL_VIEW_STATE = {
   longitude: -98.0,
-  latitude: 38.5,
-  zoom: 3.0,
+  latitude: 39.5,
+  zoom: 2.9,
   pitch: 0,
   bearing: 0,
 };

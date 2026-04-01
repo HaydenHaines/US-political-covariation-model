@@ -783,15 +783,15 @@ def recalculate_overview_blend(
     national_polls). Iterates over all tracked states, calls the per-race
     recalculate_blend() function for each, and aggregates projected seat totals.
 
-    Returns dem_seats and rep_seats as full chamber projections (i.e., including
-    the DEM_SAFE_SEATS and GOP_SAFE_SEATS constants), so the BalanceBar can be
+    Returns dem_seats and rep_seats as projected chamber totals (holdover seats
+    not up in 2026 + favored contested seats), so the BalanceBar can be
     updated without the frontend knowing those constants.
     """
     # Local import to avoid circular dependency (senate.py never imports forecast.py)
     from api.routers.senate import (
         SENATE_2026_STATES,
-        DEM_SAFE_SEATS,
-        GOP_SAFE_SEATS,
+        _DEM_HOLDOVER_SEATS,
+        _GOP_HOLDOVER_SEATS,
         _CLASS_II_INCUMBENT,
         _DEFAULT_SAFE_MARGIN,
         _margin_to_rating,
@@ -832,8 +832,8 @@ def recalculate_overview_blend(
         ))
 
     return OverviewBlendResult(
-        dem_seats=DEM_SAFE_SEATS + dem_favored,
-        rep_seats=GOP_SAFE_SEATS + gop_favored,
+        dem_seats=_DEM_HOLDOVER_SEATS + dem_favored,
+        rep_seats=_GOP_HOLDOVER_SEATS + gop_favored,
         races=race_summaries,
     )
 

@@ -19,6 +19,17 @@ const ZONE_ORDER = [
 
 type Zone = (typeof ZONE_ORDER)[number];
 
+/** Short labels for each zone — displayed next to the desktop sidebar. */
+const ZONE_LABELS: Record<Zone, string> = {
+  not_up_d:    "D holdovers",
+  safe_up_d:   "Safe D",
+  contested_d: "Lean D",
+  tossup:      "Tossup",
+  contested_r: "Lean R",
+  safe_up_r:   "Safe R",
+  not_up_r:    "R holdovers",
+};
+
 /** Dusty Ink hex colors per zone — maps narrative zones to the partisan palette. */
 const ZONE_COLORS: Record<Zone, string> = {
   not_up_d:    DUSTY_INK.safeD,
@@ -60,18 +71,29 @@ export function SenateScrollySidebar({
     }
   }
 
+  // Build zone boundary info for label placement
+  const zoneBoundaries: { zone: Zone; start: number; count: number }[] = [];
+  let segIdx = 0;
+  for (const zone of ZONE_ORDER) {
+    const count = zoneCounts[zone] ?? 0;
+    if (count > 0) {
+      zoneBoundaries.push({ zone, start: segIdx, count });
+      segIdx += count;
+    }
+  }
+
   return (
     <>
-      {/* Desktop: vertical sidebar */}
+      {/* Desktop: vertical sidebar with zone labels */}
       <aside
         className={cn(
-          "sticky top-16 self-start h-[calc(100vh-4rem)] w-5 flex-col gap-px overflow-hidden rounded",
+          "sticky top-16 self-start h-[calc(100vh-4rem)] flex items-stretch gap-2",
           className,
         )}
-        aria-label="Senate seat map sidebar"
-        aria-hidden="true"
+        aria-label="Senate seat breakdown by category"
       >
-        <div className="flex h-full flex-col gap-px">
+        {/* Segment strip */}
+        <div className="w-5 flex flex-col gap-px overflow-hidden rounded">
           {segments.map((seg, i) => (
             <div
               key={i}
@@ -82,6 +104,31 @@ export function SenateScrollySidebar({
               }}
             />
           ))}
+        </div>
+
+        {/* Zone labels — positioned relative to segment blocks */}
+        <div className="relative w-20 text-[10px] leading-tight">
+          {zoneBoundaries.map(({ zone, start, count }) => {
+            const totalSeats = segments.length || 100;
+            const topPct = (start / totalSeats) * 100;
+            const heightPct = (count / totalSeats) * 100;
+            const isActive = isSegmentActive(zone, activeZone);
+            return (
+              <span
+                key={zone}
+                className="absolute left-0 flex items-center transition-opacity duration-300 select-none"
+                style={{
+                  top: `${topPct}%`,
+                  height: `${heightPct}%`,
+                  color: ZONE_COLORS[zone],
+                  opacity: isActive ? 1 : 0.3,
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {ZONE_LABELS[zone]}
+              </span>
+            );
+          })}
         </div>
       </aside>
 

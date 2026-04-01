@@ -285,7 +285,8 @@ class TestScrollyContextEndpoint:
             f"Missing keys: {expected_keys - set(sc.keys())}"
         )
 
-    def test_baseline_year_is_2024(self):
+    def test_baseline_year_is_2018(self):
+        """Structural context references 2018 midterm as the baseline environment."""
         con = _build_minimal_db_with_predictions()
         test_app = create_app(lifespan_override=_noop_lifespan)
         test_app.state.db = con
@@ -294,10 +295,10 @@ class TestScrollyContextEndpoint:
         with TestClient(test_app, raise_server_exceptions=True) as c:
             data = c.get("/api/v1/senate/scrolly-context").json()
         con.close()
-        assert data["structural_context"]["baseline_year"] == 2024
+        assert data["structural_context"]["baseline_year"] == 2018
 
-    def test_baseline_label_is_r_plus(self):
-        """2024 national Dem share 0.4841 < 0.5 → baseline_label starts with R+."""
+    def test_baseline_label_is_d_plus(self):
+        """2018 national Dem share 0.534 > 0.5 → baseline_label starts with D+."""
         con = _build_minimal_db_with_predictions()
         test_app = create_app(lifespan_override=_noop_lifespan)
         test_app.state.db = con
@@ -306,7 +307,7 @@ class TestScrollyContextEndpoint:
         with TestClient(test_app, raise_server_exceptions=True) as c:
             data = c.get("/api/v1/senate/scrolly-context").json()
         con.close()
-        assert data["structural_context"]["baseline_label"].startswith("R+")
+        assert data["structural_context"]["baseline_label"].startswith("D+")
 
     def test_not_up_states_are_sorted(self):
         con = _build_minimal_db_with_predictions()

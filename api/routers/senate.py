@@ -105,6 +105,21 @@ _PARTY_COLORS = {
 _UNCONTESTED_FALLBACK_COLOR = "#b5a995"  # neutral beige — uncontested seats with no delegation data
 _PARTY_UNKNOWN_COLOR = "#eae7e2"  # off-white — unknown delegation party
 
+# Derived seat counts — computed from _CLASS_II_INCUMBENT so they stay in sync
+# automatically if the incumbent map is ever updated.
+#
+# Class II (up in 2026): 33 seats.
+# Holdovers (not up in 2026): 100 - 33 = 67 seats.
+#   Dem holdovers: DEM_SAFE_SEATS(47) − Dem Class II seats up(14)  = 33
+#   GOP holdovers: GOP_SAFE_SEATS(53) − GOP Class II seats up(19)  = 34
+#
+# These are the correct baselines for projected-seat arithmetic.  Using
+# DEM_SAFE_SEATS/GOP_SAFE_SEATS directly double-counts the Class II seats.
+_DEM_CLASS_II_COUNT = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "D")
+_GOP_CLASS_II_COUNT = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "R")
+_DEM_HOLDOVER_SEATS = DEM_SAFE_SEATS - _DEM_CLASS_II_COUNT   # seats not up in 2026
+_GOP_HOLDOVER_SEATS = GOP_SAFE_SEATS - _GOP_CLASS_II_COUNT   # seats not up in 2026
+
 
 def _rating_to_zone(rating: str, incumbent: str) -> str:
     """Map a race rating + incumbent party to a scrollytelling zone label.
@@ -175,10 +190,17 @@ def _build_headline(races: list[dict]) -> tuple[str, str, int, int]:
     competitive = [r for r in races if r["rating"] in ("tossup", "lean_d", "lean_r")]
     n_competitive = len(competitive)
 
-    # Projected totals: off-cycle safe seats + contested seats the model favors.
-    # Tossups intentionally excluded from both sides — their outcome is uncertain.
-    dem_projected = DEM_SAFE_SEATS + dem_favored
-    gop_projected = GOP_SAFE_SEATS + gop_favored
+    # Projected totals: holdover seats (not up in 2026) + Class II seats the
+    # model clearly favors.  Tossups excluded from both sides — their outcome
+    # is uncertain.
+    #
+    # IMPORTANT: use _DEM_HOLDOVER_SEATS / _GOP_HOLDOVER_SEATS, NOT
+    # DEM_SAFE_SEATS / GOP_SAFE_SEATS.  The latter counts ALL current Dem/GOP
+    # seats including Class II seats that are up in 2026; adding dem_favored /
+    # gop_favored on top would double-count those seats and produce totals like
+    # 55D + 71R = 126 instead of the correct 100.
+    dem_projected = _DEM_HOLDOVER_SEATS + dem_favored
+    gop_projected = _GOP_HOLDOVER_SEATS + gop_favored
 
     seat_diff = dem_projected - gop_projected
 
@@ -352,8 +374,7 @@ def get_senate_overview(
     # Note: SENATE_DELEGATION has 51 entries (50 states + DC); each entry represents
     # the *overall* delegation, which has 2 seats.  But we want seats not up in 2026,
     # which is 100 - 33 = 67 seats total (34D + 33R computed from _CLASS_II_INCUMBENT).
-    # We track those via _DEM_HOLDOVER_SEATS and GOP_SAFE_SEATS - _GOP_CLASS_II_COUNT.
-    _gop_holdover = GOP_SAFE_SEATS - _GOP_CLASS_II_COUNT
+    # We track those via _DEM_HOLDOVER_SEATS and _GOP_HOLDOVER_SEATS.
     zone_counts: dict[str, int] = {
         "not_up_d": _DEM_HOLDOVER_SEATS,
         "safe_up_d": sum(1 for r in races if r["zone"] == "safe_up_d"),
@@ -361,7 +382,7 @@ def get_senate_overview(
         "tossup": sum(1 for r in races if r["zone"] == "tossup"),
         "contested_r": sum(1 for r in races if r["zone"] == "contested_r"),
         "safe_up_r": sum(1 for r in races if r["zone"] == "safe_up_r"),
-        "not_up_r": _gop_holdover,
+        "not_up_r": _GOP_HOLDOVER_SEATS,
     }
 
     return {
@@ -403,11 +424,8 @@ _STATE_STD_FLOOR = 0.035      # minimum state-level std
 _STATE_STD_CAP = 0.15         # hard cap -- beyond this, the race is essentially a coin flip
 _STATE_STD_FALLBACK = 0.065   # used when vote-weighted std is unavailable
 
-# Derived from _CLASS_II_INCUMBENT above -- count at import time so the
-# constant stays in sync with the incumbent map automatically.
-_DEM_CLASS_II_COUNT = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "D")
-_GOP_CLASS_II_COUNT = sum(1 for p in _CLASS_II_INCUMBENT.values() if p == "R")
-_DEM_HOLDOVER_SEATS = DEM_SAFE_SEATS - _DEM_CLASS_II_COUNT  # seats not up in 2026
+# (_DEM_CLASS_II_COUNT, _GOP_CLASS_II_COUNT, _DEM_HOLDOVER_SEATS, _GOP_HOLDOVER_SEATS
+# are defined near the top of this module, right after the color constants.)
 
 # Uncertainty for "safe" seats: the model hasn't predicted these, but we treat
 # the incumbent as a strong favorite.  A 5pp std (sigma=0.05) centered at +/-0.25
@@ -726,12 +744,33 @@ def get_scrolly_context(
             "slug": slug,
             "rating": rating,
             "margin": round(margin, 4),
-            "n_polls": 0,  # not needed for scrolly context
+            "n_polls": 0,  # filled in below after poll_counts lookup
             "zone": zone,
         })
 
+    # ── Poll counts for competitive races ────────────────────────────────────
+    # The battleground race cards in the scrollytelling section display n_polls.
+    # Fetch the same counts the overview endpoint uses so both views are in sync.
+    try:
+        scrolly_polls_df = db.execute(
+            """
+            SELECT race, COUNT(*) AS n_polls
+            FROM polls
+            WHERE LOWER(race) LIKE '%senate%'
+            GROUP BY race
+            """
+        ).fetchdf()
+    except Exception:
+        scrolly_polls_df = pd.DataFrame()
+
+    scrolly_poll_counts: dict[str, int] = {}
+    for _, poll_row in scrolly_polls_df.iterrows():
+        scrolly_poll_counts[str(poll_row["race"])] = int(poll_row["n_polls"])
+
+    for r in races:
+        r["n_polls"] = scrolly_poll_counts.get(r["race"], 0)
+
     # ── Zone counts ──────────────────────────────────────────────────────────
-    _gop_holdover = GOP_SAFE_SEATS - _GOP_CLASS_II_COUNT
     zone_counts: dict[str, int] = {
         "not_up_d": _DEM_HOLDOVER_SEATS,
         "safe_up_d": sum(1 for r in races if r["zone"] == "safe_up_d"),
@@ -739,7 +778,7 @@ def get_scrolly_context(
         "tossup": sum(1 for r in races if r["zone"] == "tossup"),
         "contested_r": sum(1 for r in races if r["zone"] == "contested_r"),
         "safe_up_r": sum(1 for r in races if r["zone"] == "safe_up_r"),
-        "not_up_r": _gop_holdover,
+        "not_up_r": _GOP_HOLDOVER_SEATS,
     }
 
     # ── Not-up states ────────────────────────────────────────────────────────
@@ -762,12 +801,18 @@ def get_scrolly_context(
     seats_needed_for_majority = 51
     structural_gap = seats_needed_for_majority - total_dem_projected
 
-    baseline_label = _compute_baseline_label(PRES_DEM_SHARE_2024_NATIONAL)
+    # The structural argument uses 2018 as the reference environment: the last
+    # midterm before 2026, and the strongest recent D midterm performance.
+    # Democrats won 53.4% of the national two-party House vote in 2018 (D+6.8).
+    # Source: MIT Election Data and Science Lab House Popular Vote Totals.
+    # We ask: even if Democrats repeat 2018's strong environment, do they win?
+    _MIDTERM_2018_DEM_TWO_PARTY: float = 0.534
+    baseline_label = _compute_baseline_label(_MIDTERM_2018_DEM_TWO_PARTY)
 
     structural_context = {
-        "baseline_year": 2024,
+        "baseline_year": 2018,
         "baseline_label": baseline_label,
-        "baseline_dem_two_party": PRES_DEM_SHARE_2024_NATIONAL,
+        "baseline_dem_two_party": _MIDTERM_2018_DEM_TWO_PARTY,
         "dem_wins_at_baseline": dem_wins_at_baseline,
         "dem_holdover_seats": _DEM_HOLDOVER_SEATS,
         "total_dem_projected": total_dem_projected,

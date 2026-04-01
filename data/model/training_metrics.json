@@ -1,0 +1,38 @@
+{
+  "date_trained": "2026-03-31",
+  "n_training_samples": 40,
+  "n_counties_output": 40,
+  "n_features": 11,
+  "n_type_scores": 6,
+  "n_demo_features": 4,
+  "ridge": {
+    "alpha": 1000000.0,
+    "train_r2": 8.320707477693645e-06
+  },
+  "hgb": {
+    "train_r2": 0.0,
+    "max_iter": 800,
+    "learning_rate": 0.1,
+    "max_depth": 5,
+    "min_samples_leaf": 30,
+    "l2_regularization": 1.0,
+    "random_state": 42
+  },
+  "ensemble": {
+    "method": "50pct_ridge_50pct_hgb",
+    "ridge_weight": 0.5,
+    "hgb_weight": 0.5,
+    "pred_min": 0.5146279172781285,
+    "pred_max": 0.5146326504659814,
+    "pred_mean": 0.5146302634261567
+  },
+  "loo_r_ridge": 0.533,
+  "loo_r_ensemble": 0.711,
+  "target": "pres_dem_share_2024",
+  "history_years": [
+    2008,
+    2012,
+    2016,
+    2020
+  ]
+}

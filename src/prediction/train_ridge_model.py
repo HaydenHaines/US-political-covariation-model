@@ -29,8 +29,6 @@ import numpy as np
 import pandas as pd
 from sklearn.linear_model import RidgeCV
 
-from src.prediction.county_priors import WEIGHTED_PRIOR_DECAY
-
 log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -112,7 +110,6 @@ def compute_county_historical_mean(
     county_fips: list[str],
     assembled_dir: Path,
     years: list[int] = None,
-    decay: float | None = None,
 ) -> np.ndarray:
     """Compute each county's mean Dem share across historical elections.
 
@@ -124,10 +121,6 @@ def compute_county_historical_mean(
         Directory with medsl_county_presidential_{year}.parquet files.
     years : list[int] or None
         Years to average over. Defaults to _HISTORY_YEARS (excludes 2024).
-    decay : float or None
-        If not None, compute exponentially-weighted mean where
-        ``w = decay^((max_year - year) / 4)`` (most recent year gets w=1).
-        If None, compute simple (unweighted) mean (original behavior).
 
     Returns
     -------
@@ -139,8 +132,7 @@ def compute_county_historical_mean(
 
     N = len(county_fips)
     fips_set = set(county_fips)
-    # Store (year, share) tuples so decay weighting has year info
-    dem_shares: dict[str, list[tuple[int, float]]] = {f: [] for f in county_fips}
+    dem_shares: dict[str, list[float]] = {f: [] for f in county_fips}
 
     for year in years:
         path = assembled_dir / f"medsl_county_presidential_{year}.parquet"
@@ -155,26 +147,13 @@ def compute_county_historical_mean(
         for _, row in df.iterrows():
             fips = row["county_fips"]
             if fips in fips_set and pd.notna(row[share_col]):
-                dem_shares[fips].append((year, float(row[share_col])))
+                dem_shares[fips].append(float(row[share_col]))
 
     means = np.full(N, 0.45)
     for i, fips in enumerate(county_fips):
         vals = dem_shares[fips]
-        if not vals:
-            continue
-        if decay is not None:
-            # Exponentially-weighted mean: most recent year in the data gets w=1
-            max_year = max(y for y, _ in vals)
-            w_sum = 0.0
-            ws_sum = 0.0
-            for year, share in vals:
-                w = decay ** ((max_year - year) / 4)
-                w_sum += w
-                ws_sum += w * share
-            means[i] = ws_sum / w_sum
-        else:
-            # Simple mean (original behavior)
-            means[i] = float(np.mean([s for _, s in vals]))
+        if vals:
+            means[i] = float(np.mean(vals))
     return means
 
 
@@ -241,16 +220,8 @@ def train_and_save(
     log.info("Demographics: %d counties, %d features", len(demo_df), n_demo)
 
     # ── Compute county historical mean (2008-2020, excludes 2024 target) ────
-    # Uses exponential decay weighting so recent elections have more influence
-    # on the feature fed to Ridge, consistent with weighted priors elsewhere.
-    log.info(
-        "Computing county historical mean Dem share (years: %s, decay: %s)",
-        _HISTORY_YEARS,
-        WEIGHTED_PRIOR_DECAY,
-    )
-    county_mean = compute_county_historical_mean(
-        county_fips, assembled_dir, decay=WEIGHTED_PRIOR_DECAY
-    )
+    log.info("Computing county historical mean Dem share (years: %s)", _HISTORY_YEARS)
+    county_mean = compute_county_historical_mean(county_fips, assembled_dir)
 
     # ── Load 2024 target ─────────────────────────────────────────────────────
     log.info("Loading 2024 presidential Dem share (target)")

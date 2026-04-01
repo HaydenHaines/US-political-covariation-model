@@ -185,28 +185,6 @@ class TestComputeCountyHistoricalMean:
         result = compute_county_historical_mean(["00001"], tmp_path, years=[2016])
         np.testing.assert_allclose(result[0], 0.55)
 
-    def test_compute_county_historical_mean_weighted(self, tmp_path):
-        """With decay, recent elections get more weight."""
-        from src.prediction.train_ridge_model import compute_county_historical_mean
-
-        fips = ["01001"]
-        for year, share in [(2008, 0.40), (2012, 0.40), (2016, 0.40), (2020, 0.60)]:
-            df = pd.DataFrame({"county_fips": fips, f"pres_dem_share_{year}": [share]})
-            df.to_parquet(
-                tmp_path / f"medsl_county_presidential_{year}.parquet", index=False
-            )
-
-        result_unweighted = compute_county_historical_mean(
-            fips, tmp_path, years=[2008, 2012, 2016, 2020]
-        )
-        np.testing.assert_allclose(result_unweighted, [0.45], atol=1e-6)
-
-        result_weighted = compute_county_historical_mean(
-            fips, tmp_path, years=[2008, 2012, 2016, 2020], decay=0.7
-        )
-        # 2020 (0.60) has highest weight, so weighted mean > simple mean (0.45)
-        assert result_weighted[0] > 0.47
-
 
 # ---------------------------------------------------------------------------
 # train_and_save integration tests

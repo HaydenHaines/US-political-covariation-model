@@ -68,6 +68,13 @@ _PRIOR_MAX: float = 0.99
 # At alpha=10 the model is meaningfully regularized but still tracks the data.
 _DEFAULT_RIDGE_ALPHA: float = 10.0
 
+# Minimum historical cycles needed to fit the four-predictor Ridge model.
+_MIN_TRAINING_RECORDS: int = 4
+
+# Convert Ridge output (percentage points) to Dem-share fraction for use in
+# the county prior pipeline (same units as generic ballot shift).
+_PP_TO_FRACTION: float = 0.01
+
 
 # ---------------------------------------------------------------------------
 # Data structures
@@ -177,6 +184,39 @@ class _HistoricalRecord:
     dem_house_share_change_pp: float
 
 
+_HISTORY_REQUIRED_COLS = {
+    "year", "pres_party", "pres_net_approval_oct",
+    "gdp_q2_growth_pct", "unemployment_oct", "cpi_yoy_oct",
+    "dem_house_share_change_pp",
+}
+
+
+def _validate_history_csv_columns(reader: csv.DictReader) -> None:
+    """Raise ValueError if the CSV is empty or missing required columns."""
+    if reader.fieldnames is None:
+        raise ValueError("CSV appears to be empty")
+    missing = _HISTORY_REQUIRED_COLS - set(reader.fieldnames)
+    if missing:
+        raise ValueError(f"midterm_history.csv missing columns: {missing}")
+
+
+def _parse_history_row(row: dict) -> Optional[_HistoricalRecord]:
+    """Parse one CSV row into a _HistoricalRecord; return None and log on error."""
+    try:
+        return _HistoricalRecord(
+            year=int(row["year"]),
+            pres_party=row["pres_party"].strip(),
+            pres_net_approval_oct=float(row["pres_net_approval_oct"]),
+            gdp_q2_growth_pct=float(row["gdp_q2_growth_pct"]),
+            unemployment_oct=float(row["unemployment_oct"]),
+            cpi_yoy_oct=float(row["cpi_yoy_oct"]),
+            dem_house_share_change_pp=float(row["dem_house_share_change_pp"]),
+        )
+    except (ValueError, KeyError) as exc:
+        log.warning("Skipping malformed row in midterm_history.csv (year=%s): %s", row.get("year"), exc)
+        return None
+
+
 def load_historical_data(
     history_path: Path | str | None = None,
 ) -> list[_HistoricalRecord]:
@@ -211,36 +251,14 @@ def load_historical_data(
             "gdp_q2_growth_pct, unemployment_oct, cpi_yoy_oct, dem_house_share_change_pp"
         )
 
-    required_cols = {
-        "year", "pres_party", "pres_net_approval_oct",
-        "gdp_q2_growth_pct", "unemployment_oct", "cpi_yoy_oct",
-        "dem_house_share_change_pp",
-    }
-
     records: list[_HistoricalRecord] = []
     with history_path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        if reader.fieldnames is None:
-            raise ValueError("CSV appears to be empty")
-        missing = required_cols - set(reader.fieldnames)
-        if missing:
-            raise ValueError(f"midterm_history.csv missing columns: {missing}")
-
+        _validate_history_csv_columns(reader)
         for row in reader:
-            try:
-                rec = _HistoricalRecord(
-                    year=int(row["year"]),
-                    pres_party=row["pres_party"].strip(),
-                    pres_net_approval_oct=float(row["pres_net_approval_oct"]),
-                    gdp_q2_growth_pct=float(row["gdp_q2_growth_pct"]),
-                    unemployment_oct=float(row["unemployment_oct"]),
-                    cpi_yoy_oct=float(row["cpi_yoy_oct"]),
-                    dem_house_share_change_pp=float(row["dem_house_share_change_pp"]),
-                )
-            except (ValueError, KeyError) as exc:
-                log.warning("Skipping malformed row in midterm_history.csv (year=%s): %s", row.get("year"), exc)
-                continue
-            records.append(rec)
+            rec = _parse_history_row(row)
+            if rec is not None:
+                records.append(rec)
 
     records.sort(key=lambda r: r.year)
     log.debug("Loaded %d historical midterm records from %s", len(records), history_path)
@@ -333,37 +351,14 @@ class FundamentalsModel:
         intercept = y_mean - X_mean @ coef
         return coef, intercept
 
-    def fit(self, records: list[_HistoricalRecord]) -> "FundamentalsModel":
-        """Fit the Ridge model on historical records and compute LOO RMSE.
+    def _compute_loo_rmse(self, X: np.ndarray, y: np.ndarray) -> float:
+        """Compute leave-one-out RMSE as the model's uncertainty estimate.
 
-        Parameters
-        ----------
-        records:
-            Output of ``load_historical_data()``.  Must have at least 4
-            observations (one per feature); more is strongly recommended.
-
-        Returns
-        -------
-        self
-
-        Raises
-        ------
-        ValueError
-            If fewer than 4 records are provided.
+        LOO is used instead of in-sample residuals because N~13 makes in-sample
+        metrics wildly optimistic.  Each fold trains on N-1 points and predicts
+        the held-out point; RMSE is taken over all N residuals.
         """
-        if len(records) < 4:
-            raise ValueError(
-                f"Need at least 4 historical midterm cycles to fit; got {len(records)}."
-            )
-
-        X, y = self._build_feature_matrix(records)
-        n = len(records)
-
-        # Full-sample fit
-        self.coef_, self.intercept_ = self._ridge_fit(X, y, self.alpha)
-        self.n_training_ = n
-
-        # Leave-one-out validation
+        n = len(y)
         loo_residuals: list[float] = []
         for i in range(n):
             mask = np.ones(n, dtype=bool)
@@ -373,8 +368,39 @@ class FundamentalsModel:
             coef_i, intercept_i = self._ridge_fit(X_train, y_train, self.alpha)
             y_pred = float((X_test @ coef_i).item() + intercept_i)
             loo_residuals.append(y_pred - float(y_test))
+        return float(np.sqrt(np.mean(np.array(loo_residuals) ** 2)))
 
-        self.loo_rmse_ = float(np.sqrt(np.mean(np.array(loo_residuals) ** 2)))
+    def fit(self, records: list[_HistoricalRecord]) -> "FundamentalsModel":
+        """Fit the Ridge model on historical records and compute LOO RMSE.
+
+        Parameters
+        ----------
+        records:
+            Output of ``load_historical_data()``.  Must have at least
+            ``_MIN_TRAINING_RECORDS`` observations (one per feature); more is
+            strongly recommended.
+
+        Returns
+        -------
+        self
+
+        Raises
+        ------
+        ValueError
+            If fewer than ``_MIN_TRAINING_RECORDS`` records are provided.
+        """
+        if len(records) < _MIN_TRAINING_RECORDS:
+            raise ValueError(
+                f"Need at least {_MIN_TRAINING_RECORDS} historical midterm cycles to fit; "
+                f"got {len(records)}."
+            )
+
+        X, y = self._build_feature_matrix(records)
+        n = len(records)
+
+        self.coef_, self.intercept_ = self._ridge_fit(X, y, self.alpha)
+        self.n_training_ = n
+        self.loo_rmse_ = self._compute_loo_rmse(X, y)
         self.is_fitted_ = True
 
         log.info(
@@ -461,6 +487,44 @@ class FundamentalsModel:
 # Snapshot loading
 # ---------------------------------------------------------------------------
 
+_SNAPSHOT_REQUIRED_KEYS = {
+    "cycle", "in_party", "approval_net_oct",
+    "gdp_q2_growth_pct", "unemployment_oct", "cpi_yoy_oct",
+}
+
+
+def _validate_snapshot_json(raw: dict, snapshot_path: Path) -> str:
+    """Validate required keys and in_party value; return normalised in_party.
+
+    Raises
+    ------
+    ValueError
+        If required keys are missing or in_party is not "D" or "R".
+    """
+    missing = _SNAPSHOT_REQUIRED_KEYS - set(raw.keys())
+    if missing:
+        raise ValueError(f"snapshot JSON missing required keys: {missing}")
+
+    in_party = raw["in_party"].strip().upper()
+    if in_party not in {"D", "R"}:
+        raise ValueError(f"in_party must be 'D' or 'R', got {in_party!r}")
+
+    return in_party
+
+
+def _parse_snapshot_json(raw: dict, in_party: str) -> FundamentalsSnapshot:
+    """Build a FundamentalsSnapshot from a validated raw JSON dict."""
+    return FundamentalsSnapshot(
+        cycle=int(raw["cycle"]),
+        in_party=in_party,
+        approval_net_oct=float(raw["approval_net_oct"]),
+        gdp_q2_growth_pct=float(raw["gdp_q2_growth_pct"]),
+        unemployment_oct=float(raw["unemployment_oct"]),
+        cpi_yoy_oct=float(raw["cpi_yoy_oct"]),
+        consumer_sentiment=raw.get("consumer_sentiment"),
+        source_notes=raw.get("source_notes", {}),
+    )
+
 
 def load_fundamentals_snapshot(
     snapshot_path: Path | str | None = None,
@@ -498,28 +562,8 @@ def load_fundamentals_snapshot(
     with snapshot_path.open(encoding="utf-8") as f:
         raw = json.load(f)
 
-    required_keys = {
-        "cycle", "in_party", "approval_net_oct",
-        "gdp_q2_growth_pct", "unemployment_oct", "cpi_yoy_oct",
-    }
-    missing = required_keys - set(raw.keys())
-    if missing:
-        raise ValueError(f"snapshot JSON missing required keys: {missing}")
-
-    in_party = raw["in_party"].strip().upper()
-    if in_party not in {"D", "R"}:
-        raise ValueError(f"in_party must be 'D' or 'R', got {in_party!r}")
-
-    snapshot = FundamentalsSnapshot(
-        cycle=int(raw["cycle"]),
-        in_party=in_party,
-        approval_net_oct=float(raw["approval_net_oct"]),
-        gdp_q2_growth_pct=float(raw["gdp_q2_growth_pct"]),
-        unemployment_oct=float(raw["unemployment_oct"]),
-        cpi_yoy_oct=float(raw["cpi_yoy_oct"]),
-        consumer_sentiment=raw.get("consumer_sentiment"),
-        source_notes=raw.get("source_notes", {}),
-    )
+    in_party = _validate_snapshot_json(raw, snapshot_path)
+    snapshot = _parse_snapshot_json(raw, in_party)
 
     log.debug(
         "Loaded fundamentals snapshot: cycle=%d in_party=%s approval=%.1f gdp=%.1f unemp=%.1f cpi=%.1f",
@@ -533,6 +577,33 @@ def load_fundamentals_snapshot(
 # ---------------------------------------------------------------------------
 # Main compute function
 # ---------------------------------------------------------------------------
+
+
+def _build_fundamentals_info(
+    model: FundamentalsModel,
+    total_pp: float,
+    approval_pp: float,
+    gdp_pp: float,
+    unemp_pp: float,
+    cpi_pp: float,
+) -> FundamentalsInfo:
+    """Convert per-component pp outputs from the Ridge model into a FundamentalsInfo.
+
+    All Ridge outputs are in percentage-point units (Dem House share change).
+    We multiply by _PP_TO_FRACTION to produce Dem-share fractions compatible
+    with the county prior pipeline and generic ballot shift machinery.
+    """
+    return FundamentalsInfo(
+        shift=total_pp * _PP_TO_FRACTION,
+        approval_contribution=approval_pp * _PP_TO_FRACTION,
+        gdp_contribution=gdp_pp * _PP_TO_FRACTION,
+        unemployment_contribution=unemp_pp * _PP_TO_FRACTION,
+        cpi_contribution=cpi_pp * _PP_TO_FRACTION,
+        intercept_contribution=model.intercept_ * _PP_TO_FRACTION,
+        loo_rmse=model.loo_rmse_ * _PP_TO_FRACTION,
+        n_training=model.n_training_,
+        source="fitted_ridge",
+    )
 
 
 def compute_fundamentals_shift(
@@ -579,22 +650,7 @@ def compute_fundamentals_shift(
         unemployment=snapshot.unemployment_oct,
         cpi_yoy=snapshot.cpi_yoy_oct,
     )
-    intercept_pp = _model.intercept_
-
-    # Convert pp → fraction for compatibility with county prior pipeline.
-    scale = 0.01
-
-    info = FundamentalsInfo(
-        shift=total_pp * scale,
-        approval_contribution=approval_pp * scale,
-        gdp_contribution=gdp_pp * scale,
-        unemployment_contribution=unemp_pp * scale,
-        cpi_contribution=cpi_pp * scale,
-        intercept_contribution=intercept_pp * scale,
-        loo_rmse=_model.loo_rmse_ * scale,
-        n_training=_model.n_training_,
-        source="fitted_ridge",
-    )
+    info = _build_fundamentals_info(_model, total_pp, approval_pp, gdp_pp, unemp_pp, cpi_pp)
 
     log.info(
         "Fundamentals shift: %.4f (%.2f pp) | approval=%.4f gdp=%.4f unemp=%.4f cpi=%.4f | LOO RMSE=%.4f",

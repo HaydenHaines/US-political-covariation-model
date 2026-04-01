@@ -234,7 +234,12 @@ types:
   holdout_r_target: 0.90
   temperature: 10.0
   presidential_weight: 8.0
-  # pca_components: 15  # PCA tested (99.4% var retained at 15 dims) but hurts coherence 0.783→0.613. New features alone improve Ridge+Demo LOO r 0.671→0.674.
+  # pca_components: 15  # PCA retested exhaustively in scripts/exp_pca_clustering.py (2026-04-01, issue #93).
+  # Full sweep 5–25 components + UMAP: no meaningful gain. Best PCA (n=20, 99.9% var): holdout r=0.7016 (+0.003 vs baseline 0.698).
+  # Most n_components settings HURT. UMAP collapses to r~0.47 — unsuitable for this data.
+  # Verdict: raw 33-dim features are optimal. PCA removes temporal structure (college realignment 2012-16)
+  # that KMeans uses to differentiate types. The high PCA correlation (6 dims = 96.4% var) reflects
+  # electoral correlation, not redundancy — it IS the signal. Close this issue.
 census:
   decennial_years:
   - 2000

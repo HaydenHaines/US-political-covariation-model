@@ -1,6 +1,6 @@
 {
   "overall": {
-    "loo_r": 0.711,
+    "loo_r": 0.732,
     "holdout_r": 0.698,
     "coherence": 0.783,
     "rmse": 0.073,
@@ -19,6 +19,6 @@
     {"method": "Type-mean baseline", "loo_r": 0.448},
     {"method": "Ridge (scores only)", "loo_r": 0.533},
     {"method": "Ridge (all features)", "loo_r": 0.671},
-    {"method": "Ridge+HGB ensemble", "loo_r": 0.711}
+    {"method": "Ridge+HGB ensemble", "loo_r": 0.732}
   ]
 }

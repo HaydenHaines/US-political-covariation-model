@@ -18,7 +18,7 @@
   "method_comparison": [
     {"method": "Type-mean baseline", "loo_r": 0.448},
     {"method": "Ridge (scores only)", "loo_r": 0.533},
-    {"method": "Ridge (all features)", "loo_r": 0.671},
+    {"method": "Ridge (all features)", "loo_r": 0.695},
     {"method": "Ridge+HGB ensemble", "loo_r": 0.732}
   ]
 }

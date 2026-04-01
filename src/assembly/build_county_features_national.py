@@ -15,6 +15,7 @@ Reads:
     data/assembled/va_disability_features.parquet      (3,100+ counties × 4 cols)
     data/assembled/usda_typology_features.parquet      (3,100+ counties × 14 cols)
     data/assembled/transportation_features.parquet     (3,100+ counties × 8 cols)
+    data/assembled/county_bea_growth_features.parquet  (3,144 counties × 4 cols)
 
 Outputs:
     data/assembled/county_features_national.parquet  (3,100+ counties × ~90 cols)
@@ -79,6 +80,7 @@ COVID_PATH = PROJECT_ROOT / "data" / "assembled" / "county_covid_features.parque
 VA_PATH = PROJECT_ROOT / "data" / "assembled" / "va_disability_features.parquet"
 USDA_PATH = PROJECT_ROOT / "data" / "assembled" / "usda_typology_features.parquet"
 TRANSPORT_PATH = PROJECT_ROOT / "data" / "assembled" / "transportation_features.parquet"
+BEA_GROWTH_PATH = PROJECT_ROOT / "data" / "assembled" / "county_bea_growth_features.parquet"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
 
 # How many malformed FIPS to show in the error log before truncating.
@@ -246,6 +248,13 @@ USDA_FEATURE_COLS = [
     "Industry_Dependence_2025",
 ]
 
+# BEA state-level GDP and income growth rates (year-over-year momentum signals)
+BEA_GROWTH_FEATURE_COLS = [
+    "bea_gdp_growth_1yr",
+    "bea_gdp_growth_2yr",
+    "bea_income_growth_1yr",
+]
+
 # DOT transportation features (aggregated from tract-level)
 TRANSPORT_FEATURE_COLS = [
     "transport_pop_density",
@@ -397,6 +406,7 @@ def build_national_features(
     va: pd.DataFrame | None = None,
     usda: pd.DataFrame | None = None,
     transport: pd.DataFrame | None = None,
+    bea_growth: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Join all assembled county feature sources into a single feature matrix.
 
@@ -464,6 +474,17 @@ def build_national_features(
             bea_state,
             BEA_STATE_FEATURE_COLS,
             "BEA state",
+            allow_partial_cols=True,
+        )
+
+    # ── BEA state-level GDP and income growth features ────────────────────
+    # Year-over-year growth rates capturing economic momentum at the state level.
+    if bea_growth is not None:
+        merged = _merge_feature_block(
+            merged,
+            bea_growth,
+            BEA_GROWTH_FEATURE_COLS,
+            "BEA growth",
             allow_partial_cols=True,
         )
 
@@ -623,6 +644,7 @@ def main() -> None:
     va = _load_optional_source(VA_PATH, "VA disability county")
     usda = _load_optional_source(USDA_PATH, "USDA typology county")
     transport = _load_optional_source(TRANSPORT_PATH, "Transportation county")
+    bea_growth = _load_optional_source(BEA_GROWTH_PATH, "BEA growth county")
 
     # ── Build ────────────────────────────────────────────────────────────────
     features = build_national_features(
@@ -641,6 +663,7 @@ def main() -> None:
         va=va,
         usda=usda,
         transport=transport,
+        bea_growth=bea_growth,
     )
 
     # ── Quality checks, save, summary ────────────────────────────────────────

@@ -1,8 +1,8 @@
 {
-  "alpha": 0.006579332246575682,
-  "r2_ridge": 0.9897157815208227,
-  "r2_train": 0.9897157815208227,
-  "r2_hgb": 0.9999636397862822,
+  "alpha": 0.01,
+  "r2_ridge": 0.9897864549036481,
+  "r2_train": 0.9897864549036481,
+  "r2_hgb": 0.9999655734386186,
   "ensemble_method": "50pct_ridge_50pct_hgb",
   "ensemble_ridge_weight": 0.5,
   "ensemble_hgb_weight": 0.5,
@@ -15,8 +15,8 @@
     "random_state": 42
   },
   "loo_r_ridge": 0.533,
-  "loo_r_hgb": 0.711,
-  "loo_r_ensemble": 0.711,
+  "loo_r_hgb": 0.732,
+  "loo_r_ensemble": 0.732,
   "feature_names": [
     "type_0_score",
     "type_1_score",
@@ -184,6 +184,9 @@
     "gdp_growth",
     "bea_state_gdp_millions",
     "bea_state_income_per_capita",
+    "bea_gdp_growth_1yr",
+    "bea_gdp_growth_2yr",
+    "bea_income_growth_1yr",
     "drug_overdose_rate",
     "despair_death_rate",
     "covid_death_rate",
@@ -242,5 +245,5 @@
     2020
   ],
   "n_type_scores": 100,
-  "n_demo_features": 111
+  "n_demo_features": 114
 }

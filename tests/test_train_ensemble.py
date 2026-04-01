@@ -16,6 +16,23 @@ from sklearn.linear_model import RidgeCV
 
 
 # ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _redirect_training_metrics(tmp_path, monkeypatch):
+    """Prevent tests from overwriting the real training_metrics.json.
+
+    Every call to train_and_save writes training_metrics.json to a module-level
+    path constant. Without this fixture, non-metrics tests silently corrupt the
+    real model artifact with tiny synthetic-data metrics.
+    """
+    import src.prediction.train_ensemble_model as mod
+    monkeypatch.setattr(mod, "_TRAINING_METRICS_PATH", tmp_path / "training_metrics.json")
+
+
+# ---------------------------------------------------------------------------
 # Helpers — synthetic data factories (mirrors test_train_ridge_model.py)
 # ---------------------------------------------------------------------------
 

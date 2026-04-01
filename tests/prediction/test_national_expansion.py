@@ -42,11 +42,12 @@ def test_unpolled_race_gets_baseline_prediction(predictions):
 
 
 def test_prediction_count_matches_counties_times_races(predictions):
-    """Total prediction rows = n_counties * (n_races + 1 baseline)."""
-    n_races = len(load_races(2026)) + 1  # +1 for baseline
+    """Total prediction rows = n_counties * (n_real_races * 2 modes + 1 baseline)."""
+    n_real_races = len(load_races(2026))
     n_counties = predictions["county_fips"].nunique()
-    expected = n_counties * n_races
+    # Real races have both national + local modes; baseline has national only
+    expected = n_counties * (n_real_races * 2 + 1)
     actual = len(predictions)
     assert actual == expected, (
-        f"Expected {expected} rows ({n_counties} counties x {n_races} races), got {actual}"
+        f"Expected {expected} rows ({n_counties} counties x ({n_real_races} races × 2 modes + 1 baseline)), got {actual}"
     )

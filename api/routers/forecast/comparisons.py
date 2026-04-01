@@ -73,7 +73,7 @@ def get_forecast_comparisons(
             """,
             [version_id],
         ).fetchall()
-    except Exception:
+    except duckdb.Error:
         rows = []
 
     # Build per-race predictions dict

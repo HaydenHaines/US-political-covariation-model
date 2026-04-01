@@ -304,7 +304,14 @@ The API is the contract boundary between model pipeline and frontend. The fronte
 **REMAINING DEBT:** (1) No crosstab data ingested yet — Tier 1 is structural scaffolding only. (2) `method_reach_profiles` now has profiles for phone_live, phone_ivr, sms, mail, online_panel, and unknown (issue #86 resolved 2026-04-01); values are research-based estimates, not GA-tuned. (3) No GA tuning of propensity coefficients. See `docs/TODO-autonomous-improvements.md` for the full enrichment TODO list.
 
 ### Covariance — Cross-Race Underrepresentation
-**DEBT:** The type covariance Σ is built primarily from presidential shift data. Cross-race covariance between Senate/governor races and presidential races may be understated. Types are race-agnostic by design, but the Σ structure reflects presidential comovement more than Senate or governor comovement. Worth revisiting once Senate/governor shift data is more fully integrated into covariance construction.
+**RESOLVED (2026-04-01, branch research/covariance-cross-race):** Audited in `scripts/audit_covariance_cross_race.py`. Key findings:
+- Per-race covariances (pres/gov/senate) are nearly orthogonal to each other (r~0.12-0.17). Presidential, governor, and Senate elections tap different comovement structures.
+- LOEO r: current combined=0.9943, pres-only=0.8495, gov-only=0.9267, senate-only=0.9252. Combined approach wins because it has 20 election pairs vs 5-8.
+- The production Σ most resembles presidential covariance (r=0.46) even though pres is only 25% of dims, because presidential shifts are lower-noise.
+- **Reweighting does not help.** No tested weight scheme outperforms the current equal-weight combined approach.
+- **Downgraded to low priority.** The current approach is adequate. Per-type cross-race divergence (~10-15 types with row_mad>0.50) is real but belongs in the voter behavior layer (τ/δ), not the covariance matrix.
+- One data quality finding: early governor pairs (1994→1998, 1998→2002) have ~10x the variance of presidential pairs, suggesting noisy/uncontested races. Worth filtering.
+- Full report: `docs/research/covariance-cross-race-audit.md`
 
 ### Fundamentals — State-Level Signal Investigation Needed
 **DEBT:** Fundamentals modeling is currently conceived as a national signal ("it's the economy, stupid"). However, regional economic conditions likely vary in how they hit different types — a manufacturing downturn hits Rust Belt working-class types differently than coastal knowledge-worker types. Worth investigating whether BLS, BEA regional Fed, or BEA state-level data can support state- or type-level fundamentals signals rather than a single national scalar.

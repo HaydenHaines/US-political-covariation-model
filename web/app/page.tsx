@@ -62,7 +62,7 @@ export default function LandingPage() {
             className="text-sm font-medium tracking-wide"
             style={{ color: "var(--color-text-muted)" }}
           >
-            Scroll to explore the Senate map
+            Scroll to explore the Senate breakdown
           </p>
           {/* Animated down arrow */}
           <svg

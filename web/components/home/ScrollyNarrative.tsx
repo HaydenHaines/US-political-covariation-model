@@ -104,11 +104,10 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             <div className="max-w-2xl">
               <ZoneLabel color={DUSTY_INK.likelyD}>Safe Democratic Seats Up</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                These seats were won in 2020 — a strong Democratic cycle, with Biden at the top
-                of the ticket. They&rsquo;re expected to hold. But 2020&rsquo;s favorable map is
-                exactly what makes this class complicated: Democrats are defending terrain they
-                won under unusually good conditions, in an environment that may look nothing
-                like 2020.
+                These seats were won in the 2020 cycle. The incumbents are expected to hold,
+                but they&rsquo;re defending seats won under specific conditions — and the 2026
+                environment may look nothing like 2020. Whether that helps or hurts depends on
+                how the national mood shifts.
               </p>
               {safeUpDStates.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
@@ -126,9 +125,9 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
             className="py-20 border-b border-[var(--color-border)]"
           >
             <div className="max-w-2xl">
-              <ZoneLabel color={DUSTY_INK.tossup}>The Structural Problem</ZoneLabel>
+              <ZoneLabel color={DUSTY_INK.tossup}>The Structural Landscape</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
-                Here&rsquo;s the catch.
+                Here&rsquo;s what the map looks like.
               </p>
               {/* Highlighted callout box for the structural argument */}
               <div
@@ -152,8 +151,9 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
                 </p>
               </div>
               <p className="mt-4 text-base" style={{ color: "var(--color-text-muted)" }}>
-                The map is tilted. Democrats need to outperform their own 2020 baseline just to
-                reach parity — and outperform it by more to take control.
+                The map favors the party that held more seats going into this cycle. To flip
+                control, the challenging party needs to outperform the {sc.baseline_year} baseline
+                by a significant margin — not just match it.
               </p>
             </div>
           </section>
@@ -195,10 +195,9 @@ export function ScrollyNarrative({ scrollyData, overviewData }: ScrollyNarrative
               <ZoneLabel color={DUSTY_INK.likelyR}>Safe Republican Seats Up</ZoneLabel>
               <p className="mt-4 text-lg leading-relaxed" style={{ color: "var(--color-text)" }}>
                 These Republican seats held through {sc.baseline_year}&rsquo;s{" "}
-                {sc.baseline_label} — won even when Democrats ran competitively at the national
-                level. The communities that send these senators to Washington are deeply
-                Republican. Flipping them would require Democrats to outperform their own strong
-                cycle by a meaningful margin. That&rsquo;s not impossible. It&rsquo;s just rare.
+                {sc.baseline_label}. The communities that elect these senators are deeply
+                conservative — reliable Republican territory across multiple cycles. These seats
+                rarely change hands, though upsets do happen in exceptional environments.
               </p>
               {safeUpRStates.length > 0 && (
                 <p className="mt-3 text-sm" style={{ color: "var(--color-text-muted)" }}>

@@ -42,8 +42,13 @@ _STATE_FIPS_TO_ABBR: dict[str, str] = _cfg.STATE_ABBR
 
 # ---------------------------------------------------------------------------
 # Forecast hyperparameters — loaded from data/config/prediction_params.json.
-# lam: θ_national regularization strength (see GitHub #91 for calibration plan)
-# mu: δ_race regularization strength (see GitHub #91 for calibration plan)
+# lam: θ_national regularization strength. Calibrated 2026-04-01 via
+#      scripts/calibrate_lam_mu.py. lam=1.0 retained (see prediction_params.json
+#      for full calibration notes). Sweep range [0.1, 20]; RMSE improvement is
+#      monotonic but small (~0.0001) and is a validation-data artifact.
+# mu:  δ_race regularization strength. Calibrated 2026-04-01. mu has no
+#      measurable impact on RMSE across [0.1, 20] — delta_race is underdetermined
+#      with state-level polls only. mu=1.0 retained.
 # w_vector_mode: W vector construction tier ("core" vs "full" — benchmark first)
 # ---------------------------------------------------------------------------
 _PARAMS_PATH = PROJECT_ROOT / "data" / "config" / "prediction_params.json"

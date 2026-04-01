@@ -1,6 +1,9 @@
 {
   "_comment": "Hyperparameters for the type-primary forecast pipeline (predict_2026_types.py / forecast_engine.run_forecast).",
-  "_tuning_notes": "lam and mu are regularization strengths for the hierarchical poll decomposition model (θ_national and δ_race respectively). Both set to 1.0 pending calibration (Plan C). w_vector_mode controls W vector construction tier in poll_enrichment.py — 'core' uses propensity+state fallback only; 'full' adds method-reach adjustments.",
+  "_tuning_notes": "lam and mu were calibrated on 2026-04-01 via scripts/calibrate_lam_mu.py. See data/experiments/lam_mu_sweep_raw.csv and lam_mu_sweep_summary.csv for full results.",
+  "_lam_notes": "lam=1.0 retained. Calibration (10x10 grid, lam in [0.1,20], mu in [0.1,20]) shows monotonic RMSE improvement with higher lam using historical 3-state validation data (FL/GA/AL only). Improvement is small (~0.0001 RMSE from lam=1 to lam=20) and the trend toward higher lam is a validation-data artifact: sparse 3-state polls add noise rather than signal. With national poll coverage (18 races in production), lower lam is appropriate and the prior trust/poll balance at lam=1.0 is correct. The pure-prior asymptote (lam→∞) achieves RMSE=0.12294 vs lam=1.0 at RMSE=0.12633, confirming polls matter when coverage is national.",
+  "_mu_notes": "mu=1.0 retained. Calibration confirms mu has essentially zero impact on forecast RMSE across the full [0.1,20] sweep range. This is expected: delta_race is underdetermined when each race has only a handful of state-level polls. mu will matter more once richer within-state poll crosstabs are available (Tier 1 W vectors). Any positive value in [0.1,10] is valid for now.",
+  "_w_vector_mode_notes": "core vs full modes produce identical results until method_reach_profiles gains entries for phone_live, phone_ivr, and unknown methodologies. See Known Tech Debt in CLAUDE.md.",
   "forecast": {
     "lam": 1.0,
     "mu": 1.0,

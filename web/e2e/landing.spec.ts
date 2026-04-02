@@ -10,31 +10,31 @@ test.describe("Landing page", () => {
     await expect(main).toBeVisible({ timeout: 10_000 });
   });
 
-  test("closest races heading appears", async ({ page }) => {
-    const heading = page.getByText("Closest Races");
+  test("senate headline appears", async ({ page }) => {
+    const heading = page.locator("h1");
     await expect(heading).toBeVisible({ timeout: 10_000 });
+    const text = await heading.textContent();
+    expect(text).toContain("Senate");
   });
 
-  test("race ticker section is present", async ({ page }) => {
-    const tickerHeading = page.getByText("Closest Races");
-    await expect(tickerHeading).toBeVisible({ timeout: 10_000 });
+  test("scrollytelling zones are present", async ({ page }) => {
+    // The homepage has scrollytelling zones with narrative text
+    await expect(page.getByText("Scroll to explore")).toBeVisible({ timeout: 10_000 });
   });
 
-  test("entry point cards link to correct pages", async ({ page }) => {
+  test("navigation links to key sections", async ({ page }) => {
     const forecastLink = page.locator('a[href="/forecast"]');
-    const typesLink = page.locator('a[href="/types"]');
+    const exploreLink = page.locator('a[href="/types"]');
     const methodologyLink = page.locator('a[href="/methodology"]');
 
     await expect(forecastLink.first()).toBeVisible({ timeout: 10_000 });
-    await expect(typesLink.first()).toBeVisible();
+    await expect(exploreLink.first()).toBeVisible();
     await expect(methodologyLink.first()).toBeVisible();
   });
 
-  test("entry point cards have descriptive text", async ({ page }) => {
-    // Entry cards contain descriptive text about each section
-    await expect(page.getByText("See the full forecast")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText("Explore electoral types")).toBeVisible();
-    await expect(page.getByText("How the model works")).toBeVisible();
+  test("competitive races stat line is present", async ({ page }) => {
+    // Subheadline shows competitive race count
+    await expect(page.getByText(/competitive races/)).toBeVisible({ timeout: 10_000 });
   });
 
   test("footer renders with navigation links", async ({ page }) => {

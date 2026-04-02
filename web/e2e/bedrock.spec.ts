@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
 
-test("landing page loads and shows entry points", async ({ page }) => {
+test("landing page loads and shows headline", async ({ page }) => {
   await page.goto("/");
   const main = page.locator("main");
   await expect(main).toBeVisible({ timeout: 10_000 });
-  const heading = page.getByText("Closest Races");
+  const heading = page.locator("h1");
   await expect(heading).toBeVisible({ timeout: 10_000 });
 });
 

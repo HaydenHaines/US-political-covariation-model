@@ -1,8 +1,8 @@
 {
-  "alpha": 0.01,
-  "r2_ridge": 0.9897864549036481,
-  "r2_train": 0.9897864549036481,
-  "r2_hgb": 0.9999655734386186,
+  "alpha": 0.02848035868435802,
+  "r2_ridge": 0.9898418200656333,
+  "r2_train": 0.9898418200656333,
+  "r2_hgb": 0.9999659027385044,
   "ensemble_method": "50pct_ridge_50pct_hgb",
   "ensemble_ridge_weight": 0.5,
   "ensemble_hgb_weight": 0.5,
@@ -218,6 +218,9 @@
     "transport_broadband",
     "transport_dead_end_proportion",
     "transport_circuity_avg",
+    "fec_donors_per_1k",
+    "fec_total_per_capita",
+    "fec_avg_contribution",
     "drug_overdose_deaths_rate",
     "suicide_rate",
     "firearm_fatalities_rate",
@@ -236,7 +239,7 @@
   ],
   "n_counties": 3106,
   "n_training_samples": 3106,
-  "date_trained": "2026-04-01",
+  "date_trained": "2026-04-03",
   "target": "pres_dem_share_2024",
   "history_years": [
     2008,
@@ -245,5 +248,5 @@
     2020
   ],
   "n_type_scores": 100,
-  "n_demo_features": 114
+  "n_demo_features": 117
 }

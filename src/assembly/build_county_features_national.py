@@ -81,6 +81,8 @@ VA_PATH = PROJECT_ROOT / "data" / "assembled" / "va_disability_features.parquet"
 USDA_PATH = PROJECT_ROOT / "data" / "assembled" / "usda_typology_features.parquet"
 TRANSPORT_PATH = PROJECT_ROOT / "data" / "assembled" / "transportation_features.parquet"
 BEA_GROWTH_PATH = PROJECT_ROOT / "data" / "assembled" / "county_bea_growth_features.parquet"
+FEC_PATH = PROJECT_ROOT / "data" / "assembled" / "county_fec_features.parquet"
+BEA_INCOME_COMP_PATH = PROJECT_ROOT / "data" / "assembled" / "county_bea_income_composition.parquet"
 OUTPUT_PATH = PROJECT_ROOT / "data" / "assembled" / "county_features_national.parquet"
 
 # How many malformed FIPS to show in the error log before truncating.
@@ -255,6 +257,21 @@ BEA_GROWTH_FEATURE_COLS = [
     "bea_income_growth_1yr",
 ]
 
+# FEC donor density features (state-level mapped to county via FIPS prefix)
+FEC_FEATURE_COLS = [
+    "fec_donors_per_1k",
+    "fec_total_per_capita",
+    "fec_avg_contribution",
+]
+
+# BEA state-level income composition shares (SAINC4: wages/transfers/investment as
+# share of total personal income, mapped from state to county via FIPS prefix)
+BEA_INCOME_COMP_FEATURE_COLS = [
+    "bea_wages_share",
+    "bea_transfer_share",
+    "bea_investment_share",
+]
+
 # DOT transportation features (aggregated from tract-level)
 TRANSPORT_FEATURE_COLS = [
     "transport_pop_density",
@@ -407,6 +424,8 @@ def build_national_features(
     usda: pd.DataFrame | None = None,
     transport: pd.DataFrame | None = None,
     bea_growth: pd.DataFrame | None = None,
+    fec: pd.DataFrame | None = None,
+    bea_income_composition: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Join all assembled county feature sources into a single feature matrix.
 
@@ -541,6 +560,30 @@ def build_national_features(
             allow_partial_cols=True,
         )
 
+    # ── FEC donor density features ────────────────────────────────────────
+    # State-level donor activity (donors per 1k, total per capita, avg contribution)
+    # mapped to counties via FIPS prefix. Captures political engagement intensity.
+    if fec is not None:
+        merged = _merge_feature_block(
+            merged,
+            fec,
+            FEC_FEATURE_COLS,
+            "FEC donor density",
+            allow_partial_cols=True,
+        )
+
+    # ── BEA state-level income composition features ────────────────────────
+    # SAINC4 wages/transfers/investment shares mapped from state to county.
+    # Captures structural income context (e.g., transfer-dependent vs wage-dominated).
+    if bea_income_composition is not None:
+        merged = _merge_feature_block(
+            merged,
+            bea_income_composition,
+            BEA_INCOME_COMP_FEATURE_COLS,
+            "BEA income composition",
+            allow_partial_cols=True,
+        )
+
     # ── Expanded CHR features (if available in the assembled CHR file) ──────
     # These come from the same chr_df but are columns added by the expanded fetch.
     # skip_cols_in_df=True avoids re-merging columns already brought in by the CHR pass above.
@@ -645,6 +688,8 @@ def main() -> None:
     usda = _load_optional_source(USDA_PATH, "USDA typology county")
     transport = _load_optional_source(TRANSPORT_PATH, "Transportation county")
     bea_growth = _load_optional_source(BEA_GROWTH_PATH, "BEA growth county")
+    fec = _load_optional_source(FEC_PATH, "FEC donor density county")
+    bea_income_composition = _load_optional_source(BEA_INCOME_COMP_PATH, "BEA income composition county")
 
     # ── Build ────────────────────────────────────────────────────────────────
     features = build_national_features(
@@ -664,6 +709,8 @@ def main() -> None:
         usda=usda,
         transport=transport,
         bea_growth=bea_growth,
+        fec=fec,
+        bea_income_composition=bea_income_composition,
     )
 
     # ── Quality checks, save, summary ────────────────────────────────────────

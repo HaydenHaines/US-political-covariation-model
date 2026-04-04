@@ -15,8 +15,12 @@ Outputs:
   data/models/ridge_model/ridge_meta.json
       alpha, r2, feature_names, n_counties, date_trained
 
-Feature matrix X = [type_scores (N x J) | county_mean_dem_share (N x 1) | demo_std (N x 20)]
+Feature matrix X = [type_scores (N x J) | county_mean_dem_share (N x 1) | demo_std (N x 40)]
 Target y = 2024 presidential Dem share (absolute, not shift)
+
+Feature pruning (S306): build_feature_matrix() applies config/ridge_feature_exclusions.yaml
+to drop 74 of 114 demographic features that individually hurt LOO r. The full parquet
+is still used for type profiling/description.
 """
 from __future__ import annotations
 
@@ -31,6 +35,10 @@ from sklearn.linear_model import RidgeCV
 
 log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Re-use the same exclusion loader defined in holdout_accuracy_ridge to keep
+# the exclusion config in one place and both callers in sync.
+from src.validation.holdout_accuracy_ridge import _load_feature_exclusions  # noqa: E402
 
 # Historical years used to compute county mean (excludes 2024 target)
 _HISTORY_YEARS = [2008, 2012, 2016, 2020]
@@ -69,11 +77,27 @@ def build_feature_matrix(
     """
     demo_numeric_cols = [c for c in demo_df.columns if c != "county_fips"]
 
+    # Apply feature pruning: drop columns that hurt Ridge LOO r (S306).
+    # The exclusion list lives in config/ridge_feature_exclusions.yaml.
+    excluded = _load_feature_exclusions()
+    if excluded:
+        before = len(demo_numeric_cols)
+        demo_numeric_cols = [c for c in demo_numeric_cols if c not in excluded]
+        n_pruned = before - len(demo_numeric_cols)
+        if n_pruned:
+            log.info(
+                "build_feature_matrix: pruned %d / %d demographic features "
+                "(config/ridge_feature_exclusions.yaml); %d retained",
+                n_pruned,
+                before,
+                len(demo_numeric_cols),
+            )
+
     idx_df = pd.DataFrame({
         "county_fips": county_fips,
         "_row_idx": np.arange(len(county_fips)),
     })
-    merged = idx_df.merge(demo_df, on="county_fips", how="inner")
+    merged = idx_df.merge(demo_df[["county_fips"] + demo_numeric_cols], on="county_fips", how="inner")
 
     if merged.empty:
         raise ValueError("Inner join between type_assignments and county_features_national produced no rows.")

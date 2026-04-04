@@ -7,6 +7,11 @@ holdout accuracy with regularized regression:
 
 Both use GCV alpha selection and exact LOO predictions via the hat matrix
 diagonal, as validated in experiment_ridge_prediction.py (S197).
+
+Feature pruning (S306): _load_and_standardize_demographics() applies a config-
+driven exclusion list from config/ridge_feature_exclusions.yaml. 74 of 114
+demographic features hurt LOO r individually; pruning to 40 features improves
+LOO r from 0.717 to 0.731. The full parquet is still used for type profiling.
 """
 from __future__ import annotations
 
@@ -19,6 +24,47 @@ from scipy.stats import pearsonr
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+# Path to the feature exclusion config (relative to PROJECT_ROOT)
+_EXCLUSIONS_CONFIG_PATH = PROJECT_ROOT / "config" / "ridge_feature_exclusions.yaml"
+
+
+def _load_feature_exclusions() -> frozenset[str]:
+    """Load the set of demographic feature names to exclude from Ridge.
+
+    Reads config/ridge_feature_exclusions.yaml. Returns an empty frozenset
+    if the file is missing (falls back to using all features, matching the
+    pre-S306 behaviour).
+
+    Returns
+    -------
+    frozenset[str]
+        Feature names to exclude from the Ridge demographic feature matrix.
+    """
+    if not _EXCLUSIONS_CONFIG_PATH.exists():
+        log.warning(
+            "_load_feature_exclusions: exclusion config not found at %s; using all features",
+            _EXCLUSIONS_CONFIG_PATH,
+        )
+        return frozenset()
+
+    try:
+        import yaml  # type: ignore[import]
+    except ImportError:
+        try:
+            # PyYAML ships as 'yaml'; some environments expose it as 'pyyaml'
+            import pyyaml as yaml  # type: ignore[import, no-redef]
+        except ImportError:
+            log.warning(
+                "_load_feature_exclusions: PyYAML not installed; using all features"
+            )
+            return frozenset()
+
+    with _EXCLUSIONS_CONFIG_PATH.open() as fh:
+        cfg = yaml.safe_load(fh)
+
+    excluded = cfg.get("excluded_features", []) or []
+    return frozenset(excluded)
 
 
 def _ridge_loo_for_dimension(
@@ -202,6 +248,24 @@ def _load_and_standardize_demographics(
 
     demo_df = pd.read_parquet(demo_path)
     demo_numeric_cols = [c for c in demo_df.columns if c != "county_fips"]
+
+    # Apply feature pruning: drop columns that hurt Ridge LOO r (S306).
+    # The exclusion list lives in config/ridge_feature_exclusions.yaml.
+    # The full parquet is still used elsewhere for type profiling/description.
+    excluded = _load_feature_exclusions()
+    if excluded:
+        before = len(demo_numeric_cols)
+        demo_numeric_cols = [c for c in demo_numeric_cols if c not in excluded]
+        n_pruned = before - len(demo_numeric_cols)
+        if n_pruned:
+            log.info(
+                "_load_and_standardize_demographics: pruned %d / %d features "
+                "(config/ridge_feature_exclusions.yaml); %d retained",
+                n_pruned,
+                before,
+                len(demo_numeric_cols),
+            )
+
     demo_df = demo_df[["county_fips"] + demo_numeric_cols].copy()
 
     idx_df = pd.DataFrame({"county_fips": county_fips, "_row_idx": np.arange(len(county_fips))})

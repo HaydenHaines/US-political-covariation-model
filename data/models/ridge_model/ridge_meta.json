@@ -1,6 +1,22 @@
 {
   "alpha": 0.004328761281083057,
+  "r2_ridge": 0.9835866061129025,
   "r2_train": 0.9835866061129025,
+  "r2_hgb": 0.999895152365126,
+  "ensemble_method": "50pct_ridge_50pct_hgb",
+  "ensemble_ridge_weight": 0.5,
+  "ensemble_hgb_weight": 0.5,
+  "hgb_params": {
+    "max_iter": 800,
+    "learning_rate": 0.1,
+    "max_depth": 5,
+    "min_samples_leaf": 30,
+    "l2_regularization": 1.0,
+    "random_state": 42
+  },
+  "loo_r_ridge": 0.518,
+  "loo_r_hgb": 0.732,
+  "loo_r_ensemble": 0.732,
   "feature_names": [
     "type_0_score",
     "type_1_score",

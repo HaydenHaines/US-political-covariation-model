@@ -186,6 +186,59 @@ class TestDiscoverTypes:
         # The three groups should have different dominant types
         assert len({type_a, type_b, type_c}) >= 2  # At least 2 distinct types recovered
 
+    def test_pca_whitening_output_shapes(self, synthetic_shift_matrix):
+        """PCA whitening (n=5, whiten=True) should still produce correct output shapes."""
+        j = 5
+        n = synthetic_shift_matrix.shape[0]
+        # Use n_components < n_dims to trigger PCA path
+        n_components = min(5, synthetic_shift_matrix.shape[1] - 1)
+        result = discover_types(
+            synthetic_shift_matrix, j=j, pca_components=n_components, pca_whiten=True,
+        )
+        assert result.scores.shape == (n, j)
+        # Centroids are in PCA-reduced space, so loadings are (j, n_components)
+        assert result.loadings.shape == (j, n_components)
+        assert result.dominant_types.shape == (n,)
+
+    def test_pca_whitening_scores_valid(self, synthetic_shift_matrix):
+        """PCA whitened scores should be in [0, 1] and row-sum to ~1."""
+        n_components = min(5, synthetic_shift_matrix.shape[1] - 1)
+        result = discover_types(
+            synthetic_shift_matrix, j=5, pca_components=n_components, pca_whiten=True,
+        )
+        assert np.all(result.scores >= 0)
+        assert np.all(result.scores <= 1 + 1e-6)
+        row_sums = result.scores.sum(axis=1)
+        assert np.allclose(row_sums, 1.0, atol=1e-6)
+
+    def test_pca_whitening_deterministic(self, synthetic_shift_matrix):
+        """PCA whitening with same seed should produce identical results."""
+        n_components = min(5, synthetic_shift_matrix.shape[1] - 1)
+        r1 = discover_types(
+            synthetic_shift_matrix, j=5, random_state=42,
+            pca_components=n_components, pca_whiten=True,
+        )
+        r2 = discover_types(
+            synthetic_shift_matrix, j=5, random_state=42,
+            pca_components=n_components, pca_whiten=True,
+        )
+        assert np.allclose(r1.scores, r2.scores)
+        assert np.allclose(r1.loadings, r2.loadings)
+
+    def test_pca_whiten_false_uses_no_whitening(self, synthetic_shift_matrix):
+        """pca_whiten=False should produce different results from pca_whiten=True."""
+        n_components = min(5, synthetic_shift_matrix.shape[1] - 1)
+        r_plain = discover_types(
+            synthetic_shift_matrix, j=5, random_state=42,
+            pca_components=n_components, pca_whiten=False,
+        )
+        r_white = discover_types(
+            synthetic_shift_matrix, j=5, random_state=42,
+            pca_components=n_components, pca_whiten=True,
+        )
+        # Whitened and non-whitened PCA produce different projections, so scores differ
+        assert not np.allclose(r_plain.scores, r_white.scores)
+
 
 # ── Tests: select_j.py ──────────────────────────────────────────────────────
 

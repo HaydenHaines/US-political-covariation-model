@@ -123,6 +123,7 @@ def discover_types(
     random_state: int = 42,
     temperature: float = 10.0,
     pca_components: int | None = None,
+    pca_whiten: bool = False,
 ) -> TypeDiscoveryResult:
     """KMeans clustering on county shift vectors, with optional PCA compression.
 
@@ -145,6 +146,14 @@ def discover_types(
         before KMeans. None = no PCA (backward compatible default).
         Presidential shifts are highly correlated, so 33→15 typically retains
         90%+ variance.
+    pca_whiten : bool
+        If True, apply whitening when PCA is applied (divides each component
+        by its standard deviation so all components have unit variance).
+        Whitening decorrelates the PCA space AND equalizes component scales,
+        which prevents high-variance components from dominating KMeans distance.
+        Validated to improve Ridge+demo LOO r from 0.695 → 0.717 (+0.022)
+        with n_components=15 (see scripts/experiment_pca_whitening_ridge.py).
+        Only has effect when pca_components is also set.
 
     Returns
     -------
@@ -153,12 +162,13 @@ def discover_types(
         dominant type assignments, type size fractions, and identity
         rotation matrix.
     """
-    # Optional PCA dimensionality reduction
+    # Optional PCA dimensionality reduction (with optional whitening)
     if pca_components is not None and pca_components < shift_matrix.shape[1]:
-        pca = PCA(n_components=pca_components, random_state=random_state)
+        pca = PCA(n_components=pca_components, whiten=pca_whiten, random_state=random_state)
         shift_matrix = pca.fit_transform(shift_matrix)
         cumulative_var = pca.explained_variance_ratio_.cumsum()
-        print(f"PCA: {shift_matrix.shape[1]} components retain "
+        whiten_tag = ", whiten=True" if pca_whiten else ""
+        print(f"PCA(n={pca_components}{whiten_tag}): {shift_matrix.shape[1]} components retain "
               f"{cumulative_var[-1]:.1%} variance "
               f"(top-5: {', '.join(f'{v:.1%}' for v in cumulative_var[:5])})")
 
@@ -203,6 +213,7 @@ def main() -> None:
     parser.add_argument("--j", type=int, default=None, help="Number of types (overrides config)")
     parser.add_argument("--min-year", type=int, default=2008, help="Minimum start year for shift pairs (default: 2008)")
     parser.add_argument("--pca", type=int, default=None, help="PCA components before KMeans (overrides config)")
+    parser.add_argument("--no-pca-whiten", action="store_true", help="Disable PCA whitening even if config enables it")
     args = parser.parse_args()
 
     # Load config
@@ -231,6 +242,11 @@ def main() -> None:
         pca_components = config["types"].get("pca_components")
     if pca_components is not None:
         pca_components = int(pca_components)
+
+    # PCA whitening: read from config, override via CLI flag
+    pca_whiten = bool(config["types"].get("pca_whiten", False))
+    if args.no_pca_whiten:
+        pca_whiten = False
 
     # Load shift matrix
     shifts_path = PROJECT_ROOT / "data" / "shifts" / "county_shifts_multiyear.parquet"
@@ -268,9 +284,13 @@ def main() -> None:
 
     print(f"Shift matrix: {shift_matrix.shape[0]} counties x {shift_matrix.shape[1]} dims (min_year={args.min_year})")
     pca_msg = f", pca_components={pca_components}" if pca_components else ""
-    print(f"Discovering J={j} types via KMeans (temperature={temperature}{pca_msg})...")
+    whiten_msg = f", pca_whiten=True" if (pca_components and pca_whiten) else ""
+    print(f"Discovering J={j} types via KMeans (temperature={temperature}{pca_msg}{whiten_msg})...")
 
-    result = discover_types(shift_matrix, j=j, temperature=temperature, pca_components=pca_components)
+    result = discover_types(
+        shift_matrix, j=j, temperature=temperature,
+        pca_components=pca_components, pca_whiten=pca_whiten,
+    )
 
     unique, counts = np.unique(result.dominant_types, return_counts=True)
     print(f"Type sizes: {sorted(counts.tolist(), reverse=True)}")

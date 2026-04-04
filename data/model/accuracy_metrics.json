@@ -16,9 +16,9 @@
     {"cycle": "2020\u21922024", "loo_r": 0.40, "label": "Biden\u2192Trump"}
   ],
   "method_comparison": [
-    {"method": "Type-mean baseline", "loo_r": 0.448},
-    {"method": "Ridge (scores only)", "loo_r": 0.533},
-    {"method": "Ridge (all features)", "loo_r": 0.695},
+    {"method": "Type-mean baseline", "loo_r": 0.499},
+    {"method": "Ridge (scores only)", "loo_r": 0.518},
+    {"method": "Ridge (all features)", "loo_r": 0.717},
     {"method": "Ridge+HGB ensemble", "loo_r": 0.732}
   ]
 }

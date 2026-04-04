@@ -4,7 +4,7 @@
     "holdout_r": 0.698,
     "coherence": 0.783,
     "rmse": 0.073,
-    "covariance_val_r": 0.915,
+    "covariance_val_r": 0.936,
     "n_counties": 3154,
     "n_types": 100,
     "n_super_types": 5
@@ -18,7 +18,7 @@
   "method_comparison": [
     {"method": "Type-mean baseline", "loo_r": 0.499},
     {"method": "Ridge (scores only)", "loo_r": 0.518},
-    {"method": "Ridge (all features)", "loo_r": 0.717},
+    {"method": "Ridge (all features)", "loo_r": 0.731},
     {"method": "Ridge+HGB ensemble", "loo_r": 0.732}
   ]
 }

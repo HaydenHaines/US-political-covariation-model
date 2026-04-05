@@ -31,6 +31,7 @@ export const FOOTER_NAV: NavItem[] = [
   { label: "Shifts",      href: "/explore/shifts" },
   { label: "Methodology", href: "/methodology" },
   { label: "Compare",      href: "/compare" },
+  { label: "Pollsters",   href: "/pollsters" },
   { label: "Race Compare", href: "/compare/races" },
   { label: "Changelog",   href: "/changelog" },
   { label: "About",       href: "/methodology#about" },

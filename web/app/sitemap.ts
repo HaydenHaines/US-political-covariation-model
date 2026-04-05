@@ -19,6 +19,7 @@ const STATIC_PAGES: Array<{
   { path: "/methodology",          priority: 0.6, changeFrequency: "monthly" },
   { path: "/methodology/accuracy", priority: 0.5, changeFrequency: "monthly" },
   { path: "/compare",              priority: 0.6, changeFrequency: "weekly"  },
+  { path: "/pollsters",            priority: 0.5, changeFrequency: "monthly" },
   { path: "/changelog",            priority: 0.5, changeFrequency: "weekly"  },
   { path: "/about",                priority: 0.3, changeFrequency: "monthly" },
 ];

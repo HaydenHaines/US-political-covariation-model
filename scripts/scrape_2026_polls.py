@@ -1123,6 +1123,125 @@ def scrape_rcp(
 
 
 # ---------------------------------------------------------------------------
+# Generic Ballot scraper
+# ---------------------------------------------------------------------------
+
+# RCP URL path for the 2026 generic congressional ballot poll page.
+_GB_RCP_URL = "/polls/state-of-the-union/generic-congressional-vote"
+
+# Race label written to the CSV — must match what generic_ballot.py expects.
+_GB_RACE_LABEL = "2026 Generic Ballot"
+
+# Candidate name lists for generic ballot polls.
+# The JSON uses affiliation "Democrat"/"Republican" directly, but we also
+# keep these lists so _extract_rcp_polls_json matching works without change.
+_GB_DEM_ALIASES = ["democrat", "democrats", "dem", "d"]
+_GB_REP_ALIASES = ["republican", "republicans", "rep", "r"]
+
+
+def scrape_generic_ballot_rcp() -> list[dict]:
+    """Scrape generic congressional ballot polls from RealClearPolling.
+
+    The RCP generic ballot page at
+    ``/polls/state-of-the-union/generic-congressional-vote`` uses the same
+    Next.js embedded-JSON format as individual race pages.  The "candidates"
+    in each poll object use affiliation "Democrat" / "Republican" rather than
+    individual names, so the existing ``_extract_rcp_polls_json`` parser works
+    without modification — it identifies D/R columns by affiliation tag.
+
+    Returns poll dicts with:
+        race          = "2026 Generic Ballot"
+        geography     = "US"
+        geo_level     = "national"
+        (all other fields match the standard poll schema)
+    """
+    full_url = f"{RCP_BASE_URL}{_GB_RCP_URL}"
+    logger.info("--- Scraping Generic Ballot ---")
+    logger.info("  RCP GB: %s", full_url)
+
+    html = fetch_html(full_url)
+    if not html:
+        logger.warning("  RCP GB: failed to fetch page")
+        return []
+
+    raw_polls = _extract_rcp_polls_json(html)
+    if raw_polls is None:
+        logger.warning("  RCP GB: could not extract poll JSON from %s", full_url)
+        return []
+
+    logger.info("  RCP GB: found %d raw entries (including average rows)", len(raw_polls))
+
+    all_polls = []
+    for entry in raw_polls:
+        # Skip composite average rows
+        if entry.get("type") in _RCP_AVERAGE_TYPES or entry.get("pollster") == "rcp_average":
+            continue
+
+        pollster_raw = entry.get("pollster_group_name") or entry.get("pollster") or ""
+        if not pollster_raw:
+            continue
+
+        # Parse date — prefer data_end_date (includes year)
+        date_end = entry.get("data_end_date", "")
+        if date_end:
+            date_parsed = date_end.replace("/", "-")
+        else:
+            date_raw = entry.get("date", "")
+            if date_raw and re.match(r"^\d{1,2}/\d{1,2}\s*-\s*\d{1,2}/\d{1,2}$", date_raw.strip()):
+                date_raw = f"{date_raw}/2026"
+            date_parsed = parse_poll_date(date_raw)
+
+        # Sample size and voter classification
+        sample_raw = entry.get("sampleSize", "")
+        n_sample = extract_sample_size(sample_raw)
+        sample_type = ""
+        if sample_raw:
+            s_upper = sample_raw.upper()
+            if "LV" in s_upper:
+                sample_type = "LV"
+            elif "RV" in s_upper:
+                sample_type = "RV"
+
+        # D/R percentages — GB polls use affiliation "Democrat"/"Republican"
+        candidates = entry.get("candidate", [])
+        dem_pct = None
+        rep_pct = None
+        for cand in candidates:
+            affiliation = cand.get("affiliation", "").lower()
+            val = extract_pct(cand.get("value"))
+            # Match on affiliation tag; also accept any alias in _GB_DEM/REP_ALIASES
+            if dem_pct is None and affiliation in _GB_DEM_ALIASES:
+                dem_pct = val
+            elif rep_pct is None and affiliation in _GB_REP_ALIASES:
+                rep_pct = val
+
+        if dem_pct is None or rep_pct is None:
+            continue
+
+        dem_share = two_party_share(dem_pct, rep_pct)
+        if dem_share is None:
+            continue
+
+        all_polls.append(
+            {
+                "race": _GB_RACE_LABEL,
+                "pollster_raw": pollster_raw.strip(),
+                "pollster": normalize_pollster(pollster_raw),
+                "date": date_parsed,
+                "n_sample": n_sample,
+                "dem_pct": dem_pct,
+                "rep_pct": rep_pct,
+                "dem_share": dem_share,
+                "source": "rcp",
+                "sample_type": sample_type,
+            }
+        )
+
+    logger.info("  RCP GB: %d generic ballot polls extracted", len(all_polls))
+    return all_polls
+
+
+# ---------------------------------------------------------------------------
 # Deduplication
 # ---------------------------------------------------------------------------
 def dedup_key(poll: dict) -> tuple:
@@ -1173,11 +1292,21 @@ def build_output_df(polls: list[dict]) -> pd.DataFrame:
     """Convert poll dicts to the output CSV schema."""
     rows = []
     for p in polls:
-        state = ""
-        for race_label, cfg in RACE_CONFIG.items():
-            if p["race"] == race_label:
-                state = cfg["state"]
-                break
+        race = p["race"]
+
+        # Generic ballot polls are national — they have no state.
+        if race == _GB_RACE_LABEL:
+            geography = "US"
+            geo_level = "national"
+        else:
+            # Look up state from RACE_CONFIG; fall back to empty string if the
+            # race isn't in the config (shouldn't happen for normal races).
+            geography = ""
+            for race_label, cfg in RACE_CONFIG.items():
+                if race == race_label:
+                    geography = cfg["state"]
+                    break
+            geo_level = "state"
 
         notes_parts = [f"D={p['dem_pct']:.1f}% R={p['rep_pct']:.1f}%"]
         if p.get("sample_type"):
@@ -1186,9 +1315,9 @@ def build_output_df(polls: list[dict]) -> pd.DataFrame:
 
         rows.append(
             {
-                "race": p["race"],
-                "geography": state,
-                "geo_level": "state",
+                "race": race,
+                "geography": geography,
+                "geo_level": geo_level,
                 "dem_share": p["dem_share"],
                 "n_sample": p.get("n_sample", ""),
                 "date": p.get("date", ""),
@@ -1276,6 +1405,17 @@ def main():
             all_polls.extend(rcp_polls)
             request_count += 1
 
+    # Generic ballot — always scraped unless a race filter is active, since
+    # the GB page has no entry in RACE_CONFIG and would be excluded by the
+    # race filter logic anyway.  Only skip when the user has explicitly
+    # narrowed to specific races (they almost certainly don't want GB then).
+    if not args.races:
+        if request_count > 0:
+            time.sleep(REQUEST_DELAY)
+        gb_polls = scrape_generic_ballot_rcp()
+        all_polls.extend(gb_polls)
+        request_count += 1
+
     logger.info("=== Raw total: %d polls from all sources ===", len(all_polls))
 
     # Deduplicate
@@ -1290,6 +1430,9 @@ def main():
     for race_label in races:
         count = len(df[df["race"] == race_label])
         logger.info("  %s: %d polls", race_label, count)
+    if not args.races:
+        gb_count = len(df[df["race"] == _GB_RACE_LABEL])
+        logger.info("  %s: %d polls", _GB_RACE_LABEL, gb_count)
     logger.info("  TOTAL: %d polls", len(df))
 
     if args.dry_run:

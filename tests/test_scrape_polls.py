@@ -11,6 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 from scrape_2026_polls import (
     RACE_CONFIG,
+    _GB_RACE_LABEL,
     build_output_df,
     dedup_key,
     deduplicate,
@@ -19,6 +20,7 @@ from scrape_2026_polls import (
     normalize_pollster,
     parse_poll_date,
     scrape_270towin,
+    scrape_generic_ballot_rcp,
     scrape_rcp,
     scrape_wikipedia,
     two_party_share,
@@ -826,3 +828,211 @@ class TestRaceConfig:
         }
         for label, cfg in RACE_CONFIG.items():
             assert cfg["state"] in valid_states, f"{label} has invalid state {cfg['state']}"
+
+
+# ============================================================================
+# Generic ballot RCP scraping
+# ============================================================================
+
+# Generic ballot RCP fixture — uses "Democrats"/"Republicans" as candidate
+# names with Democrat/Republican affiliations, matching the real RCP GB page.
+_GB_POLLS_JSON = [
+    {
+        "id": "8888",
+        "type": "rcp_average",
+        "pollster": "rcp_average",
+        "date": "3/20 - 4/1",
+        "data_end_date": "2026/04/01",
+        "sampleSize": "",
+        "candidate": [
+            {"name": "Democrats", "affiliation": "Democrat", "value": "46"},
+            {"name": "Republicans", "affiliation": "Republican", "value": "50"},
+        ],
+    },
+    {
+        "id": "333",
+        "type": "poll_rcp_avg",
+        "pollster": "Emerson",
+        "pollster_group_name": "Emerson College",
+        "date": "3/31 - 4/1",
+        "data_end_date": "2026/04/01",
+        "sampleSize": "1200 LV",
+        "candidate": [
+            {"name": "Democrats", "affiliation": "Democrat", "value": "47"},
+            {"name": "Republicans", "affiliation": "Republican", "value": "48"},
+        ],
+    },
+    {
+        "id": "444",
+        "type": "poll_rcp_avg",
+        "pollster": "Quinnipiac",
+        "pollster_group_name": "Quinnipiac University",
+        "date": "3/20 - 3/25",
+        "data_end_date": "2026/03/25",
+        "sampleSize": "800 RV",
+        "candidate": [
+            {"name": "Democrats", "affiliation": "Democrat", "value": "45"},
+            {"name": "Republicans", "affiliation": "Republican", "value": "51"},
+        ],
+    },
+]
+
+GB_RCP_FIXTURE_HTML = _build_rcp_fixture_html(_GB_POLLS_JSON)
+
+
+class TestGenericBallotRCPScraping:
+    @patch("scrape_2026_polls.fetch_html")
+    def test_returns_polls_not_average(self, mock_fetch):
+        """Should return 2 polls and exclude the RCP Average row."""
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        assert len(polls) == 2
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_race_label(self, mock_fetch):
+        """All returned polls must have race == '2026 Generic Ballot'."""
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        assert all(p["race"] == _GB_RACE_LABEL for p in polls)
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_source_label(self, mock_fetch):
+        """All returned polls must have source == 'rcp'."""
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        assert all(p["source"] == "rcp" for p in polls)
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_pollster_normalized(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        pollsters = {p["pollster"] for p in polls}
+        assert "Emerson College" in pollsters
+        assert "Quinnipiac University" in pollsters
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_dem_rep_percentages(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        # First poll (Emerson): D=47, R=48
+        emerson = next(p for p in polls if p["pollster"] == "Emerson College")
+        assert emerson["dem_pct"] == 47.0
+        assert emerson["rep_pct"] == 48.0
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_sample_type(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        emerson = next(p for p in polls if p["pollster"] == "Emerson College")
+        quinnipiac = next(p for p in polls if p["pollster"] == "Quinnipiac University")
+        assert emerson["sample_type"] == "LV"
+        assert quinnipiac["sample_type"] == "RV"
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_sample_size(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        emerson = next(p for p in polls if p["pollster"] == "Emerson College")
+        assert emerson["n_sample"] == 1200
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_date_parsed(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        emerson = next(p for p in polls if p["pollster"] == "Emerson College")
+        assert emerson["date"] == "2026-04-01"
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_dem_share_in_range(self, mock_fetch):
+        mock_fetch.return_value = GB_RCP_FIXTURE_HTML
+        polls = scrape_generic_ballot_rcp()
+        for p in polls:
+            assert 0.15 < p["dem_share"] < 0.85
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_network_error_returns_empty(self, mock_fetch):
+        mock_fetch.return_value = None
+        polls = scrape_generic_ballot_rcp()
+        assert polls == []
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_no_json_returns_empty(self, mock_fetch):
+        mock_fetch.return_value = "<html><body>no data</body></html>"
+        polls = scrape_generic_ballot_rcp()
+        assert polls == []
+
+
+class TestBuildOutputDfGenericBallot:
+    """Tests for build_output_df behaviour with generic ballot polls."""
+
+    def _make_gb_poll(self, pollster="Emerson College", date="2026-04-01"):
+        return {
+            "race": _GB_RACE_LABEL,
+            "pollster": pollster,
+            "pollster_raw": pollster,
+            "date": date,
+            "n_sample": 1200,
+            "dem_pct": 47.0,
+            "rep_pct": 48.0,
+            "dem_share": round(47.0 / 95.0, 4),
+            "source": "rcp",
+            "sample_type": "LV",
+        }
+
+    def test_gb_polls_geo_level_national(self):
+        """Generic ballot polls must have geo_level='national'."""
+        df = build_output_df([self._make_gb_poll()])
+        assert df.iloc[0]["geo_level"] == "national"
+
+    def test_gb_polls_geography_us(self):
+        """Generic ballot polls must have geography='US'."""
+        df = build_output_df([self._make_gb_poll()])
+        assert df.iloc[0]["geography"] == "US"
+
+    def test_gb_polls_race_label_preserved(self):
+        """Race label must survive the round-trip through build_output_df."""
+        df = build_output_df([self._make_gb_poll()])
+        assert df.iloc[0]["race"] == _GB_RACE_LABEL
+
+    def test_state_polls_unaffected(self):
+        """Regular state polls must still get geo_level='state' and a state code."""
+        state_poll = {
+            "race": "2026 GA Senate",
+            "pollster": "Cygnal",
+            "pollster_raw": "Cygnal",
+            "date": "2026-02-01",
+            "n_sample": 700,
+            "dem_pct": 48.0,
+            "rep_pct": 52.0,
+            "dem_share": 0.48,
+            "source": "rcp",
+            "sample_type": "LV",
+        }
+        df = build_output_df([state_poll])
+        assert df.iloc[0]["geo_level"] == "state"
+        assert df.iloc[0]["geography"] == "GA"
+
+    def test_mixed_polls_both_preserved(self):
+        """A mix of GB + state polls must each get correct geo metadata."""
+        polls = [
+            self._make_gb_poll(),
+            {
+                "race": "2026 GA Senate",
+                "pollster": "Cygnal",
+                "pollster_raw": "Cygnal",
+                "date": "2026-02-01",
+                "n_sample": 700,
+                "dem_pct": 48.0,
+                "rep_pct": 52.0,
+                "dem_share": 0.48,
+                "source": "rcp",
+                "sample_type": "LV",
+            },
+        ]
+        df = build_output_df(polls)
+        gb_row = df[df["race"] == _GB_RACE_LABEL].iloc[0]
+        state_row = df[df["race"] == "2026 GA Senate"].iloc[0]
+        assert gb_row["geo_level"] == "national"
+        assert gb_row["geography"] == "US"
+        assert state_row["geo_level"] == "state"
+        assert state_row["geography"] == "GA"

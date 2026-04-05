@@ -30,6 +30,7 @@ import { DashboardOverlay } from "@/components/DashboardOverlay";
 import { MapTooltip } from "./MapTooltip";
 import { MapLegend, type LegendEntry } from "./MapLegend";
 import { MapControls } from "./MapControls";
+import { CountySearch, type CountyEntry } from "./CountySearch";
 import { HistoricalOverlayToggle, type HistoricalYear } from "./HistoricalOverlayToggle";
 import {
   formatIncome,
@@ -119,12 +120,22 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [countyGeo, setCountyGeo] = useState<Record<string, unknown> | null>(null);
   const [historicalYear, setHistoricalYear] = useState<HistoricalYear | null>(null);
+
+  // County search entries — derived from countyGeo once it loads so the search
+  // component never needs its own fetch. Null until the GeoJSON is available.
+  const [countySearchEntries, setCountySearchEntries] = useState<CountyEntry[] | null>(null);
   const [historicalData, setHistoricalData] = useState<Map<string, number>>(new Map());
   const [historicalLoading, setHistoricalLoading] = useState(false);
 
   // ── On mount: load states + senate ratings + type metadata ────────────────
   useEffect(() => {
     fetch("/states-us.geojson").then((r) => r.json()).then(setStateGeo);
+
+    // Load county GeoJSON in the background so the search box is ready once
+    // the heavier map data settles. The 3.7MB file is fetched non-blocking so
+    // it doesn't delay the initial render; it just means the search input only
+    // appears once the download completes.
+    fetch("/counties-us.geojson").then((r) => r.json()).then(setCountyGeo).catch(() => {});
 
     fetch(`${API_BASE}/senate/overview`)
       .then((r) => r.json())
@@ -158,9 +169,30 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
     });
   }, []);
 
+  // ── County search: extract entries from countyGeo once it loads ─────────
+  // The countyGeo features are the canonical source for county names and FIPS.
+  // We extract entries here (in MapShell) so CountySearch receives plain data
+  // and never needs to parse raw GeoJSON itself.
+  useEffect(() => {
+    if (!countyGeo) return;
+    type RawFeature = {
+      properties?: { county_fips?: string; county_name?: string };
+      geometry?: { coordinates: unknown };
+    };
+    const features = (countyGeo as { features?: RawFeature[] }).features ?? [];
+    const entries: CountyEntry[] = features
+      .filter((f) => f.properties?.county_fips && f.properties?.county_name && f.geometry)
+      .map((f) => ({
+        fips: f.properties!.county_fips!,
+        label: f.properties!.county_name!,
+        geometry: f.geometry as { coordinates: unknown },
+      }));
+    setCountySearchEntries(entries);
+  }, [countyGeo]);
+
   // ── Historical overlay: load county GeoJSON and election data ────────────
-  // County GeoJSON is loaded lazily on first year selection so the initial
-  // page load doesn't incur the 3.7MB download.
+  // County GeoJSON is now loaded eagerly on mount (for the search box), but
+  // we keep the guard here in case mount-fetch failed (e.g. slow connection).
   useEffect(() => {
     if (historicalYear === null) {
       // Clear historical data when overlay is dismissed
@@ -168,7 +200,8 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
       return;
     }
 
-    // Kick off county polygon fetch if not yet loaded
+    // Kick off county polygon fetch if not yet loaded (should normally be
+    // a no-op since the on-mount fetch handles this)
     if (!countyGeo) {
       fetch("/counties-us.geojson").then((r) => r.json()).then(setCountyGeo).catch(() => {});
     }
@@ -267,6 +300,27 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
     setViewState((prev) => ({
       ...prev,
       ...INITIAL_VIEW_STATE,
+      transitionDuration: TRANSITION_MS,
+      transitionInterpolator: new FlyToInterpolator(),
+    }));
+  }, []);
+
+  // ── County search: fly to a selected county ──────────────────────────────
+  // On selection, we compute the bbox from the county's geometry (same
+  // approach as state navigation) and fly to it via FlyToInterpolator.
+  // We use a slightly higher zoom floor (6) than the state handler because
+  // counties are smaller — the state zoom floor of 4 would under-zoom small states.
+  const handleCountySelect = useCallback((county: CountyEntry) => {
+    const [minLng, minLat, maxLng, maxLat] = bboxFromGeometry(county.geometry);
+    const centerLng = (minLng + maxLng) / 2;
+    const centerLat = (minLat + maxLat) / 2;
+    // zoomFromBbox clamps between 4–9; force a floor of 6 for county granularity
+    const zoom = Math.max(6, zoomFromBbox(minLng, minLat, maxLng, maxLat));
+    setViewState((prev) => ({
+      ...prev,
+      longitude: centerLng,
+      latitude: centerLat,
+      zoom,
       transitionDuration: TRANSITION_MS,
       transitionInterpolator: new FlyToInterpolator(),
     }));
@@ -545,6 +599,14 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
         selectedYear={historicalYear}
         onYearChange={setHistoricalYear}
         isLoading={historicalLoading}
+      />
+
+      {/* County search — lazy: only rendered once countyGeo has loaded.
+          The HistoricalOverlayToggle loads countyGeo on first year click;
+          once it's in state, the search box appears automatically. */}
+      <CountySearch
+        counties={countySearchEntries}
+        onSelectCounty={handleCountySelect}
       />
 
       {tooltip && <MapTooltip x={tooltip.x} y={tooltip.y} text={tooltip.text} />}

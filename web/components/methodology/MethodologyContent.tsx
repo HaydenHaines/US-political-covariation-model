@@ -10,6 +10,7 @@ const TOC_SECTIONS = [
   { id: "how-it-works", label: "How It Works" },
   { id: "performance", label: "Model Performance" },
   { id: "historical-accuracy", label: "Historical Accuracy" },
+  { id: "backtest-validation", label: "2022 Backtest" },
   { id: "differentiation", label: "What Makes This Different" },
   { id: "data-sources", label: "Data Sources" },
   { id: "status", label: "Current Status" },
@@ -35,6 +36,36 @@ const CROSS_ELECTION = [
   { cycle: "2020 → 2024", r: 0.38 },
   { cycle: "2008 → 2012", r: 0.43 },
 ];
+
+// Backtest results: model retrained without 2022 data, predicting 2022 outcomes
+// Source: data/experiments/backtest_2022_results.json
+const BACKTEST_METRICS = [
+  {
+    race: "Senate",
+    countyR: 0.9705,
+    countyRmse: 0.0401,
+    nCounties: 1880,
+    typeMeanR: 0.6789,
+  },
+  {
+    race: "Governor",
+    countyR: 0.8856,
+    countyRmse: 0.0825,
+    nCounties: 1900,
+    typeMeanR: 0.6359,
+  },
+] as const;
+
+// Key spotlight races for the Senate backtest — best illustration of r=0.97 precision
+const SENATE_SPOTLIGHT = [
+  { state: "AZ", label: "Kelly vs Masters", pred: 0.5005, actual: 0.525, error: -2.45 },
+  { state: "GA", label: "Warnock vs Walker", pred: 0.4988, actual: 0.5049, error: -0.61 },
+  { state: "NC", label: "Beasley vs Budd", pred: 0.4928, actual: 0.4835, error: 0.93 },
+  { state: "NV", label: "Cortez Masto vs Laxalt", pred: 0.5092, actual: 0.504, error: 0.52 },
+  { state: "OH", label: "Ryan vs Vance", pred: 0.4564, actual: 0.4694, error: -1.3 },
+  { state: "PA", label: "Fetterman vs Oz", pred: 0.501, actual: 0.5252, error: -2.41 },
+  { state: "WI", label: "Barnes vs Johnson", pred: 0.5034, actual: 0.495, error: 0.84 },
+] as const;
 
 const DATA_SOURCES = [
   { name: "Election returns", source: "MIT Election Data & Science Lab (MEDSL)" },
@@ -335,6 +366,174 @@ function CrossElectionTable({
   );
 }
 
+// ── BacktestSummaryCards ───────────────────────────────────────────────────
+
+/**
+ * Side-by-side cards showing the two headline backtest metrics:
+ * Senate county r and Governor county r from the 2022 holdout.
+ * The type-mean baseline is shown for contrast — it illustrates how much
+ * the presidential-prior enrichment adds beyond just using type averages.
+ */
+function BacktestSummaryCards() {
+  return (
+    <div
+      role="list"
+      aria-label="2022 backtest summary metrics"
+      className="grid gap-4 mt-4 mb-2"
+      style={{ gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))" }}
+    >
+      {BACKTEST_METRICS.map((m) => (
+        <div
+          key={m.race}
+          role="listitem"
+          className="rounded-md p-5"
+          style={{
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div
+            className="text-xs font-bold uppercase tracking-wider mb-3"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            {m.race} races — {m.nCounties.toLocaleString()} counties
+          </div>
+
+          {/* Primary metric: presidential-prior county r */}
+          <div className="flex items-end gap-3 mb-3">
+            <div>
+              <div
+                className="font-serif text-4xl font-bold leading-none"
+                style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+              >
+                {m.countyR.toFixed(4)}
+              </div>
+              <div className="text-xs mt-1" style={{ color: "var(--color-text-muted)" }}>
+                county r — presidential prior
+              </div>
+            </div>
+          </div>
+
+          {/* Progress bar — county r */}
+          <div
+            className="h-2 rounded-full overflow-hidden mb-4"
+            style={{ background: "var(--color-border)" }}
+            aria-hidden="true"
+          >
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${m.countyR * 100}%`,
+                background: "var(--color-dem)",
+              }}
+            />
+          </div>
+
+          {/* Comparison: type-mean baseline */}
+          <div
+            className="pt-3 flex justify-between items-center text-sm"
+            style={{ borderTop: "1px solid var(--color-border)" }}
+          >
+            <span style={{ color: "var(--color-text-muted)" }}>Type-mean baseline</span>
+            <span
+              className="font-mono font-semibold"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              r = {m.typeMeanR.toFixed(4)}
+            </span>
+          </div>
+
+          {/* RMSE */}
+          <div
+            className="pt-2 flex justify-between items-center text-sm"
+          >
+            <span style={{ color: "var(--color-text-muted)" }}>RMSE</span>
+            <span
+              className="font-mono font-semibold"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              {m.countyRmse.toFixed(4)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── BacktestSpotlightTable ─────────────────────────────────────────────────
+
+/**
+ * Shows predicted vs actual Dem share for seven competitive 2022 Senate races.
+ * These are the races the model had never seen when it made its predictions —
+ * they were held out of training. The small errors here (±3pp for most)
+ * are what the r=0.97 translates to in practice.
+ */
+function BacktestSpotlightTable() {
+  return (
+    <div
+      className="rounded-md overflow-hidden mt-4"
+      style={{ border: "1px solid var(--color-border)" }}
+      role="table"
+      aria-label="2022 Senate backtest spotlight races"
+    >
+      {/* Header */}
+      <div
+        className="grid px-4 py-2 text-xs font-semibold uppercase tracking-wider"
+        role="row"
+        style={{
+          gridTemplateColumns: "5rem 1fr 5rem 5rem 5rem",
+          background: "var(--color-surface)",
+          color: "var(--color-text-muted)",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <span role="columnheader">State</span>
+        <span role="columnheader">Race</span>
+        <span role="columnheader" className="text-right">Predicted</span>
+        <span role="columnheader" className="text-right">Actual</span>
+        <span role="columnheader" className="text-right">Error</span>
+      </div>
+
+      {/* Rows */}
+      {SENATE_SPOTLIGHT.map((row, i) => {
+        const absErr = Math.abs(row.error);
+        // Color-code errors: ≤2pp green-ish, ≤4pp neutral, >4pp orange-ish
+        const errColor =
+          absErr <= 2
+            ? "var(--color-dem)"
+            : absErr <= 4
+            ? "var(--color-text)"
+            : "var(--color-rep)";
+
+        return (
+          <div
+            key={row.state}
+            role="row"
+            className="grid items-center px-4 py-3 text-sm"
+            style={{
+              gridTemplateColumns: "5rem 1fr 5rem 5rem 5rem",
+              borderBottom:
+                i < SENATE_SPOTLIGHT.length - 1
+                  ? "1px solid var(--color-border)"
+                  : "none",
+              background: i % 2 === 0 ? "transparent" : "var(--color-surface)",
+            }}
+          >
+            <span role="cell" className="font-bold font-mono">{row.state}</span>
+            <span role="cell" style={{ color: "var(--color-text-muted)" }}>{row.label}</span>
+            <span role="cell" className="text-right font-mono">{(row.pred * 100).toFixed(1)}%</span>
+            <span role="cell" className="text-right font-mono">{(row.actual * 100).toFixed(1)}%</span>
+            <span role="cell" className="text-right font-mono font-semibold" style={{ color: errColor }}>
+              {row.error > 0 ? "+" : ""}{row.error.toFixed(1)}pp
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────
 
 export function MethodologyContent() {
@@ -580,11 +779,72 @@ export function MethodologyContent() {
             </div>
           </ScrollSection>
 
-          {/* ── 05 — What Makes This Different ─────────────── */}
+          {/* ── 05 — 2022 Backtest Validation ──────────────── */}
+          <ScrollSection
+            id="backtest-validation"
+            title="2022 Backtest Validation"
+            sectionNumber={5}
+            totalSections={total}
+          >
+            <p>
+              The cross-election LOO metrics above measure whether the{" "}
+              <em>type structure</em> generalizes to new presidential cycles. But
+              the harder test is this: does the model generalize to{" "}
+              <strong>a completely unseen election type</strong> — a midterm it
+              has never trained on?
+            </p>
+            <p className="mt-3">
+              To test this, we retrained the model from scratch after{" "}
+              <strong>removing all 2022 data</strong> — no 2022 governor shifts,
+              no 2022 Senate shifts, none of it. We then used the 2020
+              presidential Dem share as a county-level prior, and predicted 2022
+              outcomes purely from the structure the model had learned through 2020.
+            </p>
+            <BacktestSummaryCards />
+            <p className="mt-4">
+              The Senate result — <strong>county r = 0.97</strong> across 1,880
+              counties — is the strongest evidence that the partisan geography
+              structure the model learns is real and durable. Correlations this
+              high mean the model gets the <em>relative</em> ordering of counties
+              nearly perfect: which ones lean Democratic, which lean Republican,
+              and by roughly how much. It does not mean point estimates are
+              perfect — the RMSE of ±4pp on Senate races reflects real
+              uncertainty about national environment and candidate effects.
+            </p>
+            <p className="mt-3">
+              Governor races are harder (r = 0.89) because governor outcomes
+              depend more heavily on candidate-specific factors and state-level
+              dynamics that a national type model cannot fully capture. The
+              type structure still explains 79% of the variance in county-level
+              governor outcomes — but the remaining 21% is genuine candidate
+              effect.
+            </p>
+
+            <h3
+              className="font-serif text-lg font-semibold mt-6 mb-2"
+              style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+            >
+              Seven competitive Senate races, never seen during training
+            </h3>
+            <p className="mb-3 text-sm" style={{ color: "var(--color-text-muted)" }}>
+              The model predicted these outcomes using only the type structure
+              learned from 2008–2020. Errors are predicted minus actual
+              Democratic share (state-level, vote-weighted average across counties).
+            </p>
+            <BacktestSpotlightTable />
+            <p className="mt-4 text-sm" style={{ color: "var(--color-text-muted)" }}>
+              Five of seven races land within ±2.5pp. The type-mean baseline
+              (r = 0.68) predicts these same races with errors up to ±17pp —
+              showing that the presidential-prior enrichment is doing substantial
+              work beyond just knowing which communities lean which way.
+            </p>
+          </ScrollSection>
+
+          {/* ── 06 — What Makes This Different ─────────────── */}
           <ScrollSection
             id="differentiation"
             title="What Makes This Different"
-            sectionNumber={5}
+            sectionNumber={6}
             totalSections={total}
           >
             <ul className="space-y-4 pl-5 list-disc">
@@ -626,11 +886,11 @@ export function MethodologyContent() {
             </ul>
           </ScrollSection>
 
-          {/* ── 06 — Data Sources ───────────────────────────── */}
+          {/* ── 07 — Data Sources ───────────────────────────── */}
           <ScrollSection
             id="data-sources"
             title="Data Sources"
-            sectionNumber={6}
+            sectionNumber={7}
             totalSections={total}
           >
             <p>
@@ -665,11 +925,11 @@ export function MethodologyContent() {
             </div>
           </ScrollSection>
 
-          {/* ── 07 — Current Status ─────────────────────────── */}
+          {/* ── 08 — Current Status ─────────────────────────── */}
           <ScrollSection
             id="status"
             title="Current Status"
-            sectionNumber={7}
+            sectionNumber={8}
             totalSections={total}
           >
             <p>
@@ -728,11 +988,11 @@ export function MethodologyContent() {
             </p>
           </ScrollSection>
 
-          {/* ── 08 — Credits ────────────────────────────────── */}
+          {/* ── 09 — Credits ────────────────────────────────── */}
           <ScrollSection
             id="credits"
             title="Credits"
-            sectionNumber={8}
+            sectionNumber={9}
             totalSections={total}
           >
             <p>

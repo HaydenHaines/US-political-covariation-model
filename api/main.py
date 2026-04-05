@@ -10,9 +10,11 @@ from pathlib import Path
 import duckdb
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.cache import forecast_cache, make_cache_key
+from api.routers import cache as cache_router
 from api.routers import communities, counties, forecast, meta, senate
 from src.propagation.crosstab_w_builder import CROSSTAB_DIMENSION_MAP, build_affinity_index
 
@@ -335,7 +337,23 @@ async def lifespan(app: FastAPI):
     startup_db.close()
     log.info("Startup DuckDB connection closed")
 
+    # Attach the module-level cache singleton to app.state so routers and
+    # middleware can reach it via request.app.state.cache.
+    app.state.cache = forecast_cache
+    log.info("Forecast cache attached (TTL=%ds)", forecast_cache.ttl_seconds)
+
     yield
+
+    log.info("Cache stats at shutdown: %s", forecast_cache.stats())
+
+
+# Paths whose GET responses are safe to cache.
+# POST endpoints (poll updates) compute on-the-fly and must never be cached.
+# /health and /model/* are cheap and reflect live state — exclude them too.
+_CACHEABLE_PREFIXES = (
+    "/api/v1/forecast",
+    "/api/v1/polls",
+)
 
 
 def create_app(lifespan_override=None) -> FastAPI:
@@ -357,11 +375,60 @@ def create_app(lifespan_override=None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def forecast_cache_middleware(request: Request, call_next):
+        """Cache GET responses for forecast/poll endpoints.
+
+        Only caches successful (HTTP 200) JSON responses.  POST requests and
+        non-forecast paths are passed through without touching the cache.
+        Cache is keyed by path + sorted query params so different filters
+        produce independent cache entries.
+        """
+        # Only cache GET requests to designated cacheable paths.
+        is_cacheable = (
+            request.method == "GET"
+            and any(request.url.path.startswith(prefix) for prefix in _CACHEABLE_PREFIXES)
+        )
+        if not is_cacheable:
+            return await call_next(request)
+
+        cache = getattr(request.app.state, "cache", None)
+        if cache is None:
+            return await call_next(request)
+
+        key = make_cache_key(request.url.path, dict(request.query_params))
+        hit, cached_body = cache.get(key)
+        if hit:
+            log.debug("Cache hit: %s", key)
+            return Response(
+                content=cached_body,
+                media_type="application/json",
+                headers={"X-Cache": "HIT"},
+            )
+
+        log.debug("Cache miss: %s", key)
+        response = await call_next(request)
+
+        # Only cache successful JSON responses to avoid caching errors.
+        if response.status_code == 200:
+            # Consume the streaming response body so we can store and replay it.
+            body = b"".join([chunk async for chunk in response.body_iterator])
+            cache.set(key, body)
+            return Response(
+                content=body,
+                status_code=response.status_code,
+                media_type=response.media_type or "application/json",
+                headers={**dict(response.headers), "X-Cache": "MISS"},
+            )
+
+        return response
+
     app.include_router(meta.router, prefix="/api/v1")
     app.include_router(communities.router, prefix="/api/v1")
     app.include_router(counties.router, prefix="/api/v1")
     app.include_router(forecast.router, prefix="/api/v1")
     app.include_router(senate.router, prefix="/api/v1")
+    app.include_router(cache_router.router, prefix="/api/v1")
 
     return app
 

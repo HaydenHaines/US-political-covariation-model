@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
-
-import pandas as pd
-import pytest
 
 # Import from the scraper module
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -21,6 +19,7 @@ from scrape_2026_polls import (
     normalize_pollster,
     parse_poll_date,
     scrape_270towin,
+    scrape_rcp,
     scrape_wikipedia,
     two_party_share,
 )
@@ -66,7 +65,10 @@ class TestNormalizePollster:
         assert normalize_pollster("Cygnal (R)") == "Cygnal"
         assert normalize_pollster("Quantus Insights (R)") == "Quantus Insights"
         assert normalize_pollster("Tyson Group (R)") == "Tyson Group"
-        assert normalize_pollster("Bendixen & Amandi International (D)") == "Bendixen & Amandi International"
+        assert (
+            normalize_pollster("Bendixen & Amandi International (D)")
+            == "Bendixen & Amandi International"
+        )
 
 
 # ============================================================================
@@ -226,10 +228,38 @@ class TestDeduplication:
         result = deduplicate(polls)
         assert len(result) == 2
 
-    def test_duplicate_prefers_270towin(self):
+    def test_duplicate_prefers_270towin_over_wiki(self):
         polls = [
             self._make_poll(
                 "Emerson College", "2026-03-01", "2026 FL Governor", "wikipedia", 44.0, 56.0
+            ),
+            self._make_poll(
+                "Emerson College", "2026-03-01", "2026 FL Governor", "270towin", 45.0, 55.0
+            ),
+        ]
+        result = deduplicate(polls)
+        assert len(result) == 1
+        assert result[0]["source"] == "270towin"
+        assert result[0]["dem_pct"] == 45.0
+
+    def test_duplicate_prefers_rcp_over_wiki(self):
+        polls = [
+            self._make_poll(
+                "Emerson College", "2026-03-01", "2026 FL Governor", "wikipedia", 44.0, 56.0
+            ),
+            self._make_poll(
+                "Emerson College", "2026-03-01", "2026 FL Governor", "rcp", 46.0, 54.0
+            ),
+        ]
+        result = deduplicate(polls)
+        assert len(result) == 1
+        assert result[0]["source"] == "rcp"
+        assert result[0]["dem_pct"] == 46.0
+
+    def test_duplicate_prefers_270towin_over_rcp(self):
+        polls = [
+            self._make_poll(
+                "Emerson College", "2026-03-01", "2026 FL Governor", "rcp", 46.0, 54.0
             ),
             self._make_poll(
                 "Emerson College", "2026-03-01", "2026 FL Governor", "270towin", 45.0, 55.0
@@ -552,6 +582,161 @@ class TestTTWParsing:
 
 
 # ============================================================================
+# RCP parsing with mock HTML (Next.js embedded JSON format)
+# ============================================================================
+
+# RCP serves data via Next.js flight protocol: embedded JSON inside
+# self.__next_f.push() script calls.  Table rows are empty; data lives in
+# the "polls" array within the decoded JSON payload.
+_RCP_POLLS_JSON = [
+    {
+        "id": "9999",
+        "type": "rcp_average",
+        "pollster": "rcp_average",
+        "date": "3/20 - 4/1",
+        "data_end_date": "2026/04/01",
+        "sampleSize": "",
+        "candidate": [
+            {"name": "Smith", "affiliation": "Democrat", "value": "46"},
+            {"name": "Jones", "affiliation": "Republican", "value": "50"},
+        ],
+    },
+    {
+        "id": "111",
+        "type": "poll_rcp_avg",
+        "pollster": "Emerson",
+        "pollster_group_name": "Emerson College",
+        "date": "3/31 - 4/1",
+        "data_end_date": "2026/04/01",
+        "sampleSize": "987 LV",
+        "candidate": [
+            {"name": "Smith", "affiliation": "Democrat", "value": "45"},
+            {"name": "Jones", "affiliation": "Republican", "value": "52"},
+        ],
+    },
+    {
+        "id": "222",
+        "type": "poll_rcp_avg",
+        "pollster": "Cygnal",
+        "pollster_group_name": "Cygnal",
+        "date": "3/20 - 3/22",
+        "data_end_date": "2026/03/22",
+        "sampleSize": "556 RV",
+        "candidate": [
+            {"name": "Smith", "affiliation": "Democrat", "value": "47"},
+            {"name": "Jones", "affiliation": "Republican", "value": "48"},
+        ],
+    },
+]
+
+
+def _build_rcp_fixture_html(polls_data) -> str:
+    """Build a minimal RCP-format HTML fixture with embedded Next.js JSON."""
+    # Build the encoded payload the same way RCP embeds it
+    inner_obj = f'{{"polls":{json.dumps(polls_data)}}}'
+    # Escape as a JSON string value (double-encode)
+    encoded = json.dumps(inner_obj)[1:-1]  # strip outer quotes
+    return f"""<html><body>
+<script>self.__next_f.push([1,"{encoded}"]);</script>
+</body></html>"""
+
+
+RCP_FIXTURE_HTML = _build_rcp_fixture_html(_RCP_POLLS_JSON)
+
+
+class TestRCPParsing:
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_filters_average_row(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        # Should get 2 polls — RCP Average row must be excluded
+        assert len(polls) == 2
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_source_label(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert all(p["source"] == "rcp" for p in polls)
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_pollster_normalized(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls[0]["pollster"] == "Emerson College"
+        assert polls[1]["pollster"] == "Cygnal"
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_date_from_data_end_date(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        # data_end_date "2026/04/01" → "2026-04-01"
+        assert polls[0]["date"] == "2026-04-01"
+        # data_end_date "2026/03/22" → "2026-03-22"
+        assert polls[1]["date"] == "2026-03-22"
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_sample_type(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls[0]["sample_type"] == "LV"
+        assert polls[1]["sample_type"] == "RV"
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_sample_size(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls[0]["n_sample"] == 987
+        assert polls[1]["n_sample"] == 556
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_network_error(self, mock_fetch):
+        mock_fetch.return_value = None
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls == []
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_percentages(self, mock_fetch):
+        mock_fetch.return_value = RCP_FIXTURE_HTML
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls[0]["dem_pct"] == 45.0
+        assert polls[0]["rep_pct"] == 52.0
+
+    @patch("scrape_2026_polls.fetch_html")
+    def test_parse_rcp_no_json_returns_empty(self, mock_fetch):
+        """Pages with no embedded poll JSON should return empty list gracefully."""
+        mock_fetch.return_value = "<html><body><p>No data</p></body></html>"
+        polls = scrape_rcp(
+            "2026 GA Senate", "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            FIXTURE_DEM_CANDIDATES, FIXTURE_REP_CANDIDATES,
+        )
+        assert polls == []
+
+
+# ============================================================================
 # Integration: end-to-end with mocked HTTP
 # ============================================================================
 class TestEndToEnd:
@@ -593,17 +778,21 @@ class TestRaceConfig:
             assert "state" in cfg, f"{label} missing state"
             assert "wiki_url" in cfg, f"{label} missing wiki_url"
             assert "ttw_url" in cfg, f"{label} missing ttw_url"
+            assert "rcp_urls" in cfg, f"{label} missing rcp_urls"
             assert "dem_candidates" in cfg, f"{label} missing dem_candidates"
             assert "rep_candidates" in cfg, f"{label} missing rep_candidates"
             assert len(cfg["dem_candidates"]) > 0, f"{label} has empty dem_candidates"
             assert len(cfg["rep_candidates"]) > 0, f"{label} has empty rep_candidates"
+            # rcp_urls must be a list (may be empty for races RCP does not track)
+            assert isinstance(cfg["rcp_urls"], list), f"{label} rcp_urls must be a list"
 
     def test_races_configured(self):
-        assert len(RACE_CONFIG) == 18  # 8 governor + 10 senate races
+        # Original 18 + 9 new RCP-only races
+        assert len(RACE_CONFIG) == 27
 
-    def test_all_18_races_present(self):
-        """All 18 tracked races must be configured in RACE_CONFIG."""
-        expected = {
+    def test_original_18_races_present(self):
+        """All original 18 tracked races must still be in RACE_CONFIG."""
+        original_18 = {
             # Original 6
             "2026 FL Governor", "2026 FL Senate",
             "2026 GA Governor", "2026 GA Senate",
@@ -615,7 +804,16 @@ class TestRaceConfig:
             "2026 MI Governor", "2026 OH Governor",
             "2026 PA Governor", "2026 TX Governor", "2026 WI Governor",
         }
-        assert expected == set(RACE_CONFIG.keys())
+        assert original_18.issubset(set(RACE_CONFIG.keys()))
+
+    def test_new_rcp_races_present(self):
+        """New races sourced from RCP must be in RACE_CONFIG."""
+        new_races = {
+            "2026 TX Senate", "2026 MA Senate", "2026 OH Senate",
+            "2026 NY Governor", "2026 NV Governor", "2026 AZ Governor",
+            "2026 MN Governor", "2026 MA Governor", "2026 NH Governor",
+        }
+        assert new_races.issubset(set(RACE_CONFIG.keys()))
 
     def test_states_are_valid(self):
         valid_states = {

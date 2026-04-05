@@ -1,9 +1,9 @@
 """
-Scrape 2026 election polls from Wikipedia and 270toWin.
+Scrape 2026 election polls from Wikipedia, 270toWin, and RealClearPolling.
 
-Dual-source scraper covering all 18 tracked 2026 races:
-  Governor: AL, FL, GA, MI, OH, PA, TX, WI
-  Senate: AL, FL, GA, IA, ME, MI, MN, NC, NH, OR
+Triple-source scraper covering tracked 2026 races:
+  Governor: AL, AZ, FL, GA, MA, MI, NV, NY, OH, PA, TX, WI
+  Senate: AL, FL, GA, IA, MA, ME, MI, MN, NC, NH, OH (special), OR, TX
 
 Outputs to data/polls/polls_2026.csv in the project's standard schema.
 
@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import logging
 import re
 import time
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 OUTPUT_PATH = PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
 
+RCP_BASE_URL = "https://www.realclearpolling.com"
 USER_AGENT = "WetherVane-PollScraper/1.0 (political research)"
 REQUEST_DELAY = 2  # seconds between HTTP requests
 
@@ -63,6 +65,10 @@ RACE_CONFIG = {
             "simpson",
             "casey desantis",
         ],
+        "rcp_urls": [
+            "/polls/governor/general/2026/florida/donalds-vs-jolly",
+            "/polls/governor/general/2026/florida/donalds-vs-demings",
+        ],
     },
     "2026 FL Senate": {
         "state": "FL",
@@ -73,10 +79,16 @@ RACE_CONFIG = {
             "nixon",
             "moskowitz",
             "vindman",
+            "mujica",
         ],
         "rep_candidates": [
             "moody",
             "lang",
+        ],
+        "rcp_urls": [
+            "/polls/senate/general/2026/florida/moody-vs-vindman",
+            "/polls/senate/general/2026/florida/moody-vs-mujica",
+            "/polls/senate/general/2026/florida/moody-vs-nixon",
         ],
     },
     "2026 GA Governor": {
@@ -95,6 +107,7 @@ RACE_CONFIG = {
             "collins",
             "jackson",
         ],
+        "rcp_urls": [],
     },
     "2026 GA Senate": {
         "state": "GA",
@@ -112,6 +125,11 @@ RACE_CONFIG = {
             "dooley",
             "rich dooley",
         ],
+        "rcp_urls": [
+            "/polls/senate/general/2026/georgia/ossoff-vs-collins",
+            "/polls/senate/general/2026/georgia/ossoff-vs-carter",
+            "/polls/senate/general/2026/georgia/ossoff-vs-dooley",
+        ],
     },
     "2026 AL Governor": {
         "state": "AL",
@@ -128,6 +146,7 @@ RACE_CONFIG = {
             "tommy tuberville",
             "mcfeeters",
         ],
+        "rcp_urls": [],
     },
     "2026 AL Senate": {
         "state": "AL",
@@ -147,6 +166,7 @@ RACE_CONFIG = {
             "dobson",
             "caroleene dobson",
         ],
+        "rcp_urls": [],
     },
     # ── National competitive races (added S213) ──────────────────
     "2026 IA Senate": {
@@ -155,20 +175,27 @@ RACE_CONFIG = {
         "ttw_url": "https://www.270towin.com/2026-senate-polls/iowa",
         "dem_candidates": ["franken", "michael franken"],
         "rep_candidates": ["ernst", "joni ernst"],
+        "rcp_urls": [],
     },
     "2026 ME Senate": {
         "state": "ME",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Maine",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/maine",
-        "dem_candidates": ["gideon", "sara gideon", "pingree", "chellie pingree"],
+        "dem_candidates": ["gideon", "sara gideon", "pingree", "chellie pingree", "platner"],
         "rep_candidates": ["collins", "susan collins"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/maine/collins-vs-platner",
+        ],
     },
     "2026 MI Governor": {
         "state": "MI",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Michigan_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/michigan",
-        "dem_candidates": ["gilchrist", "garlin gilchrist"],
+        "dem_candidates": ["gilchrist", "garlin gilchrist", "benson"],
         "rep_candidates": ["james", "john james", "soldano", "garrett soldano"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/michigan/benson-vs-james-vs-duggan",
+        ],
     },
     "2026 MI Senate": {
         "state": "MI",
@@ -176,34 +203,52 @@ RACE_CONFIG = {
         "ttw_url": "https://www.270towin.com/2026-senate-polls/michigan",
         "dem_candidates": ["peters", "gary peters", "slotkin", "elissa slotkin"],
         "rep_candidates": ["james", "john james", "kelley", "tudor dixon"],
+        "rcp_urls": [],
     },
     "2026 MN Senate": {
         "state": "MN",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Minnesota",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/minnesota",
-        "dem_candidates": ["smith", "tina smith"],
-        "rep_candidates": ["jensen", "scott jensen", "birk", "matt birk"],
+        # RCP uses tafoya (R) vs flanagan/craig (D)
+        "dem_candidates": ["smith", "tina smith", "flanagan", "craig"],
+        "rep_candidates": ["jensen", "scott jensen", "birk", "matt birk", "tafoya"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/minnesota/tafoya-vs-flanagan",
+            "/polls/senate/general/2026/minnesota/tafoya-vs-craig",
+        ],
     },
     "2026 NC Senate": {
         "state": "NC",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_North_Carolina",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/north-carolina",
-        "dem_candidates": ["jackson", "jeff jackson"],
-        "rep_candidates": ["tillis", "thom tillis"],
+        # RCP uses cooper (D) vs whatley (R)
+        "dem_candidates": ["jackson", "jeff jackson", "cooper"],
+        "rep_candidates": ["tillis", "thom tillis", "whatley"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/north-carolina/cooper-vs-whatley",
+        ],
     },
     "2026 NH Senate": {
         "state": "NH",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_New_Hampshire",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/new-hampshire",
-        "dem_candidates": ["shaheen", "jeanne shaheen"],
-        "rep_candidates": ["morse", "chuck morse", "sununu", "chris sununu"],
+        # RCP uses pappas (D) vs sununu/brown (R)
+        "dem_candidates": ["shaheen", "jeanne shaheen", "pappas"],
+        "rep_candidates": ["morse", "chuck morse", "sununu", "chris sununu", "brown"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/new-hampshire/pappas-vs-sununu",
+            "/polls/senate/general/2026/new-hampshire/pappas-vs-brown",
+        ],
     },
     "2026 OH Governor": {
         "state": "OH",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Ohio_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/ohio",
-        "dem_candidates": ["whaley", "nan whaley"],
-        "rep_candidates": ["husted", "jon husted"],
+        "dem_candidates": ["whaley", "nan whaley", "acton"],
+        "rep_candidates": ["husted", "jon husted", "ramaswamy"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/ohio/ramaswamy-vs-acton",
+        ],
     },
     "2026 OR Senate": {
         "state": "OR",
@@ -211,27 +256,144 @@ RACE_CONFIG = {
         "ttw_url": "https://www.270towin.com/2026-senate-polls/oregon",
         "dem_candidates": ["merkley", "jeff merkley"],
         "rep_candidates": ["drazan", "christine drazan"],
+        "rcp_urls": [],
     },
     "2026 PA Governor": {
         "state": "PA",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Pennsylvania_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/pennsylvania",
         "dem_candidates": ["shapiro", "josh shapiro"],
-        "rep_candidates": ["mastriano", "mccormick", "dave mccormick"],
+        "rep_candidates": ["mastriano", "mccormick", "dave mccormick", "garrity"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/pennsylvania/shapiro-vs-garrity",
+        ],
     },
     "2026 TX Governor": {
         "state": "TX",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Texas_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/texas",
-        "dem_candidates": ["allred", "colin allred", "casar", "greg casar"],
-        "rep_candidates": ["patrick", "dan patrick", "paxton", "ken paxton"],
+        "dem_candidates": ["allred", "colin allred", "casar", "greg casar", "hinojosa"],
+        "rep_candidates": ["patrick", "dan patrick", "paxton", "ken paxton", "abbott"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/texas/abbott-vs-hinojosa",
+        ],
     },
     "2026 WI Governor": {
         "state": "WI",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_Wisconsin_gubernatorial_election",
         "ttw_url": "https://www.270towin.com/2026-governor-polls/wisconsin",
-        "dem_candidates": ["evers", "tony evers"],
-        "rep_candidates": ["kleefisch", "rebecca kleefisch", "michels", "tim michels"],
+        # RCP uses tiffany (R) vs barnes/rodriguez/hong (D)
+        "dem_candidates": ["evers", "tony evers", "barnes", "rodriguez", "hong"],
+        "rep_candidates": ["kleefisch", "rebecca kleefisch", "michels", "tim michels", "tiffany"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/wisconsin/tiffany-vs-barnes",
+            "/polls/governor/general/2026/wisconsin/tiffany-vs-rodriguez",
+            "/polls/governor/general/2026/wisconsin/tiffany-vs-hong",
+        ],
+    },
+    # ── New races tracked by RCP but not previously in config ────
+    "2026 TX Senate": {
+        "state": "TX",
+        "wiki_url": "",
+        "ttw_url": "",
+        "dem_candidates": ["crockett", "talarico"],
+        "rep_candidates": ["paxton", "ken paxton"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/texas/paxton-vs-crockett",
+            "/polls/senate/general/2026/texas/paxton-vs-talarico",
+        ],
+    },
+    "2026 MA Senate": {
+        "state": "MA",
+        "wiki_url": "",
+        "ttw_url": "",
+        # deaton (R) vs markey/moulton (D)
+        "dem_candidates": ["markey", "ed markey", "moulton", "seth moulton"],
+        "rep_candidates": ["deaton"],
+        "rcp_urls": [
+            "/polls/senate/general/2026/massachusetts/deaton-vs-markey",
+            "/polls/senate/general/2026/massachusetts/deaton-vs-moulton",
+        ],
+    },
+    "2026 OH Senate": {
+        "state": "OH",
+        "wiki_url": "",
+        "ttw_url": "",
+        # Special election: husted (R) vs brown (D)
+        "dem_candidates": ["brown", "sherrod brown"],
+        "rep_candidates": ["husted", "jon husted"],
+        "rcp_urls": [
+            "/polls/senate/special-election/2026/ohio/husted-vs-brown",
+        ],
+    },
+    "2026 NY Governor": {
+        "state": "NY",
+        "wiki_url": "",
+        "ttw_url": "",
+        # hochul (D) vs blakeman (R)
+        "dem_candidates": ["hochul", "kathy hochul"],
+        "rep_candidates": ["blakeman"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/new-york/hochul-vs-blakeman",
+        ],
+    },
+    "2026 NV Governor": {
+        "state": "NV",
+        "wiki_url": "",
+        "ttw_url": "",
+        # lombardo (R) vs ford (D)
+        "dem_candidates": ["ford"],
+        "rep_candidates": ["lombardo"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/nevada/lombardo-vs-ford",
+        ],
+    },
+    "2026 AZ Governor": {
+        "state": "AZ",
+        "wiki_url": "",
+        "ttw_url": "",
+        # hobbs (D) vs biggs/schweikert (R)
+        "dem_candidates": ["hobbs", "katie hobbs"],
+        "rep_candidates": ["biggs", "andy biggs", "schweikert", "david schweikert"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/arizona/hobbs-vs-biggs",
+            "/polls/governor/general/2026/arizona/schweikert-vs-hobbs",
+        ],
+    },
+    "2026 MN Governor": {
+        "state": "MN",
+        "wiki_url": "",
+        "ttw_url": "",
+        # demuth/lindell (R) vs klobuchar (D)
+        "dem_candidates": ["klobuchar", "amy klobuchar"],
+        "rep_candidates": ["demuth", "lindell"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/minnesota/demuth-vs-klobuchar",
+            "/polls/governor/general/2026/minnesota/lindell-vs-klobuchar",
+        ],
+    },
+    "2026 MA Governor": {
+        "state": "MA",
+        "wiki_url": "",
+        "ttw_url": "",
+        # healey (D) vs kennealy/shortsleeve (R)
+        "dem_candidates": ["healey", "maura healey"],
+        "rep_candidates": ["kennealy", "shortsleeve"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/massachusetts/healey-vs-kennealy",
+            "/polls/governor/general/2026/massachusetts/healey-vs-shortsleeve",
+        ],
+    },
+    "2026 NH Governor": {
+        "state": "NH",
+        "wiki_url": "",
+        "ttw_url": "",
+        # ayotte (R) vs kiper (D)
+        "dem_candidates": ["kiper"],
+        "rep_candidates": ["ayotte", "kelly ayotte"],
+        "rcp_urls": [
+            "/polls/governor/general/2026/new-hampshire/ayotte-vs-kiper",
+        ],
     },
 }
 
@@ -332,16 +494,23 @@ POLLSTER_ALIASES: dict[str, str] = {
     "the alabama poll": "The Alabama Poll",
     "tipp insights": "TIPP Insights",
     "tipp": "TIPP Insights",
+    "tipp**": "TIPP Insights",
     "atlanta journal-constitution": "Atlanta Journal-Constitution",
     "ajc": "Atlanta Journal-Constitution",
 }
 
 
 def normalize_pollster(name: str) -> str:
-    """Normalize pollster name to canonical form."""
+    """Normalize pollster name to canonical form.
+
+    Handles Wikipedia-style footnotes ([1], [a]) and RCP-style partisan
+    markers (**) which RCP appends to indicate partisan-sponsored polls.
+    """
     if not name or not isinstance(name, str):
         return str(name) if name else ""
     stripped = name.strip()
+    # Remove RCP partisan marker: "Cygnal**" → "Cygnal"
+    stripped = stripped.rstrip("*").strip()
     key = stripped.lower().strip()
     # Remove trailing footnote markers like [1], [a], etc.
     key = re.sub(r"\[.*?\]", "", key).strip()
@@ -774,6 +943,186 @@ def scrape_270towin(
 
 
 # ---------------------------------------------------------------------------
+# RealClearPolling scraper
+# ---------------------------------------------------------------------------
+
+# Types that indicate an aggregate/average row rather than an actual poll.
+# These must be excluded from the output.
+_RCP_AVERAGE_TYPES = frozenset({"rcp_average", "rcp_avg"})
+
+
+def _extract_rcp_polls_json(html: str) -> list[dict] | None:
+    """Extract the embedded polls JSON array from a RCP Next.js page.
+
+    RCP pages are Next.js apps that embed data in script tags via
+    ``self.__next_f.push([1, "<escaped-json-string>"])`` calls.  The poll
+    data lives in a ``"polls"`` key inside the decoded JSON tree.  We locate
+    the script tag that contains actual poll entries (type "poll_rcp_avg"),
+    decode the payload, and return the raw poll dicts.
+
+    Returns None if the data cannot be found or parsed.
+    """
+    # Isolate all script tag contents
+    scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL)
+    for s in scripts:
+        # Only examine scripts that contain actual poll entries
+        if "poll_rcp_avg" not in s:
+            continue
+
+        # These scripts follow the pattern: self.__next_f.push([1,"..."]);
+        m = re.match(r'self\.__next_f\.push\(\[(\d+),"(.*)"\]\);?$', s, re.DOTALL)
+        if not m:
+            continue
+
+        # The second argument is a JSON-encoded string — decode it once.
+        try:
+            decoded = json.loads('"' + m.group(2) + '"')
+        except json.JSONDecodeError:
+            continue
+
+        # Locate the "polls" array using bracket-matching so we don't break
+        # on nested objects (can't use a simple regex for this).
+        polls_key = '"polls":['
+        idx = decoded.find(polls_key)
+        if idx < 0:
+            continue
+        start = idx + len('"polls":')
+        bracket_count = 0
+        end = start
+        for pos, ch in enumerate(decoded[start:], start):
+            if ch == "[":
+                bracket_count += 1
+            elif ch == "]":
+                bracket_count -= 1
+                if bracket_count == 0:
+                    end = pos + 1
+                    break
+
+        try:
+            return json.loads(decoded[start:end])
+        except json.JSONDecodeError:
+            continue
+
+    return None
+
+
+def scrape_rcp(
+    race_label: str,
+    url: str,
+    dem_candidates: list[str],
+    rep_candidates: list[str],
+) -> list[dict]:
+    """Scrape poll data from a RealClearPolling matchup page.
+
+    RCP pages are Next.js apps; poll data is embedded in the HTML as escaped
+    JSON inside ``self.__next_f.push()`` script calls rather than in
+    server-rendered table rows.  This function extracts and parses that JSON
+    directly, avoiding any dependency on JavaScript execution.
+
+    Each poll object in the JSON array has the form::
+
+        {
+          "type": "poll_rcp_avg",       # "rcp_average" for the aggregate row
+          "pollster": "Emerson",
+          "pollster_group_name": "Emerson College",
+          "date": "2/28 - 3/2",
+          "data_end_date": "2026/03/02",  # ISO-ish; reliable year source
+          "sampleSize": "1000 LV",
+          "candidate": [
+            {"name": "Ossoff", "affiliation": "Democrat", "value": "47.0", ...},
+            {"name": "Carter", "affiliation": "Republican", "value": "41.0", ...},
+          ],
+          ...
+        }
+
+    The row with ``type == "rcp_average"`` is the RCP Average composite and
+    must be excluded.
+    """
+    full_url = f"{RCP_BASE_URL}{url}"
+    logger.info("  RCP: %s", full_url)
+    html = fetch_html(full_url)
+    if not html:
+        return []
+
+    raw_polls = _extract_rcp_polls_json(html)
+    if raw_polls is None:
+        logger.warning("  RCP: could not extract poll JSON from %s", full_url)
+        return []
+
+    logger.info("  RCP: found %d raw entries (including average rows)", len(raw_polls))
+
+    all_polls = []
+    for entry in raw_polls:
+        # Skip composite average rows — not actual polls
+        if entry.get("type") in _RCP_AVERAGE_TYPES or entry.get("pollster") == "rcp_average":
+            continue
+
+        pollster_raw = entry.get("pollster_group_name") or entry.get("pollster") or ""
+        if not pollster_raw:
+            continue
+
+        # Use data_end_date when available (includes year); fall back to date field.
+        # data_end_date format: "2026/03/02" — convert slashes to dashes.
+        date_end = entry.get("data_end_date", "")
+        if date_end:
+            date_parsed = date_end.replace("/", "-")
+        else:
+            # date field is "M/D - M/D" with no year; append current election year
+            date_raw = entry.get("date", "")
+            if date_raw and re.match(r"^\d{1,2}/\d{1,2}\s*-\s*\d{1,2}/\d{1,2}$", date_raw.strip()):
+                date_raw = f"{date_raw}/2026"
+            date_parsed = parse_poll_date(date_raw)
+
+        # Sample size and voter type: "1000 LV" or "624 RV"
+        sample_raw = entry.get("sampleSize", "")
+        n_sample = extract_sample_size(sample_raw)
+        sample_type = ""
+        if sample_raw:
+            s_upper = sample_raw.upper()
+            if "LV" in s_upper:
+                sample_type = "LV"
+            elif "RV" in s_upper:
+                sample_type = "RV"
+
+        # Candidate values: list of dicts with affiliation "Democrat"/"Republican"
+        candidates = entry.get("candidate", [])
+        dem_pct = None
+        rep_pct = None
+        for cand in candidates:
+            affiliation = cand.get("affiliation", "").lower()
+            val = extract_pct(cand.get("value"))
+            if affiliation == "democrat" and dem_pct is None:
+                dem_pct = val
+            elif affiliation == "republican" and rep_pct is None:
+                rep_pct = val
+
+        if dem_pct is None or rep_pct is None:
+            continue
+
+        dem_share = two_party_share(dem_pct, rep_pct)
+        if dem_share is None:
+            continue
+
+        all_polls.append(
+            {
+                "race": race_label,
+                "pollster_raw": pollster_raw.strip(),
+                "pollster": normalize_pollster(pollster_raw),
+                "date": date_parsed,
+                "n_sample": n_sample,
+                "dem_pct": dem_pct,
+                "rep_pct": rep_pct,
+                "dem_share": dem_share,
+                "source": "rcp",
+                "sample_type": sample_type,
+            }
+        )
+
+    logger.info("  RCP: %d general election polls for %s", len(all_polls), race_label)
+    return all_polls
+
+
+# ---------------------------------------------------------------------------
 # Deduplication
 # ---------------------------------------------------------------------------
 def dedup_key(poll: dict) -> tuple:
@@ -782,15 +1131,28 @@ def dedup_key(poll: dict) -> tuple:
 
 
 def deduplicate(polls: list[dict]) -> list[dict]:
-    """Merge Wikipedia and 270toWin polls, preferring 270toWin for duplicates."""
+    """Merge polls from all three sources, applying priority: 270toWin > RCP > Wikipedia.
+
+    When the same pollster/date/race appears in multiple sources, the highest-
+    priority source wins.  270toWin is preferred because it typically has
+    cleaner formatting; RCP is preferred over Wikipedia because it is a
+    dedicated polling aggregator.
+    """
     seen: dict[tuple, dict] = {}
-    # Process 270toWin first so they win on conflicts
+
+    # Process in priority order: highest-priority source goes first so it
+    # claims the key; lower-priority sources only fill gaps.
     ttw_polls = [p for p in polls if p.get("source") == "270towin"]
+    rcp_polls = [p for p in polls if p.get("source") == "rcp"]
     wiki_polls = [p for p in polls if p.get("source") == "wikipedia"]
 
     for p in ttw_polls:
+        seen[dedup_key(p)] = p
+
+    for p in rcp_polls:
         key = dedup_key(p)
-        seen[key] = p
+        if key not in seen:
+            seen[key] = p
 
     for p in wiki_polls:
         key = dedup_key(p)
@@ -890,18 +1252,29 @@ def main():
         dem_cands = cfg.get("dem_candidates", [])
         rep_cands = cfg.get("rep_candidates", [])
 
-        # Wikipedia
-        if request_count > 0:
-            time.sleep(REQUEST_DELAY)
-        wiki_polls = scrape_wikipedia(race_label, cfg["wiki_url"], dem_cands, rep_cands)
-        all_polls.extend(wiki_polls)
-        request_count += 1
+        # Wikipedia (skip if no URL configured)
+        if cfg.get("wiki_url"):
+            if request_count > 0:
+                time.sleep(REQUEST_DELAY)
+            wiki_polls = scrape_wikipedia(race_label, cfg["wiki_url"], dem_cands, rep_cands)
+            all_polls.extend(wiki_polls)
+            request_count += 1
 
-        # 270toWin
-        time.sleep(REQUEST_DELAY)
-        ttw_polls = scrape_270towin(race_label, cfg["ttw_url"], dem_cands, rep_cands)
-        all_polls.extend(ttw_polls)
-        request_count += 1
+        # 270toWin (skip if no URL configured)
+        if cfg.get("ttw_url"):
+            if request_count > 0:
+                time.sleep(REQUEST_DELAY)
+            ttw_polls = scrape_270towin(race_label, cfg["ttw_url"], dem_cands, rep_cands)
+            all_polls.extend(ttw_polls)
+            request_count += 1
+
+        # RealClearPolling — one request per matchup URL
+        for rcp_url in cfg.get("rcp_urls", []):
+            if request_count > 0:
+                time.sleep(REQUEST_DELAY)
+            rcp_polls = scrape_rcp(race_label, rcp_url, dem_cands, rep_cands)
+            all_polls.extend(rcp_polls)
+            request_count += 1
 
     logger.info("=== Raw total: %d polls from all sources ===", len(all_polls))
 

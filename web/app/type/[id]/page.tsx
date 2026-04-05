@@ -230,6 +230,17 @@ export default async function TypePage({ params }: PageProps) {
     ],
   };
 
+  // BreadcrumbList schema — enables rich breadcrumb display in Google SERPs
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Types", item: `${SITE_URL}/types` },
+      { "@type": "ListItem", position: 3, name: data.display_name, item: `${SITE_URL}/type/${id}` },
+    ],
+  };
+
   return (
     <article
       style={{ maxWidth: 800, margin: "0 auto", padding: "40px 24px 80px" }}
@@ -237,6 +248,10 @@ export default async function TypePage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       <Breadcrumbs currentPage={`Type ${data.type_id}`} />

@@ -218,6 +218,22 @@ export default async function RaceDetailPage({ params }: PageProps) {
     ],
   };
 
+  // BreadcrumbList schema — enables rich breadcrumb display in Google SERPs
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+      { "@type": "ListItem", position: 2, name: "Forecast", item: `${siteUrl}/forecast` },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: `${data.year} ${stateName} ${data.race_type}`,
+        item: `${siteUrl}/forecast/${slug}`,
+      },
+    ],
+  };
+
   const predStd = data.pred_std ?? FALLBACK_STD;
   const lo90 = data.pred_lo90 ?? (data.prediction !== null ? data.prediction - 1.645 * predStd : null);
   const hi90 = data.pred_hi90 ?? (data.prediction !== null ? data.prediction + 1.645 * predStd : null);
@@ -228,6 +244,10 @@ export default async function RaceDetailPage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

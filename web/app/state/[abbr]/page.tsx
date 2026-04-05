@@ -356,6 +356,17 @@ export default async function StateHubPage({ params }: PageProps) {
   const totalCounties = data?.totalCounties ?? 0;
   const raceCount = data?.races.length ?? 0;
 
+  // BreadcrumbList schema — enables rich breadcrumb display in Google SERPs
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: "Forecast", item: `${SITE_URL}/forecast` },
+      { "@type": "ListItem", position: 3, name: stateName, item: `${SITE_URL}/state/${upperAbbr}` },
+    ],
+  };
+
   return (
     <article
       id="main-content"
@@ -364,6 +375,10 @@ export default async function StateHubPage({ params }: PageProps) {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
       />
 
       {/* Breadcrumb */}

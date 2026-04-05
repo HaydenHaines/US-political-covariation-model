@@ -394,3 +394,30 @@ export async function fetchChamberProbability(): Promise<ChamberProbabilityData>
   if (!res.ok) throw new Error(`/senate/chamber-probability failed: ${res.status}`);
   return res.json();
 }
+
+// ── Race margin history (sparklines) ─────────────────────────────────────
+
+/** One data point in a race's margin time series. */
+export interface RaceMarginPoint {
+  /** ISO date string, e.g. "2026-04-01". */
+  date: string;
+  /**
+   * Signed Dem margin: avg_dem_share - 0.5.
+   * Positive = Dem-favored, negative = GOP-favored.
+   */
+  margin: number;
+}
+
+/** Per-race margin history entry, keyed by the race's URL slug. */
+export interface RaceHistoryEntry {
+  /** Race slug, e.g. "2026-fl-senate". */
+  slug: string;
+  /** Chronologically ordered margin series (oldest first). */
+  history: RaceMarginPoint[];
+}
+
+export async function fetchRaceHistory(): Promise<RaceHistoryEntry[]> {
+  const res = await fetch(`${API_BASE}/forecast/race-history`);
+  if (!res.ok) throw new Error(`/forecast/race-history failed: ${res.status}`);
+  return res.json();
+}

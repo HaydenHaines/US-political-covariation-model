@@ -1,18 +1,24 @@
 import { RaceCard } from "./RaceCard";
-import type { SenateRaceData } from "@/lib/api";
+import type { RaceMarginPoint, SenateRaceData } from "@/lib/api";
 
 interface RaceCardGridProps {
   races: SenateRaceData[];
   title: string;
+  /**
+   * Optional slug to history lookup for sparkline rendering.
+   * When provided, each card receives its race's margin history.
+   * When absent, cards render without sparklines.
+   */
+  historyBySlug?: Map<string, RaceMarginPoint[]>;
 }
 
 /**
  * Grid of race cards, sorted by competitiveness (smallest absolute margin first).
  *
- * Mobile (<768px): horizontal snap-scroll carousel — cards are fixed-width and
- * users swipe through them. Desktop (≥768px): responsive grid layout.
+ * Mobile (<768px): horizontal snap-scroll carousel -- cards are fixed-width and
+ * users swipe through them. Desktop (>=768px): responsive grid layout.
  */
-export function RaceCardGrid({ races, title }: RaceCardGridProps) {
+export function RaceCardGrid({ races, title, historyBySlug }: RaceCardGridProps) {
   const sorted = [...races].sort(
     (a, b) => Math.abs(a.margin) - Math.abs(b.margin),
   );
@@ -25,7 +31,10 @@ export function RaceCardGrid({ races, title }: RaceCardGridProps) {
       <div className="flex md:hidden gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-4 px-4 scrollbar-none">
         {sorted.map((race) => (
           <div key={race.slug} className="snap-start shrink-0 w-52">
-            <RaceCard race={race} />
+            <RaceCard
+              race={race}
+              sparklineHistory={historyBySlug?.get(race.slug)}
+            />
           </div>
         ))}
       </div>
@@ -33,7 +42,11 @@ export function RaceCardGrid({ races, title }: RaceCardGridProps) {
       {/* Desktop: responsive grid */}
       <div className="hidden md:grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-3">
         {sorted.map((race) => (
-          <RaceCard key={race.slug} race={race} />
+          <RaceCard
+            key={race.slug}
+            race={race}
+            sparklineHistory={historyBySlug?.get(race.slug)}
+          />
         ))}
       </div>
     </section>

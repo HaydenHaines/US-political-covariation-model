@@ -5,6 +5,7 @@ import { SectionWeightSliders, SectionWeights } from "./SectionWeightSliders";
 import { BalanceBar } from "./BalanceBar";
 import { RaceCardGrid } from "./RaceCardGrid";
 import { SeatBalanceTimeline } from "./SeatBalanceTimeline";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import type { SenateRaceData } from "@/lib/api";
 
 // How long to wait after the last slider move before firing the API call.
@@ -45,7 +46,7 @@ interface OverviewBlendControlsProps {
   initialDemSeats: number;
   /** Projected GOP seats from the initial fetch. */
   initialGopSeats: number;
-  /** API base URL (from lib/api.ts — "/api/v1" or env-configured). */
+  /** API base URL (from lib/api.ts -- "/api/v1" or env-configured). */
   apiBase: string;
 }
 
@@ -54,7 +55,7 @@ interface OverviewBlendControlsProps {
  * overview page.
  *
  * Renders in order:
- *   1. BalanceBar — live seat counts + 100-segment bar
+ *   1. BalanceBar -- live seat counts + 100-segment bar
  *   2. "Adjust Forecast Blend" collapsible panel (default collapsed)
  *   3. Race card grids (Key Races / Leaning / Likely / Safe)
  *
@@ -72,12 +73,15 @@ export function OverviewBlendControls({
   initialGopSeats,
   apiBase,
 }: OverviewBlendControlsProps) {
-  // Live race data — starts as the SSR-provided list; overwritten by blend responses
+  // Live race data -- starts as the SSR-provided list; overwritten by blend responses
   const [races, setRaces] = useState<SenateRaceData[]>(initialRaces);
   const [demSeats, setDemSeats] = useState(initialDemSeats);
   const [gopSeats, setGopSeats] = useState(initialGopSeats);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Race history for sparklines -- fetched once, not affected by blend slider changes.
+  const { historyBySlug } = useRaceHistory();
 
   // Keep the previous good state so we can fall back on API error
   const prevRaces = useRef<SenateRaceData[]>(races);
@@ -87,7 +91,7 @@ export function OverviewBlendControls({
 
   // Sync initial props into state when the underlying SWR data revalidates
   // (e.g. the 5-minute refresh fires after the user has been on the page).
-  // This resets any custom blend back to the model default — intentional,
+  // This resets any custom blend back to the model default -- intentional,
   // since the data itself has changed.
   useEffect(() => {
     setRaces(initialRaces);
@@ -114,7 +118,7 @@ export function OverviewBlendControls({
           });
 
           if (!res.ok) {
-            // Non-2xx — retain previous values
+            // Non-2xx -- retain previous values
             return;
           }
 
@@ -147,7 +151,7 @@ export function OverviewBlendControls({
           prevDem.current = data.dem_seats;
           prevGop.current = data.rep_seats;
         } catch {
-          // Network error — retain previous values silently
+          // Network error -- retain previous values silently
           setRaces(prevRaces.current);
           setDemSeats(prevDem.current);
           setGopSeats(prevGop.current);
@@ -175,7 +179,7 @@ export function OverviewBlendControls({
 
   return (
     <>
-      {/* Balance bar — fades slightly during recalculation */}
+      {/* Balance bar -- fades slightly during recalculation */}
       <div
         style={{ transition: "opacity 150ms ease", opacity: isLoading ? 0.5 : 1 }}
         aria-busy={isLoading}
@@ -183,7 +187,7 @@ export function OverviewBlendControls({
         <BalanceBar races={races} demSeats={demSeats} gopSeats={gopSeats} />
       </div>
 
-      {/* Seat balance timeline — shows projected seat counts changing over time */}
+      {/* Seat balance timeline -- shows projected seat counts changing over time */}
       <div className="mb-6">
         <SeatBalanceTimeline />
       </div>
@@ -197,7 +201,7 @@ export function OverviewBlendControls({
           aria-controls="overview-blend-panel"
         >
           <span style={{ color: "var(--color-text-muted)" }}>
-            {isExpanded ? "▲" : "▼"}
+            {isExpanded ? "---" : "---"}
           </span>
           <span>Adjust Forecast Blend</span>
           {isLoading && (
@@ -205,7 +209,7 @@ export function OverviewBlendControls({
               className="ml-2 text-xs"
               style={{ color: "var(--color-text-muted)" }}
             >
-              Recalculating…
+              Recalculating
             </span>
           )}
         </button>
@@ -228,22 +232,22 @@ export function OverviewBlendControls({
         )}
       </div>
 
-      {/* Race card grids — also faded during recalculation */}
+      {/* Race card grids -- also faded during recalculation */}
       <div
         style={{ transition: "opacity 150ms ease", opacity: isLoading ? 0.5 : 1 }}
         aria-busy={isLoading}
       >
         {tossupRaces.length > 0 && (
-          <RaceCardGrid races={tossupRaces} title="Key Races" />
+          <RaceCardGrid races={tossupRaces} title="Key Races" historyBySlug={historyBySlug} />
         )}
         {leanRaces.length > 0 && (
-          <RaceCardGrid races={leanRaces} title="Leaning" />
+          <RaceCardGrid races={leanRaces} title="Leaning" historyBySlug={historyBySlug} />
         )}
         {likelyRaces.length > 0 && (
-          <RaceCardGrid races={likelyRaces} title="Likely" />
+          <RaceCardGrid races={likelyRaces} title="Likely" historyBySlug={historyBySlug} />
         )}
         {safeRaces.length > 0 && (
-          <SafeRacesSection races={safeRaces} />
+          <SafeRacesSection races={safeRaces} historyBySlug={historyBySlug} />
         )}
       </div>
     </>
@@ -254,7 +258,13 @@ export function OverviewBlendControls({
  * The "Safe" section keeps its own expand/collapse state independently of the
  * blend controls so the two don't interfere with each other.
  */
-function SafeRacesSection({ races }: { races: SenateRaceData[] }) {
+function SafeRacesSection({
+  races,
+  historyBySlug,
+}: {
+  races: SenateRaceData[];
+  historyBySlug?: ReturnType<typeof useRaceHistory>["historyBySlug"];
+}) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -266,10 +276,10 @@ function SafeRacesSection({ races }: { races: SenateRaceData[] }) {
       >
         <span>Safe ({races.length})</span>
         <span className="text-sm font-normal text-muted-foreground" aria-hidden="true">
-          {expanded ? "▲ collapse" : "▼ expand"}
+          {expanded ? "collapse" : "expand"}
         </span>
       </button>
-      {expanded && <RaceCardGrid races={races} title="" />}
+      {expanded && <RaceCardGrid races={races} title="" historyBySlug={historyBySlug} />}
     </section>
   );
 }

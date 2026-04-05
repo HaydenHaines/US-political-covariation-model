@@ -4,16 +4,16 @@ import pytest
 
 # These values mirror data/model/accuracy_metrics.json (the seed file).
 # Update this file after any model retrain that changes these metrics.
-EXPECTED_LOO_R = pytest.approx(0.711, abs=0.05)
+EXPECTED_LOO_R = pytest.approx(0.732, abs=0.05)
 EXPECTED_HOLDOUT_R = pytest.approx(0.698, abs=0.05)
 EXPECTED_COHERENCE = pytest.approx(0.783, abs=0.05)
 EXPECTED_RMSE = pytest.approx(0.073, abs=0.005)
-EXPECTED_COVARIANCE_VAL_R = pytest.approx(0.915, abs=0.05)
+EXPECTED_COVARIANCE_VAL_R = pytest.approx(0.936, abs=0.05)
 EXPECTED_N_COUNTIES = 3154
 EXPECTED_N_TYPES = 100
 EXPECTED_N_SUPER_TYPES = 5
 # Ensemble LOO r (best method); must equal EXPECTED_LOO_R by definition.
-EXPECTED_ENSEMBLE_LOO_R = pytest.approx(0.711, abs=0.05)
+EXPECTED_ENSEMBLE_LOO_R = pytest.approx(0.732, abs=0.05)
 
 
 def test_accuracy_returns_200(client):
@@ -78,7 +78,9 @@ def test_accuracy_method_comparison(client):
         assert "loo_r" in entry
     # Methods should be in ascending order of performance
     loo_values = [m["loo_r"] for m in methods]
-    assert loo_values == sorted(loo_values), "method_comparison should be ordered by ascending loo_r"
+    assert loo_values == sorted(loo_values), (
+        "method_comparison should be ordered by ascending loo_r"
+    )
 
 
 def test_accuracy_ensemble_is_best(client):

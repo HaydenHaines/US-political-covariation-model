@@ -18,11 +18,11 @@ from ._helpers import (
     _DEFAULT_DEM_SHARE_PRIOR,
     _SLIDER_NORM,
     _STATE_STD_FALLBACK,
-    _STATE_STD_FLOOR,
     _VOTE_WEIGHTED_STATE_PRED_SQL,
     _Z90,
     _apply_behavior_if_needed,
     _compute_state_std,
+    _get_std_floor,
     slug_to_race,
 )
 
@@ -65,12 +65,17 @@ def recalculate_blend(
         race_meta = None
 
     if race_meta:
+        race_type = race_meta[0]  # e.g. "senate" or "governor" from races table
         state_abbr = race_meta[1]
         year = race_meta[2]
     else:
         parts = slug.split("-")
+        race_type = parts[2] if len(parts) >= 3 else ""
         state_abbr = parts[1].upper() if len(parts) >= 2 else "??"
         year = int(parts[0]) if parts[0].isdigit() else 2026
+
+    # Empirical error floor for this race type (calibrated from 2022 backtest)
+    std_floor = _get_std_floor(race_type)
 
     # Fetch state polls for this race
     polls_df = db.execute(
@@ -100,8 +105,10 @@ def recalculate_blend(
         if pred_row is None or pred_row[0] is None:
             return BlendResult(prediction=None, pred_std=None, pred_lo90=None, pred_hi90=None)
         pred = float(pred_row[0])
+        # Use the larger of the generic fallback and the empirical floor so we
+        # don't report false precision when no county variance data is available.
         std = float(pred_row[1]) if pred_row[1] else _STATE_STD_FALLBACK
-        std = max(std, _STATE_STD_FLOOR)
+        std = max(std, std_floor)
         return BlendResult(
             prediction=pred,
             pred_std=std,
@@ -136,11 +143,13 @@ def recalculate_blend(
         if pred_row is None or pred_row[0] is None:
             return BlendResult(prediction=None, pred_std=None, pred_lo90=None, pred_hi90=None)
         pred = float(pred_row[0])
+        # Use the larger of fallback and empirical floor for race-type awareness.
+        fallback_std = max(_STATE_STD_FALLBACK, std_floor)
         return BlendResult(
             prediction=pred,
-            pred_std=_STATE_STD_FALLBACK,
-            pred_lo90=pred - _Z90 * _STATE_STD_FALLBACK,
-            pred_hi90=pred + _Z90 * _STATE_STD_FALLBACK,
+            pred_std=fallback_std,
+            pred_lo90=pred - _Z90 * fallback_std,
+            pred_hi90=pred + _Z90 * fallback_std,
         )
 
     # Build poll list — use section weight to scale effective N
@@ -197,9 +206,10 @@ def recalculate_blend(
     else:
         pred = float(state_rows["pred_dem_share"].mean())
 
-    # Derive state-level std from county-level CI data
+    # Derive state-level std from county-level CI data, using the race-type-
+    # specific empirical floor from 2022 backtest.
     preds = state_rows["pred_dem_share"].values.astype(float)
-    state_std = _compute_state_std(preds, vote_weights, pred)
+    state_std = _compute_state_std(preds, vote_weights, pred, race_type=race_type)
 
     return BlendResult(
         prediction=pred,

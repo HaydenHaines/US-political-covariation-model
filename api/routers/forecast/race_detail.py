@@ -27,6 +27,7 @@ from ._helpers import (
     _VOTE_WEIGHTED_STATE_PRED_SQL,
     _Z90,
     _compute_state_std,
+    _get_std_floor,
     _lookup_pollster_grade,
     slug_to_race,
 )
@@ -216,7 +217,10 @@ def get_race_detail(
 
     # State-level uncertainty from county-level CI data.
     # Uses vote-weighted std of county predictions around the state mean,
-    # then shrinks toward the model's LOO RMSE (0.059) as a floor.
+    # then applies an empirical floor from the 2022 backtest by race type:
+    #   Senate:   3.7pp floor (28-state RMSE from backtest)
+    #   Governor: 5.5pp floor (competitive-state RMSE from backtest)
+    # This prevents false precision when all counties happen to agree.
     state_std = None
     state_lo90 = None
     state_hi90 = None
@@ -236,9 +240,12 @@ def get_race_detail(
         if not ci_rows.empty and len(ci_rows) > 1:
             votes = ci_rows["votes"].values.astype(float)
             preds = ci_rows["pred_dem_share"].values.astype(float)
-            state_std = _compute_state_std(preds, votes, prediction)
+            state_std = _compute_state_std(preds, votes, prediction, race_type=race_type)
         else:
-            state_std = _STATE_STD_FALLBACK
+            # Single-county or no data: use the empirical floor, not a generic fallback.
+            # We take max of fallback and floor to avoid reporting less uncertainty
+            # than the race type's backtest errors warrant.
+            state_std = max(_STATE_STD_FALLBACK, _get_std_floor(race_type))
 
         state_lo90 = prediction - _Z90 * state_std
         state_hi90 = prediction + _Z90 * state_std

@@ -23,6 +23,11 @@ log = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).parents[2]
 
 
+def _is_valid_date_str(s: str) -> bool:
+    """Return True if *s* looks like a parseable YYYY-MM-DD date string."""
+    return bool(s) and s.strip().lower() not in ("nan", "none", "")
+
+
 def _parse_date(s: str) -> date:
     """Parse YYYY-MM-DD date string."""
     parts = s.strip().split("-")
@@ -46,8 +51,8 @@ def apply_time_decay(
     result: list[PollObservation] = []
 
     for poll in polls:
-        if not poll.date:
-            # No date -> no decay, keep as-is
+        if not _is_valid_date_str(poll.date):
+            # No date or invalid date -> no decay, keep as-is
             result.append(copy(poll))
             continue
 
@@ -165,7 +170,7 @@ def apply_primary_discount(
     for poll in polls:
         new_poll = copy(poll)
 
-        if not poll.date or not poll.race:
+        if not _is_valid_date_str(poll.date) or not poll.race:
             result.append(new_poll)
             continue
 

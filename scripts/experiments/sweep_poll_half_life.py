@@ -204,6 +204,7 @@ def count_effective_polls(
                 geo_level="state",
             )
             for p in poll_list
+            if p.get("date") and str(p.get("date", "")).lower() not in ("", "nan", "none")
         ]
         decayed = apply_time_decay(
             obs, reference_date=reference_date, half_life_days=half_life_days,

@@ -421,3 +421,33 @@ export async function fetchRaceHistory(): Promise<RaceHistoryEntry[]> {
   if (!res.ok) throw new Error(`/forecast/race-history failed: ${res.status}`);
   return res.json();
 }
+
+// ── Historical presidential election results ─────────────────────────────────
+
+export interface HistoricalCountyRow {
+  county_fips: string;
+  dem_share: number;
+  total_votes: number | null;
+}
+
+export interface HistoricalElectionResponse {
+  year: number;
+  counties: HistoricalCountyRow[];
+}
+
+/**
+ * Fetch county-level Dem two-party share for a past presidential election.
+ * Available years: 2012, 2016, 2020.
+ *
+ * Returns a Map<county_fips, dem_share> for O(1) lookup during map rendering.
+ */
+export async function fetchHistoricalElection(year: number): Promise<Map<string, number>> {
+  const res = await fetch(`${API_BASE}/historical/presidential/${year}`);
+  if (!res.ok) throw new Error(`/historical/presidential/${year} failed: ${res.status}`);
+  const data: HistoricalElectionResponse = await res.json();
+  const map = new Map<string, number>();
+  for (const row of data.counties) {
+    map.set(row.county_fips, row.dem_share);
+  }
+  return map;
+}

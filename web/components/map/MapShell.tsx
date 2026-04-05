@@ -30,6 +30,7 @@ import { DashboardOverlay } from "@/components/DashboardOverlay";
 import { MapTooltip } from "./MapTooltip";
 import { MapLegend, type LegendEntry } from "./MapLegend";
 import { MapControls } from "./MapControls";
+import { HistoricalOverlayToggle, type HistoricalYear } from "./HistoricalOverlayToggle";
 import {
   formatIncome,
   formatPct,
@@ -40,6 +41,7 @@ import {
   TRANSITION_MS,
 } from "./map-utils";
 import { getColorForSuperType, dustyInkChoropleth } from "./map-palette";
+import { fetchHistoricalElection } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -113,6 +115,13 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   const [tractContext, setTractContext] = useState<TractContext | null>(null);
   const [tractPopup, setTractPopup] = useState<TractPopupData | null>(null);
 
+  // Historical presidential election overlay
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [countyGeo, setCountyGeo] = useState<Record<string, unknown> | null>(null);
+  const [historicalYear, setHistoricalYear] = useState<HistoricalYear | null>(null);
+  const [historicalData, setHistoricalData] = useState<Map<string, number>>(new Map());
+  const [historicalLoading, setHistoricalLoading] = useState(false);
+
   // ── On mount: load states + senate ratings + type metadata ────────────────
   useEffect(() => {
     fetch("/states-us.geojson").then((r) => r.json()).then(setStateGeo);
@@ -148,6 +157,29 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
       setTypeDataMap(tdMap);
     });
   }, []);
+
+  // ── Historical overlay: load county GeoJSON and election data ────────────
+  // County GeoJSON is loaded lazily on first year selection so the initial
+  // page load doesn't incur the 3.7MB download.
+  useEffect(() => {
+    if (historicalYear === null) {
+      // Clear historical data when overlay is dismissed
+      setHistoricalData(new Map());
+      return;
+    }
+
+    // Kick off county polygon fetch if not yet loaded
+    if (!countyGeo) {
+      fetch("/counties-us.geojson").then((r) => r.json()).then(setCountyGeo).catch(() => {});
+    }
+
+    // Fetch the election data for the newly selected year
+    setHistoricalLoading(true);
+    fetchHistoricalElection(historicalYear)
+      .then(setHistoricalData)
+      .catch(() => setHistoricalData(new Map()))
+      .finally(() => setHistoricalLoading(false));
+  }, [historicalYear]); // countyGeo is intentionally excluded: loading it is a one-shot side effect
 
   // ── Pan to forecast state when Forecast tab selects one ──────────────────
   useEffect(() => {
@@ -255,6 +287,34 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   // This prevents deck.gl from re-processing unchanged layers on every render.
   const layers = useMemo(() => {
     const result: unknown[] = [];
+
+    // Layer 0: Historical presidential election overlay (county polygons).
+    // Rendered beneath all other layers at reduced opacity so the stained-glass
+    // type coloring and forecast choropleth remain visible above it.
+    // Only shown when a year is selected and the county GeoJSON has loaded.
+    if (historicalYear !== null && countyGeo && historicalData.size > 0) {
+      result.push(
+        new GeoJsonLayer({
+          id: "historical-counties",
+          data: countyGeo as never,
+          filled: true,
+          stroked: false,
+          getFillColor: ((f: { properties?: Record<string, unknown> }) => {
+            const fips = String(f.properties?.county_fips ?? "");
+            const demShare = historicalData.get(fips);
+            if (demShare === undefined) return [200, 195, 188, 0];  // invisible
+            // Use the same choropleth function but at reduced opacity (120/255 ≈ 47%)
+            // so the layer reads as a tint rather than a solid fill.
+            const [r, g, b] = dustyInkChoropleth(demShare);
+            return [r, g, b, 120];
+          }) as never,
+          pickable: false,  // Clicks fall through to state/tract layers
+          updateTriggers: {
+            getFillColor: [historicalData],
+          },
+        })
+      );
+    }
 
     // Layer 1: State polygons (always visible)
     if (stateGeo) {
@@ -424,6 +484,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
     stateGeo, stateTracts, zoomedState, stateRatings,
     forecastChoropleth, defaultOverlayMode, typeDataMap, superTypeMap,
     handleStateClick, getSuperTypeName,
+    historicalYear, countyGeo, historicalData,
     // tractPopup is intentionally omitted: including it would cause layer recreation on
     // every click, defeating the purpose. The onClick handler reads tractPopup via closure
     // and deck.gl re-uses the same layer object safely because the handler is a stable ref.
@@ -480,6 +541,12 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
         loadingTracts={loadingTracts}
       />
 
+      <HistoricalOverlayToggle
+        selectedYear={historicalYear}
+        onYearChange={setHistoricalYear}
+        isLoading={historicalLoading}
+      />
+
       {tooltip && <MapTooltip x={tooltip.x} y={tooltip.y} text={tooltip.text} />}
 
       <MapLegend
@@ -488,6 +555,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
         entries={legendEntries}
         hasStateRatings={stateRatings.size > 0}
         overlayMode={defaultOverlayMode}
+        historicalYear={historicalYear}
       />
 
       {/* Side panels */}

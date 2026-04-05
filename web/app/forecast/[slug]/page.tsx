@@ -385,14 +385,24 @@ export default async function RaceDetailPage({ params }: PageProps) {
         </p>
       </section>
 
-      {/* Back link */}
-      <div className="pt-6 border-t text-center" style={{ borderColor: "var(--color-border)" }}>
+      {/* Back link + compare link */}
+      <div
+        className="pt-6 border-t flex flex-wrap items-center justify-center gap-6"
+        style={{ borderColor: "var(--color-border)" }}
+      >
         <Link
           href="/forecast"
           className="text-sm font-semibold"
           style={{ color: "var(--forecast-safe-d)", textDecoration: "none" }}
         >
           ← Back to Forecast
+        </Link>
+        <Link
+          href={`/compare/races?races=${slug},`}
+          className="text-sm font-semibold"
+          style={{ color: "var(--forecast-tossup)", textDecoration: "none" }}
+        >
+          Compare with another race →
         </Link>
       </div>
     </article>

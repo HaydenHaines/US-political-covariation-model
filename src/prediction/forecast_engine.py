@@ -235,9 +235,14 @@ def _extract_crosstabs_from_xt(poll: dict) -> list[dict] | None:
 
     Each xt_ field encodes the fraction of the poll sample in a demographic group
     (e.g. ``xt_race_black=0.13`` means 13% of respondents identify as Black).
-    We pair this sample fraction with the poll's topline dem_share as a proxy for
-    the group-level vote intention — a rough approximation when per-group vote shares
-    are unavailable.
+    When a matching ``xt_vote_<group>_<value>`` column is present (parsed from the
+    Emerson crosstab second tab), we use that as the per-group dem_share observation.
+    Otherwise we fall back to the poll's topline dem_share as a conservative proxy.
+
+    This transforms Tier 2 from "same y, different W" (topline proxy) to
+    "different y AND different W" (per-group vote share + demographic W vector)
+    whenever crosstab data is available — the highest-ROI improvement to poll
+    signal extraction short of per-precinct vote allocation.
 
     The resulting crosstab list feeds ``build_W_from_crosstabs()``, which constructs
     a demographic-specific W vector per group.  Each W is weighted by the type-profile
@@ -269,18 +274,35 @@ def _extract_crosstabs_from_xt(poll: dict) -> list[dict] | None:
         # Skip missing/NaN values (float('nan') != float('nan'))
         if pct != pct or pct <= 0:
             continue
+        # Check whether we have a per-group vote share for this demographic.
+        # Per-group shares live in xt_vote_<group>_<value> columns (e.g.
+        # xt_vote_race_black = 0.80 means 80% of Black respondents chose Dem).
+        # These come from the Emerson crosstab second tab and are much more
+        # informative than the topline — they give both a different W vector
+        # (routing to matching community types) AND a different y observation
+        # (the actual vote share for that group, not just the poll-wide average).
+        vote_key = f"xt_vote_{parts[0]}_{parts[1]}"
+        group_dem_share_raw = poll.get(vote_key)
+        group_dem_share: float | None = None
+        if group_dem_share_raw is not None:
+            try:
+                parsed = float(group_dem_share_raw)
+                # Guard against NaN / nonsensical values
+                if parsed == parsed and 0.0 <= parsed <= 1.0:
+                    group_dem_share = parsed
+            except (TypeError, ValueError):
+                pass
+
         crosstabs.append({
             "demographic_group": parts[0],
             "group_value": parts[1],
             "pct_of_sample": pct,
-            # Use topline dem_share as proxy for group-level vote share.
-            # This is an approximation — we do not have per-group vote shares
-            # from the xt_ columns (which encode sample composition only).
-            # The value still matters: it becomes the y observation that the
-            # Bayesian update pulls theta toward.  Using the topline is conservative
-            # (no additional cross-group variation injected) while still allowing
-            # the group-specific W vector to route the signal to matching types.
-            "dem_share": float(dem_share),
+            # Use per-group vote share when available (from crosstab second tab),
+            # otherwise fall back to the topline dem_share as a conservative proxy.
+            # Per-group shares make Tier 2 much more informative: they inject
+            # genuine cross-group variation into the y observations, not just
+            # different W vectors with the same y.
+            "dem_share": group_dem_share if group_dem_share is not None else float(dem_share),
         })
 
     return crosstabs if crosstabs else None

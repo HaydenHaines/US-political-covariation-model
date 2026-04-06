@@ -5,8 +5,9 @@ For each Emerson article:
   1. Fetch the article HTML and extract the Google Sheets URL.
   2. Download the Sheet as CSV (public export).
   3. Parse the demographics section to extract xt_* composition values.
-  4. Match to polls in polls_2026.csv by state + n_sample.
-  5. Update polls_2026.csv with xt_* columns (idempotent).
+  4. Discover the crosstab tab (second sheet) and parse per-group vote shares.
+  5. Match to polls in polls_2026.csv by state + n_sample.
+  6. Update polls_2026.csv with xt_* columns (idempotent).
 
 Demographic → xt_* mapping:
   xt_race_white        = "White or Caucasian" Valid Percent / 100
@@ -17,6 +18,15 @@ Demographic → xt_* mapping:
   xt_education_college = (College graduate + Postgraduate or higher) / 100
   xt_education_noncollege = 1 - xt_education_college
   xt_urbanicity_urban, xt_urbanicity_rural, xt_religion_evangelical: not available
+
+Crosstab vote share → xt_vote_* mapping (from second sheet tab):
+  xt_vote_race_white        = Dem vote share among white respondents
+  xt_vote_race_black        = Dem vote share among Black respondents
+  xt_vote_race_hispanic     = Dem vote share among Hispanic respondents
+  xt_vote_race_asian        = Dem vote share among Asian respondents
+  xt_vote_education_college = Dem vote share among college-educated respondents
+  xt_vote_education_noncollege = Dem vote share among non-college respondents
+  xt_vote_age_senior        = Dem vote share among 60+ respondents
 
 Usage:
     uv run python scripts/scrape_emerson_crosstabs.py
@@ -60,7 +70,25 @@ XT_COLUMNS = [
     "xt_urbanicity_rural",
     "xt_age_senior",
     "xt_religion_evangelical",
+    # Per-group vote share columns (from crosstab second tab).
+    # These differ from the xt_* composition columns above: they encode what
+    # fraction of each demographic group voted Dem, not how large the group is.
+    "xt_vote_race_white",
+    "xt_vote_race_black",
+    "xt_vote_race_hispanic",
+    "xt_vote_race_asian",
+    "xt_vote_education_college",
+    "xt_vote_education_noncollege",
+    "xt_vote_age_senior",
 ]
+
+# Substring patterns in crosstab row labels that identify the crosstab tab.
+# The crosstab tab's row 2 (0-indexed) contains "Row N %" in answer-count columns.
+_CROSSTAB_TAB_MARKER = "row n %"
+
+# Maximum number of GIDs to try when searching for the crosstab tab.
+# Sheets rarely have more than 5 tabs; 10 is a safe upper bound.
+_MAX_GIDS_TO_TRY = 10
 
 # Known Emerson article URLs for 2026 races.
 # Each article publishes a Google Sheets crosstab with a demographics section.
@@ -187,6 +215,363 @@ def download_sheet_csv(export_url: str) -> str:
     logger.info("Downloading sheet: %s", export_url)
     resp = _get(export_url)
     return resp.text
+
+
+# ---------------------------------------------------------------------------
+# Crosstab tab discovery
+# ---------------------------------------------------------------------------
+
+def discover_sheet_gids(sheet_id: str) -> list[str]:
+    """Discover all tab GIDs for a Google Sheet via the htmlview page.
+
+    Google Sheets embeds tab GIDs as URL fragments in the htmlview page.
+    We fetch that page and extract every unique GID with a regex.
+
+    Args:
+        sheet_id: The Google Sheets document ID (the long alphanumeric key
+                  in the /spreadsheets/d/{ID}/ part of the URL).
+
+    Returns:
+        Deduplicated list of GID strings (e.g. ["0", "1234567890"]).
+        Returns an empty list if the page cannot be fetched.
+    """
+    htmlview_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/htmlview"
+    try:
+        resp = _get(htmlview_url)
+    except requests.RequestException as exc:
+        logger.warning("Could not fetch htmlview for sheet %s: %s", sheet_id, exc)
+        return []
+
+    # GIDs appear as "gid=<digits>" in the HTML (both in anchor hrefs and
+    # in the internal tab navigation markup).
+    raw_gids = re.findall(r"gid=(\d+)", resp.text)
+
+    # Deduplicate while preserving the order of first appearance.
+    seen: set[str] = set()
+    unique_gids: list[str] = []
+    for gid in raw_gids:
+        if gid not in seen:
+            seen.add(gid)
+            unique_gids.append(gid)
+
+    logger.debug("Discovered GIDs for sheet %s: %s", sheet_id, unique_gids)
+    return unique_gids
+
+
+def download_sheet_tab_csv(sheet_id: str, gid: str) -> str:
+    """Download a specific tab of a Google Sheet as CSV.
+
+    Args:
+        sheet_id: The Google Sheets document ID.
+        gid: The tab GID string (digits only).
+
+    Returns:
+        Raw CSV text of that tab.
+    """
+    tab_url = (
+        f"https://docs.google.com/spreadsheets/d/{sheet_id}"
+        f"/export?format=csv&gid={gid}"
+    )
+    logger.debug("Downloading tab GID=%s for sheet %s", gid, sheet_id)
+    resp = _get(tab_url)
+    return resp.text
+
+
+def identify_crosstab_gid(sheet_id: str, gids: list[str]) -> Optional[str]:
+    """Try each GID and return the first one whose CSV looks like a crosstab tab.
+
+    The crosstab tab is identified by the presence of "Row N %" in row 2
+    (0-indexed) of its CSV.  The demographics/composition tab does NOT have
+    this pattern — it uses "Valid Percent" style headers instead.
+
+    Args:
+        sheet_id: The Google Sheets document ID.
+        gids: List of GID strings to try, in discovery order.
+
+    Returns:
+        The GID string of the crosstab tab, or None if none matches.
+    """
+    # Only check up to _MAX_GIDS_TO_TRY tabs to avoid hammering the server.
+    for gid in gids[:_MAX_GIDS_TO_TRY]:
+        try:
+            csv_text = download_sheet_tab_csv(sheet_id, gid)
+            time.sleep(REQUEST_DELAY)
+        except requests.RequestException as exc:
+            logger.debug("Tab GID=%s not accessible: %s", gid, exc)
+            continue
+
+        rows = _parse_csv_lines(csv_text)
+        # Row 2 (index 2) is the "Count, Row N %" alternating header row.
+        # A crosstab tab has at least 3 rows.
+        if len(rows) < 3:
+            continue
+
+        # Check row 2 for the marker pattern — join all cells and search.
+        row2_text = " ".join(rows[2]).lower()
+        if _CROSSTAB_TAB_MARKER in row2_text:
+            logger.info("Found crosstab tab: GID=%s for sheet %s", gid, sheet_id)
+            return gid
+
+    logger.debug("No crosstab tab found among GIDs %s", gids[:_MAX_GIDS_TO_TRY])
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Crosstab vote share parsing
+# ---------------------------------------------------------------------------
+
+# Map Emerson crosstab row labels to xt_vote_* column names.
+# Each entry is (substring_to_match_in_lowercase_label, output_column_name).
+# Order matters — more specific patterns must come before generic ones
+# (e.g. "non-college" before "college") to prevent wrong matches.
+_CROSSTAB_ROW_LABEL_MAP: list[tuple[str, str]] = [
+    # Race / ethnicity
+    ("white or caucasian", "xt_vote_race_white"),
+    ("black or african american", "xt_vote_race_black"),
+    ("hispanic or latino", "xt_vote_race_hispanic"),
+    ("asian", "xt_vote_race_asian"),
+    # Education — "non-college" variants must come before "college graduate"
+    # to avoid accidentally matching "non-college" rows with the college key.
+    ("non-college", "xt_vote_education_noncollege"),
+    ("no college", "xt_vote_education_noncollege"),
+    ("some college", "xt_vote_education_noncollege"),
+    ("high school", "xt_vote_education_noncollege"),
+    ("college graduate", "xt_vote_education_college"),
+    ("postgraduate", "xt_vote_education_college"),
+    # Age — 60+ buckets (we combine 60-69 and 70+ into the "senior" group)
+    ("60-69", "xt_vote_age_senior"),
+    ("70 or more", "xt_vote_age_senior"),
+    ("70+", "xt_vote_age_senior"),
+    ("65 or older", "xt_vote_age_senior"),
+]
+
+
+def _find_general_election_question(rows: list[list[str]]) -> Optional[str]:
+    """Find the question text in row 0 that asks about the general election.
+
+    Emerson crosstab CSVs have the question header text in row 0.  We look for
+    the first non-empty cell that contains "general election" — this is the
+    start of the column block we need to parse for vote shares.
+
+    Returns the raw question text string, or None if not found.
+    """
+    if not rows:
+        return None
+    row0 = rows[0]
+    for cell in row0:
+        cell_stripped = cell.strip()
+        if "general election" in cell_stripped.lower() and cell_stripped:
+            return cell_stripped
+    return None
+
+
+def _infer_dem_candidate_column(
+    rows: list[list[str]],
+    question_text: str,
+) -> Optional[int]:
+    """Find the CSV column index containing the Dem candidate's "Row N %" value.
+
+    Emerson crosstab CSVs have this layout:
+      Row 0: Question headers (one header spans multiple columns).
+      Row 1: Candidate names (one name per answer column).
+      Row 2: Alternating "Count" / "Row N %" labels for each candidate.
+
+    We need to find the "Row N %" column for the Democratic candidate so that
+    we can extract the per-demographic vote share percentage.
+
+    Strategy:
+      1. Find the column in row 0 that contains the general election question.
+      2. Read candidate names from row 1 starting at that column.
+      3. Parse the question text for "(Democrat)" or similar party markers
+         to identify which candidate is the Democrat.
+      4. Return the index of their "Row N %" column in row 2.
+
+    Args:
+        rows: Parsed CSV rows (list of lists).
+        question_text: The general election question text from row 0.
+
+    Returns:
+        Column index of the "Row N %" cell for the Democratic candidate,
+        or None if we cannot determine it confidently.
+    """
+    if len(rows) < 3:
+        return None
+
+    row0 = rows[0]  # question headers
+    row1 = rows[1]  # candidate names
+    row2 = rows[2]  # "Count" / "Row N %" alternating labels
+
+    # Find the column where the general election question header starts.
+    question_col: Optional[int] = None
+    question_lower = question_text.lower()
+    for col_idx, cell in enumerate(row0):
+        if cell.strip().lower() == question_lower:
+            question_col = col_idx
+            break
+
+    if question_col is None:
+        # Partial match fallback — the full question may not fit in one cell.
+        for col_idx, cell in enumerate(row0):
+            if "general election" in cell.lower() and cell.strip():
+                question_col = col_idx
+                break
+
+    if question_col is None:
+        return None
+
+    # Collect candidate names for columns within this question's span.
+    # The span continues until the next non-empty cell in row 0.
+    candidate_cols: list[tuple[str, int]] = []
+    for col_idx in range(question_col, len(row1)):
+        # A new question starts when row0 has a fresh non-empty header.
+        if col_idx > question_col and col_idx < len(row0) and row0[col_idx].strip():
+            break
+        name = row1[col_idx].strip() if col_idx < len(row1) else ""
+        if name:
+            candidate_cols.append((name, col_idx))
+
+    if not candidate_cols:
+        return None
+
+    # Try to identify the Democratic candidate from the question text or candidate
+    # name.  Emerson questions often read: "Democrat Jon Ossoff" or show "(D)" in
+    # the candidate name cell.
+    dem_candidate_col: Optional[int] = None
+    qt_lower = question_text.lower()
+
+    for name, col_idx in candidate_cols:
+        name_lower = name.lower()
+
+        # Direct "(D)" marker in the candidate name cell itself.
+        if "(d)" in name_lower:
+            dem_candidate_col = col_idx
+            break
+
+        # "Democrat" keyword near candidate's first name in the question text.
+        if "democrat" in qt_lower:
+            first_word = name_lower.split()[0] if name_lower.split() else ""
+            name_pos = qt_lower.find(first_word) if first_word else -1
+            dem_pos = qt_lower.find("democrat")
+            # Within 60 characters is a strong signal they are co-referential.
+            if name_pos >= 0 and abs(name_pos - dem_pos) < 60:
+                dem_candidate_col = col_idx
+                break
+
+        # Explicit "(d)" marker in the question text immediately after the name.
+        if f"{name.split()[0].lower()} (d)" in qt_lower:
+            dem_candidate_col = col_idx
+            break
+
+    if dem_candidate_col is None:
+        return None
+
+    # Find the "Row N %" column (row 2) associated with this candidate column.
+    # It is typically dem_candidate_col + 1 but we scan a small window to be safe.
+    for offset in range(0, 3):
+        check_col = dem_candidate_col + offset
+        if check_col < len(row2) and "row n %" in row2[check_col].lower():
+            return check_col
+
+    return None
+
+
+def parse_crosstab_vote_shares(csv_text: str) -> dict[str, float]:
+    """Parse the crosstab tab CSV and extract per-group Democratic vote shares.
+
+    The crosstab tab has this structure:
+      Row 0: Question headers (one header spans multiple columns).
+              We target the column block for the "general election" question.
+      Row 1: Candidate names.
+      Row 2: "Count" / "Row N %" alternating column labels.
+      Rows 3+: Demographic group rows.
+                Column 0 or 1: group label (e.g. "White or Caucasian").
+                Other columns: Count / Row N % pairs for each candidate.
+
+    We extract the "Row N %" value for the Democratic candidate for each
+    demographic group and convert to a 0–1 scale.
+
+    For demographic groups that appear in multiple rows mapping to the same
+    xt_vote_* column (e.g. "College graduate" and "Postgraduate" both map to
+    xt_vote_education_college), we average the two values since we don't have
+    within-group sample sizes to do a proper weighted average.
+
+    Args:
+        csv_text: Raw CSV text of the crosstab tab.
+
+    Returns:
+        Dict mapping xt_vote_* column names to float values in [0, 1].
+        Returns empty dict if parsing fails at any required step.
+    """
+    rows = _parse_csv_lines(csv_text)
+
+    if len(rows) < 3:
+        logger.debug("Crosstab CSV has fewer than 3 rows — cannot parse vote shares")
+        return {}
+
+    # Find the general election question to know which columns to read.
+    question_text = _find_general_election_question(rows)
+    if question_text is None:
+        logger.debug("No 'general election' question found in crosstab row 0")
+        return {}
+
+    # Find the column index for the Democratic candidate's "Row N %" in row 2.
+    dem_pct_col = _infer_dem_candidate_column(rows, question_text)
+    if dem_pct_col is None:
+        logger.debug("Could not identify Democratic candidate's 'Row N %%' column")
+        return {}
+
+    logger.debug(
+        "Crosstab: question='%.60s...', dem_pct_col=%d", question_text, dem_pct_col
+    )
+
+    # Accumulate raw values before averaging.  Some xt_vote_* columns get
+    # contributions from multiple row labels (e.g. senior = 60-69 + 70+).
+    # We track (sum, count) and average at the end.
+    accumulators: dict[str, list[float]] = {}
+
+    for row in rows[3:]:
+        # Group labels appear in column 1 in most layouts; column 0 in compact ones.
+        label = ""
+        if len(row) > 1 and row[1].strip():
+            label = row[1].strip()
+        elif row and row[0].strip():
+            label = row[0].strip()
+
+        if not label:
+            continue  # blank separator row
+
+        label_lower = label.lower()
+
+        # Match against known demographic labels in priority order.
+        for pattern, xt_col in _CROSSTAB_ROW_LABEL_MAP:
+            if pattern not in label_lower:
+                continue
+
+            # Extract the "Row N %" percentage from the Democratic candidate column.
+            if dem_pct_col >= len(row):
+                break  # row is shorter than expected — skip
+
+            cell = row[dem_pct_col].strip().rstrip("%")
+            if not cell:
+                break
+
+            try:
+                pct = float(cell)
+            except ValueError:
+                break
+
+            # Convert percentage to 0–1 fraction and accumulate.
+            vote_share = pct / 100.0
+            accumulators.setdefault(xt_col, []).append(vote_share)
+            break  # matched — move to next row
+
+    # Average accumulated values for each column.
+    result: dict[str, float] = {}
+    for xt_col, values in accumulators.items():
+        result[xt_col] = sum(values) / len(values)
+
+    logger.debug("Parsed crosstab vote shares: %s", result)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -534,6 +919,18 @@ def _extract_n_sample_from_sheet(csv_text: str) -> Optional[float]:
     return None
 
 
+def _extract_sheet_id_from_export_url(export_url: str) -> Optional[str]:
+    """Extract the spreadsheet ID from a Google Sheets export URL.
+
+    Export URLs look like:
+      https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv
+
+    Returns the SHEET_ID string, or None if the pattern does not match.
+    """
+    match = re.search(r"/spreadsheets/d/([A-Za-z0-9_-]+)/", export_url)
+    return match.group(1) if match else None
+
+
 def process_article(
     article_url: str,
     rows: list[dict],
@@ -543,9 +940,12 @@ def process_article(
     Full pipeline for a single Emerson article:
       1. Fetch article HTML.
       2. Extract Google Sheets export URL.
-      3. Download sheet CSV.
-      4. Parse demographics.
-      5. Match and update poll rows.
+      3. Download sheet CSV (first tab — demographics).
+      4. Parse demographics composition.
+      5. Discover sheet GIDs and find the crosstab tab.
+      6. Parse per-group vote shares from the crosstab tab.
+      7. Merge vote shares into demographics dict.
+      8. Match and update poll rows.
 
     Returns the number of rows updated (0 on failure or no match).
     """
@@ -569,7 +969,7 @@ def process_article(
         return 0
     logger.info("Found sheet for %s: %s", state, export_url)
 
-    # Download sheet CSV
+    # Download the first tab (demographics composition)
     try:
         csv_text = download_sheet_csv(export_url)
         time.sleep(REQUEST_DELAY)
@@ -577,7 +977,7 @@ def process_article(
         logger.error("Failed to download sheet for %s: %s", state, exc)
         return 0
 
-    # Parse demographics
+    # Parse demographics composition (xt_* columns)
     demographics = parse_demographics(csv_text)
     populated = {k: v for k, v in demographics.items() if v is not None}
     if not populated:
@@ -586,6 +986,43 @@ def process_article(
     logger.info("Parsed demographics for %s: %s", state, {
         k: f"{v:.3f}" for k, v in populated.items()
     })
+
+    # Attempt to parse per-group vote shares from the crosstab tab.
+    # This is best-effort — if the sheet has no second tab or we can't parse
+    # it, we fall back gracefully to the composition-only data.
+    sheet_id = _extract_sheet_id_from_export_url(export_url)
+    if sheet_id is not None:
+        gids = discover_sheet_gids(sheet_id)
+        time.sleep(REQUEST_DELAY)
+
+        if gids:
+            crosstab_gid = identify_crosstab_gid(sheet_id, gids)
+            if crosstab_gid is not None:
+                try:
+                    crosstab_csv = download_sheet_tab_csv(sheet_id, crosstab_gid)
+                    time.sleep(REQUEST_DELAY)
+                    vote_shares = parse_crosstab_vote_shares(crosstab_csv)
+                    if vote_shares:
+                        logger.info(
+                            "Parsed crosstab vote shares for %s: %s",
+                            state,
+                            {k: f"{v:.3f}" for k, v in vote_shares.items()},
+                        )
+                        # Merge vote shares into the demographics dict.
+                        # Both dicts have the same value type (Optional[float]).
+                        demographics.update(vote_shares)
+                    else:
+                        logger.debug("No vote shares parsed from crosstab tab for %s", state)
+                except requests.RequestException as exc:
+                    logger.warning(
+                        "Could not download crosstab tab for %s: %s", state, exc
+                    )
+            else:
+                logger.debug("No crosstab tab found for %s", state)
+        else:
+            logger.debug("No GIDs discovered for sheet %s", sheet_id)
+    else:
+        logger.debug("Could not extract sheet ID from URL: %s", export_url)
 
     # Infer n_sample from sheet to help with matching
     n_sample = _extract_n_sample_from_sheet(csv_text)

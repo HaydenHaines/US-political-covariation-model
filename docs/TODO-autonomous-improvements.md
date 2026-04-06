@@ -2,14 +2,16 @@
 
 These tasks can be picked up independently by autonomous sessions. **Work them in priority order.** Each task should be a single session's work, with tests and a commit on `feat/type-primary-architecture`.
 
-**Baseline model (2026-03-22 S164 updated):**
-- Algorithm: KMeans J=43
-- Features: Presidential×2.5 + state-centered gov/Senate (33 dims, 2008+)
-- Holdout r: 0.828 (county-level prior), 0.818 (type-mean prior)
-- Calibration MAE: 0.061 (T=10 soft membership)
-- Covariance validation r: 0.210 (3-dimensional observed structure)
-- County RMSE (2024): **2.67pp** (county-prior), 9.00pp (type-mean prior)
-- Feature count: 42 numeric (including migration features)
+**Current model (2026-04-06 S340 updated):**
+- Algorithm: KMeans J=100, PCA(n=15, whiten=True) before KMeans
+- Features: Presidential pw=8.0 + state-centered gov/Senate (33 dims, 2008+)
+- Holdout r: 0.698 (type-mean prior)
+- LOO r (Ridge+features): **0.734** (43 pruned features, best achieved)
+- Covariance validation r: **0.936** (observed LW-regularized)
+- Coherence: 0.783, RMSE: 0.073
+- Ensemble features: 43 pruned from 218 (type scores + demographics + religion + BEA + migration + health + urbanicity + broadband + Facebook SCI + QCEW industry)
+- Tests: 3,474 pass
+- **Feature engineering ceiling reached** — FEC (+0.0001), approval (~0), broadband (neutral) all failed to improve. Further gains require tract-primary migration or fundamentally new signal.
 
 **Validation command:** `uv run python -m src.validation.validate_types`
 **Test command:** `uv run pytest tests/ -q --tb=short`
@@ -37,7 +39,7 @@ These are the highest-impact improvements. The prediction pipeline has known str
 
 - [x] **P2.2: Urbanicity feature (Economist-style)** — DONE (pre-S164). `log_pop_density`, `land_area_sq_mi`, `pop_per_sq_mi` already integrated into type_profiles.parquet. The Economist-style `avg_log_pop_within_5_miles` is unnecessary — raw log density already distinguishes urban/suburban/rural effectively.
 
-- [ ] **P2.6: Denomination-level religion features (break out "Other")** — Current RCMS fetch uses "Major Religious Groups" (rt=2) which lumps LDS, Muslim, Jewish, Hindu, Buddhist, Jehovah's Witness, etc. into "Other." ARDA has denomination-level data (RCMS 2020, 366 denominations). Fetch county-level adherent counts for each politically distinct group within "Other" and create per-capita features. Priority groups and why they matter electorally:
+- [x] **P2.6: Denomination-level religion features (break out "Other")** — Current RCMS fetch uses "Major Religious Groups" (rt=2) which lumps LDS, Muslim, Jewish, Hindu, Buddhist, Jehovah's Witness, etc. into "Other." ARDA has denomination-level data (RCMS 2020, 366 denominations). Fetch county-level adherent counts for each politically distinct group within "Other" and create per-capita features. Priority groups and why they matter electorally:
   - **LDS/Mormon**: UT/ID/NV/AZ/WY corridor. Anti-Trump 2016 (McMullin), snap-back 2020+. Distinctive shift pattern likely blurred into "rural conservative."
   - **Muslim**: Concentrated in Dearborn MI, parts of NJ/NY/VA/TX/MN. Shifted sharply R in 2024 (Gaza). Small-n but high-signal where concentrated.
   - **Jewish**: NY metro, S. FL, parts of PA/MD. Consistently high-D but with notable 2024 movement. Captures Boca/Broward type signal.
@@ -46,13 +48,13 @@ These are the highest-impact improvements. The prediction pipeline has known str
   - **Jehovah's Witness**: Low voter participation, unlikely to help.
   Implementation: Fetch ARDA denomination-level CSV export for RCMS 2020. Compute `{group}_share = adherents / total_pop` per county. Add as ensemble features. Test each for holdout r improvement — drop any that don't help. Hayden's data scientist friend flagged Mormonism specifically (2026-03-27); expanded to all electorally distinct "Other" denominations.
 
-- [ ] **P2.3: FEC donor density feature** — Requires FEC_API_KEY (free from api.data.gov/signup/). Fetcher exists at `src/assembly/fetch_fec_contributions.py` (29 tests in worktree). Microdonation rate per county as a type discriminator. **BLOCKED on API key — ask Hayden via Telegram if not set.**
+- [x] **P2.3: FEC donor density feature** — DONE S340. National fetch (3,125 counties), county-level donor ratios. LOO r: +0.0001 (neutral). Donor behavior redundant with type scores. Branch preserved but not merged. REJECTED.
 
-- [ ] **P2.4: BEA income composition** — Requires BEA_API_KEY (free from apps.bea.gov/API/signup/). Fetcher exists at `src/assembly/fetch_bea_income.py` (38 tests). Income from wages vs transfers vs investments. **BLOCKED on API key — ask Hayden via Telegram if not set.**
+- [x] **P2.4: BEA income composition** — DONE S338. 3 features (earnings_share, transfers_share, investment_share). LOO r: 0.731→0.733 (+0.002), Covariance val r: 0.915→0.936 (+0.021). Merged to main.
 
 - [x] **P2.5: IRS migration features** — DONE (pre-S164). 4 features integrated into type profiles. 39 tests.
 
-After completing P2 tasks, re-run shrinkage lambda tuning — the rank deficiency was the reason lambda had no effect (S162). With ≥43 features it may matter.
+**All P2 tasks complete.** Feature engineering at county-level has plateaued. BEA income (+0.002) and denomination religion (+0.001) were the only additions that helped. FEC state-level (-0.006) and FEC county-level (+0.0001) both rejected. Lambda/mu tuning was done in S293 (#91).
 
 ---
 
@@ -70,7 +72,7 @@ KMeans at J=43 with r=0.818 is solid. These experiments may find marginal gains 
 
 - [x] **P3.5: Turnout as separate dimension** — DONE S186. Current x1.0 weight is optimal. Dropping turnout costs -0.021r; up-weighting trades partisan accuracy for turnout with no net gain. Turnout-only r=0.79. ALL P3.x experiments COMPLETE. See docs/turnout-dimension-experiment-S186.md.
 
-- [ ] **P3.6: PCA/dimensionality reduction before KMeans** — Recommended by external data scientist (2026-03-27). Currently KMeans runs on raw 33-dim shift vectors. PCA could reduce noise dimensions (presidential shifts across years are highly correlated) and concentrate signal. Experiment: run PCA on shift matrix, sweep n_components (5-25), re-run KMeans J=100 on reduced space, compare holdout r to baseline 0.698. The Economist model uses a factor model on shifts (similar concept). Also try UMAP as a nonlinear alternative.
+- [x] **P3.6: PCA/dimensionality reduction before KMeans** — Recommended by external data scientist (2026-03-27). Currently KMeans runs on raw 33-dim shift vectors. PCA could reduce noise dimensions (presidential shifts across years are highly correlated) and concentrate signal. Experiment: run PCA on shift matrix, sweep n_components (5-25), re-run KMeans J=100 on reduced space, compare holdout r to baseline 0.698. The Economist model uses a factor model on shifts (similar concept). Also try UMAP as a nonlinear alternative.
 
 ---
 

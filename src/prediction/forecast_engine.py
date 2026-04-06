@@ -334,6 +334,11 @@ def run_forecast(
     pre_primary_discount: float = 0.5,  # n_sample factor for pre-primary polls
     accuracy_path: Path | None = None,  # path to pollster_accuracy.json for RMSE weights
     methodology_weights: dict[str, float] | None = None,  # see prediction_params.json
+    state_population_vectors: dict[str, dict[str, float]] | None = None,
+    # ^^ Optional: maps state_abbr → {xt_col: population_share}.
+    # When provided, Tier 2 crosstab observations are post-stratification corrected
+    # so that oversampled demographic groups don't get artificially low sigma.
+    # Precompute with src.prediction.population_vectors.build_state_population_vectors.
 ) -> dict[str, ForecastResult]:
     """Run the full hierarchical forecast for all races.
 
@@ -390,6 +395,13 @@ def run_forecast(
             # a single W vector shift.  Returns None when no xt_ data is present,
             # signalling Tier 3 (methodology-only adjustments).
             raw_demographics = _extract_raw_demographics(poll) if crosstabs is None else None
+            # Look up population shares for this poll's state so that Tier 2
+            # crosstab observations can apply post-stratification correction.
+            # If state_population_vectors is not available, pass None and the
+            # correction is skipped (preserving original behavior).
+            pop_shares = (
+                state_population_vectors.get(st) if state_population_vectors is not None else None
+            )
             return build_W_poll(
                 poll=poll,
                 type_profiles=type_profiles,
@@ -397,6 +409,7 @@ def run_forecast(
                 poll_crosstabs=crosstabs,
                 raw_sample_demographics=raw_demographics,
                 w_vector_mode=w_vector_mode,
+                population_shares=pop_shares,
             )
 
         w_builder = _w_builder

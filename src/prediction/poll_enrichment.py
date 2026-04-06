@@ -118,9 +118,38 @@ def build_W_from_crosstabs(
     crosstabs: list[dict],
     type_profiles: pd.DataFrame,
     state_type_weights: np.ndarray,
+    population_shares: dict[str, float] | None = None,
 ) -> list[dict]:
     """Tier 2: Map crosstab groups to types, return multiple observations.
-    Returns list of {"W": np.ndarray, "y": float, "sigma": float} dicts."""
+
+    Returns list of {"W": np.ndarray, "y": float, "sigma": float} dicts.
+
+    Post-stratification correction:
+    When a poll oversamples a demographic group (e.g., college-educated at 55%
+    vs population share 30%), the raw sub-sample size is inflated, giving that
+    group an artificially low sigma and outsized influence on the Bayesian
+    update.  The correction reweights effective sample size by the ratio of
+    population share to poll share:
+
+        correction = pop_share / poll_share
+        sub_n = max(int(n_sample * poll_share * correction), 1)
+                 = max(int(n_sample * pop_share), 1)
+
+    An oversampled group has correction < 1 → smaller sub_n → larger sigma
+    → less influence on the posterior.  An undersampled group gets the inverse.
+
+    Args:
+        poll: Poll dict with at least "dem_share" and "n_sample" keys.
+        crosstabs: List of crosstab observation dicts (demographic_group, group_value,
+            pct_of_sample, dem_share).
+        type_profiles: DataFrame of type-level demographic profiles.
+        state_type_weights: Vote-weighted type distribution for the poll's state.
+        population_shares: Optional mapping from xt_ column name (e.g. "xt_race_black")
+            to the true population share for this poll's state.  When provided, the
+            effective sample size for each crosstab group is corrected by
+            pop_share / poll_share.  When None (default), the raw pct_of_sample is
+            used, preserving backward compatibility.
+    """
     J = len(state_type_weights)
     observations = []
 
@@ -132,11 +161,29 @@ def build_W_from_crosstabs(
         if dem_share is None or pct_of_sample <= 0:
             continue
 
-        sub_n = max(int(n_sample * pct_of_sample), 1)
-        sigma = np.sqrt(dem_share * (1 - dem_share) / sub_n)
-
         group = xt.get("demographic_group", "")
         value = xt.get("group_value", "")
+
+        # Post-stratification correction: reweight effective sample size by
+        # (population_share / poll_share) when population data is available.
+        # This corrects for the artificial precision that oversampling creates —
+        # a group sampled at 2× its true population share has half the real variance
+        # but the raw sub_n would underestimate sigma by sqrt(2).
+        if population_shares is not None:
+            xt_col = f"xt_{group}_{value}"
+            pop_share = population_shares.get(xt_col)
+            if pop_share is not None and pop_share > 0:
+                # correction = pop_share / pct_of_sample
+                # sub_n = n * pct_of_sample * (pop_share / pct_of_sample) = n * pop_share
+                sub_n = max(int(n_sample * pop_share), 1)
+            else:
+                # No population data for this group — fall back to raw pct_of_sample.
+                sub_n = max(int(n_sample * pct_of_sample), 1)
+        else:
+            # No population_shares provided — use raw pct_of_sample (original behavior).
+            sub_n = max(int(n_sample * pct_of_sample), 1)
+
+        sigma = np.sqrt(dem_share * (1 - dem_share) / sub_n)
         W = _map_demographic_to_types(group, value, type_profiles, state_type_weights)
 
         observations.append({"W": W, "y": dem_share, "sigma": max(sigma, 1e-6)})
@@ -210,6 +257,7 @@ def build_W_poll(
     poll_crosstabs: list[dict] | None = None,
     raw_sample_demographics: dict[str, float] | None = None,
     w_vector_mode: str = "core",
+    population_shares: dict[str, float] | None = None,
 ) -> np.ndarray | list[dict]:
     """Construct poll-specific W vector at the best available tier.
 
@@ -217,6 +265,12 @@ def build_W_poll(
       Tier 2: crosstab data (per-group pct_of_sample) → multiple W+y observations
       Tier 1: raw sample demographics (pct_of_sample aggregated) → single skewed W
       Tier 3: methodology adjustments only → single adjusted W
+
+    Args:
+        population_shares: Optional mapping from xt_ column name to state population
+            share for this poll's state.  When provided, Tier 2 observations apply
+            post-stratification correction to effective sample size so that oversampled
+            groups do not have artificially low sigma.
 
     Returns:
       - Tier 1 & 3: np.ndarray of shape (J,)
@@ -227,6 +281,7 @@ def build_W_poll(
     if poll_crosstabs is not None:
         return build_W_from_crosstabs(
             poll, poll_crosstabs, type_profiles, state_type_weights,
+            population_shares=population_shares,
         )
     # Tier 1: raw sample composition adjusts the state-level W toward matching types.
     if raw_sample_demographics is not None:

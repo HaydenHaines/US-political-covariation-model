@@ -268,6 +268,39 @@ def run() -> None:
         type_profiles_df = pd.read_parquet(type_profiles_path)
         log.info("Loaded type profiles for poll enrichment: %d types", len(type_profiles_df))
 
+    # Precompute state-level population demographic vectors for post-stratification
+    # correction in Tier 2 W construction.  This corrects for polls that oversample
+    # demographic groups (e.g., college-educated at 55% vs population 30%), which
+    # would otherwise give those groups an artificially low sigma and outsized influence.
+    # Requires: type_profiles, county_type_assignments, and 2020 presidential vote totals.
+    state_population_vectors: dict | None = None
+    county_assignments_path = PROJECT_ROOT / "data" / "communities" / "county_type_assignments_full.parquet"
+    county_votes_2020_path = PROJECT_ROOT / "data" / "assembled" / "medsl_county_presidential_2020.parquet"
+    if (
+        type_profiles_df is not None
+        and county_assignments_path.exists()
+        and county_votes_2020_path.exists()
+    ):
+        from src.prediction.population_vectors import (
+            XT_TO_TYPE_PROFILE_COL,
+            build_state_population_vectors,
+        )
+        county_assignments_df = pd.read_parquet(county_assignments_path)
+        county_votes_2020_df = pd.read_parquet(county_votes_2020_path)
+        # Only compute vectors for the xt_ columns that are actually present in poll data.
+        all_xt_cols = list(XT_TO_TYPE_PROFILE_COL.keys())
+        try:
+            state_population_vectors = build_state_population_vectors(
+                type_profiles_df, county_assignments_df, county_votes_2020_df, all_xt_cols
+            )
+            log.info(
+                "Built state population vectors for post-stratification (%d states)",
+                len(state_population_vectors),
+            )
+        except Exception as exc:
+            log.warning("Could not build state population vectors, skipping post-strat: %s", exc)
+            state_population_vectors = None
+
     # Compute generic ballot shift from national polls.  This adjusts county
     # priors toward the current national environment before the Bayesian update.
     gb_info = compute_gb_shift()
@@ -325,6 +358,7 @@ def run() -> None:
         pre_primary_discount=_PRE_PRIMARY_DISCOUNT,
         accuracy_path=_ACCURACY_PATH,
         methodology_weights=_METHODOLOGY_WEIGHTS,
+        state_population_vectors=state_population_vectors,
     )
 
     # Convert ForecastResult → DataFrame rows (both modes per race)

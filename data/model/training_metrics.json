@@ -1,6 +1,6 @@
 {
   "date_trained": "2026-04-05",
-  "git_sha": "286be40",
+  "git_sha": "c13db1d",
   "n_training_samples": 3106,
   "n_counties_output": 3106,
   "n_features": 144,

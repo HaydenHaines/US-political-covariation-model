@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { ParentSize } from "@visx/responsive";
 import { Group } from "@visx/group";
 import { LinePath } from "@visx/shape";
 import { scaleLinear, scaleTime } from "@visx/scale";
@@ -36,11 +37,6 @@ function formatAxisDate(d: Date): string {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-interface SeatBalanceTimelineProps {
-  /** Chart width in px. Defaults to 560. */
-  width?: number;
-}
-
 /**
  * Senate seat balance timeline.
  *
@@ -50,7 +46,15 @@ interface SeatBalanceTimelineProps {
  *
  * Designed to sit below the BalanceBar on the senate overview page.
  */
-export function SeatBalanceTimeline({ width = 560 }: SeatBalanceTimelineProps) {
+export function SeatBalanceTimeline() {
+  return (
+    <ParentSize>
+      {({ width }) => <SeatBalanceTimelineInner width={Math.max(width, 200)} />}
+    </ParentSize>
+  );
+}
+
+function SeatBalanceTimelineInner({ width }: { width: number }) {
   const { data, error, isLoading } = useSeatHistory();
 
   const height = Math.max(180, Math.round(width * 0.35));

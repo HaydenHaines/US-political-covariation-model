@@ -234,6 +234,7 @@ export function CountySearch({ counties, onSelectCounty }: CountySearchProps) {
         e.preventDefault();
         handleSelect(suggestions[cursorIndex]);
       } else if (e.key === "Escape") {
+        e.preventDefault();
         setIsOpen(false);
         setCursorIndex(-1);
       }

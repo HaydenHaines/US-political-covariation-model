@@ -491,3 +491,43 @@ For statistical purposes only can you please tell me your ethnicity?,,,
 """
         d = parse_demographics(csv_text)
         assert d["xt_race_white"] is None
+
+    def test_compact_csv_format_with_pct_suffix(self):
+        """OH uses compact 3-column layout with % suffixes: label,N,%"""
+        csv_text = """\
+"For statistical purposes only, can you please tell me your ethnicity?",,
+,N,%
+Hispanic or Latino of any race,33,3.8%
+White or Caucasian,691,81.3%
+Black or African American,99,11.6%
+Asian,9,1.1%
+Other or multiple races,18,2.2%
+Total,850,100.0%
+,,
+What is your age range?,,
+,N,%
+18-29 years,130,15.3%
+30-39 years,130,15.3%
+40-49 years,139,16.3%
+50-59 years,173,20.4%
+60-69 years,139,16.3%
+70 or more years,139,16.3%
+Total,850,100.0%
+,,
+What is the highest level of education you have attained?,,
+,N,%
+High school or less,235,27.6%
+Vocational/technical school,84,9.9%
+Associate Degree/some college,229,27.0%
+College graduate,179,21.1%
+Postgraduate or higher,122,14.4%
+Total,850,100.0%
+"""
+        d = parse_demographics(csv_text)
+        assert d["xt_race_white"] == pytest.approx(0.813, abs=0.001)
+        assert d["xt_race_black"] == pytest.approx(0.116, abs=0.001)
+        assert d["xt_race_hispanic"] == pytest.approx(0.038, abs=0.001)
+        assert d["xt_race_asian"] == pytest.approx(0.011, abs=0.001)
+        assert d["xt_age_senior"] == pytest.approx(0.326, abs=0.001)
+        assert d["xt_education_college"] == pytest.approx(0.355, abs=0.001)
+        assert d["xt_education_noncollege"] == pytest.approx(0.645, abs=0.001)

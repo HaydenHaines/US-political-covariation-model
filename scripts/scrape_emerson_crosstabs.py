@@ -217,22 +217,37 @@ def _extract_pct_value(
     rows: list[list[str]], start: int, label_fragment: str, exact: bool = False
 ) -> Optional[float]:
     """
-    Starting from row `start`, scan the next 20 rows for a row whose column-1
-    cell contains `label_fragment` (case-insensitive). Return the Valid Percent
-    column (column 3) as a float, or None if not found.
+    Starting from row `start`, scan the next 20 rows for a row whose label cell
+    contains `label_fragment` (case-insensitive). Return the percent value as a
+    float, or None if not found.
 
-    If `exact=True`, the column-1 cell must equal `label_fragment` exactly
+    If `exact=True`, the label cell must equal `label_fragment` exactly
     (after stripping and lowercasing) rather than just containing it.
+
+    Handles two CSV column layouts:
+      - Standard (FL/GA/ME/TX): blank col 0, label col 1, count col 2, pct col 3
+      - Compact (OH): label col 0, count col 1, pct col 2 (with % suffix)
     """
     needle = label_fragment.lower()
     for row in rows[start : start + 20]:
-        cell = row[1].lower().strip() if len(row) > 1 else ""
-        matched = (cell == needle) if exact else (needle in cell)
-        if matched:
+        # Try standard layout first (label in col 1, pct in col 3)
+        label_col1 = row[1].lower().strip() if len(row) > 1 else ""
+        matched_col1 = (label_col1 == needle) if exact else (needle in label_col1)
+        if matched_col1 and len(row) > 3:
             try:
-                return float(row[3].strip()) if len(row) > 3 else None
+                return float(row[3].strip().rstrip("%"))
             except (ValueError, IndexError):
-                return None
+                pass
+
+        # Try compact layout (label in col 0, pct in col 2)
+        label_col0 = row[0].lower().strip() if row else ""
+        matched_col0 = (label_col0 == needle) if exact else (needle in label_col0)
+        if matched_col0 and len(row) > 2:
+            try:
+                return float(row[2].strip().rstrip("%"))
+            except (ValueError, IndexError):
+                pass
+
     return None
 
 

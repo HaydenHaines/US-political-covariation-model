@@ -76,7 +76,7 @@ _DEFAULT_SAFE_MARGIN = 0.25
 
 # Rating margin thresholds — imported from the shared ratings module.
 # Re-exported here so existing imports (e.g. from senate.__init__) continue to work.
-from api.ratings import TOSSUP_MAX as _TOSSUP_MAX  # noqa: E402
+from api.ratings import TOSSUP_MAX as _TOSSUP_MAX  # noqa: E402, F401
 
 # Map colors — Dusty Ink palette.
 # Contested states → rating-based color; non-contested → delegation party color.

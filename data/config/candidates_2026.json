@@ -1,0 +1,372 @@
+{
+  "_meta": {
+    "description": "2026 candidate information for Senate and Governor races",
+    "last_updated": "2026-04-06",
+    "sources": ["Ballotpedia", "Cook Political Report", "270toWin"]
+  },
+  "senate": {
+    "2026 AL Senate": {
+      "state": "Alabama",
+      "incumbent": {"name": "Tommy Tuberville", "party": "R"},
+      "status": "open",
+      "status_detail": "Tuberville running for Governor",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Katie Britt (appointed interim)"],
+        "D": []
+      }
+    },
+    "2026 AK Senate": {
+      "state": "Alaska",
+      "incumbent": {"name": "Dan Sullivan", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Lean R",
+      "candidates": {
+        "R": ["Dan Sullivan"],
+        "D": ["Mary Peltola"]
+      }
+    },
+    "2026 AR Senate": {
+      "state": "Arkansas",
+      "incumbent": {"name": "Tom Cotton", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Tom Cotton"],
+        "D": []
+      }
+    },
+    "2026 CO Senate": {
+      "state": "Colorado",
+      "incumbent": {"name": "John Hickenlooper", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": ["Mark Baisley"],
+        "D": ["John Hickenlooper"]
+      }
+    },
+    "2026 DE Senate": {
+      "state": "Delaware",
+      "incumbent": {"name": "Chris Coons", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": [],
+        "D": ["Chris Coons"]
+      }
+    },
+    "2026 GA Senate": {
+      "state": "Georgia",
+      "incumbent": {"name": "Jon Ossoff", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Toss-up",
+      "candidates": {
+        "R": ["Earl Carter", "Mike Collins", "Derek Dooley", "John Coyne III", "Jonathan McColumn"],
+        "D": ["Jon Ossoff"]
+      }
+    },
+    "2026 ID Senate": {
+      "state": "Idaho",
+      "incumbent": {"name": "Jim Risch", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Jim Risch"],
+        "D": []
+      }
+    },
+    "2026 IL Senate": {
+      "state": "Illinois",
+      "incumbent": {"name": "Dick Durbin", "party": "D"},
+      "status": "open",
+      "status_detail": "Durbin retiring",
+      "rating": "Safe D",
+      "candidates": {
+        "R": ["Don Tracy"],
+        "D": ["Juliana Stratton"]
+      }
+    },
+    "2026 IA Senate": {
+      "state": "Iowa",
+      "incumbent": {"name": "Joni Ernst", "party": "R"},
+      "status": "open",
+      "status_detail": "Ernst retiring",
+      "rating": "Toss-up",
+      "candidates": {
+        "R": ["Ashley Hinson"],
+        "D": ["Zach Wahls", "Josh Turek", "Nathan Sage"]
+      }
+    },
+    "2026 KS Senate": {
+      "state": "Kansas",
+      "incumbent": {"name": "Roger Marshall", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Roger Marshall"],
+        "D": []
+      }
+    },
+    "2026 KY Senate": {
+      "state": "Kentucky",
+      "incumbent": {"name": "Mitch McConnell", "party": "R"},
+      "status": "open",
+      "status_detail": "McConnell retiring",
+      "rating": "Safe R",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 LA Senate": {
+      "state": "Louisiana",
+      "incumbent": {"name": "Bill Cassidy", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Bill Cassidy"],
+        "D": []
+      }
+    },
+    "2026 ME Senate": {
+      "state": "Maine",
+      "incumbent": {"name": "Susan Collins", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Toss-up",
+      "candidates": {
+        "R": ["Susan Collins"],
+        "D": ["Janet Mills", "David Costello", "Graham Platner"]
+      }
+    },
+    "2026 MA Senate": {
+      "state": "Massachusetts",
+      "incumbent": {"name": "Ed Markey", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": [],
+        "D": ["Ed Markey"]
+      }
+    },
+    "2026 MI Senate": {
+      "state": "Michigan",
+      "incumbent": {"name": "Gary Peters", "party": "D"},
+      "status": "open",
+      "status_detail": "Peters retiring",
+      "rating": "Toss-up",
+      "candidates": {
+        "R": ["Mike Rogers"],
+        "D": ["Haley Stevens", "Mallory McMorrow", "Abdul El-Sayed"]
+      }
+    },
+    "2026 MN Senate": {
+      "state": "Minnesota",
+      "incumbent": {"name": "Tina Smith", "party": "D"},
+      "status": "open",
+      "status_detail": "Smith retiring",
+      "rating": "Lean D",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 MS Senate": {
+      "state": "Mississippi",
+      "incumbent": {"name": "Cindy Hyde-Smith", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Cindy Hyde-Smith"],
+        "D": []
+      }
+    },
+    "2026 MT Senate": {
+      "state": "Montana",
+      "incumbent": {"name": "Steve Daines", "party": "R"},
+      "status": "open",
+      "status_detail": "Daines retiring",
+      "rating": "Lean R",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 NE Senate": {
+      "state": "Nebraska",
+      "incumbent": {"name": "Pete Ricketts", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Lean R",
+      "candidates": {
+        "R": ["Pete Ricketts"],
+        "I": ["Dan Osborn"]
+      }
+    },
+    "2026 NH Senate": {
+      "state": "New Hampshire",
+      "incumbent": {"name": "Jeanne Shaheen", "party": "D"},
+      "status": "open",
+      "status_detail": "Shaheen retiring",
+      "rating": "Competitive",
+      "candidates": {
+        "R": [],
+        "D": ["Chris Pappas", "Karishma Manzur", "Jared Sullivan"]
+      }
+    },
+    "2026 NJ Senate": {
+      "state": "New Jersey",
+      "incumbent": {"name": "Cory Booker", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": [],
+        "D": ["Cory Booker"]
+      }
+    },
+    "2026 NM Senate": {
+      "state": "New Mexico",
+      "incumbent": {"name": "Ben Ray Luján", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Likely D",
+      "candidates": {
+        "R": [],
+        "D": ["Ben Ray Luján"]
+      }
+    },
+    "2026 NC Senate": {
+      "state": "North Carolina",
+      "incumbent": {"name": "Thom Tillis", "party": "R"},
+      "status": "open",
+      "status_detail": "Tillis retiring",
+      "rating": "Toss-up",
+      "candidates": {
+        "R": ["Michael Whatley"],
+        "D": ["Roy Cooper"]
+      }
+    },
+    "2026 OK Senate": {
+      "state": "Oklahoma",
+      "incumbent": {"name": "Alan Armstrong", "party": "R"},
+      "status": "open",
+      "status_detail": "Armstrong retiring",
+      "rating": "Safe R",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 OR Senate": {
+      "state": "Oregon",
+      "incumbent": {"name": "Jeff Merkley", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": [],
+        "D": ["Jeff Merkley"]
+      }
+    },
+    "2026 RI Senate": {
+      "state": "Rhode Island",
+      "incumbent": {"name": "Jack Reed", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Safe D",
+      "candidates": {
+        "R": [],
+        "D": ["Jack Reed"]
+      }
+    },
+    "2026 SC Senate": {
+      "state": "South Carolina",
+      "incumbent": {"name": "Lindsey Graham", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Lindsey Graham"],
+        "D": []
+      }
+    },
+    "2026 SD Senate": {
+      "state": "South Dakota",
+      "incumbent": {"name": "Mike Rounds", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Mike Rounds"],
+        "D": []
+      }
+    },
+    "2026 TN Senate": {
+      "state": "Tennessee",
+      "incumbent": {"name": "Bill Hagerty", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Bill Hagerty"],
+        "D": []
+      }
+    },
+    "2026 TX Senate": {
+      "state": "Texas",
+      "incumbent": {"name": "John Cornyn", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Lean R",
+      "candidates": {
+        "R": ["John Cornyn", "Ken Paxton (primary)"],
+        "D": []
+      }
+    },
+    "2026 VA Senate": {
+      "state": "Virginia",
+      "incumbent": {"name": "Mark Warner", "party": "D"},
+      "status": "incumbent_running",
+      "rating": "Likely D",
+      "candidates": {
+        "R": [],
+        "D": ["Mark Warner"]
+      }
+    },
+    "2026 WV Senate": {
+      "state": "West Virginia",
+      "incumbent": {"name": "Shelley Moore Capito", "party": "R"},
+      "status": "incumbent_running",
+      "rating": "Safe R",
+      "candidates": {
+        "R": ["Shelley Moore Capito"],
+        "D": []
+      }
+    },
+    "2026 WY Senate": {
+      "state": "Wyoming",
+      "incumbent": {"name": "Cynthia Lummis", "party": "R"},
+      "status": "open",
+      "status_detail": "Lummis retiring",
+      "rating": "Safe R",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 FL Senate": {
+      "state": "Florida",
+      "incumbent": {"name": "Marco Rubio (vacated)", "party": "R"},
+      "status": "special",
+      "status_detail": "Rubio became Secretary of State",
+      "rating": "Competitive",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    },
+    "2026 OH Senate": {
+      "state": "Ohio",
+      "incumbent": {"name": "JD Vance (vacated)", "party": "R"},
+      "status": "special",
+      "status_detail": "Vance became Vice President",
+      "rating": "Competitive",
+      "candidates": {
+        "R": [],
+        "D": []
+      }
+    }
+  }
+}

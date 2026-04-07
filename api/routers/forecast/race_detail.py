@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from api.db import get_db
 from api.models import (
+    CandidateIncumbent,
+    CandidateInfo,
     HistoricalContext,
     LastRaceResult,
     PollConfidence,
@@ -21,6 +23,7 @@ from api.models import (
 )
 
 from ._helpers import (
+    _CANDIDATES,
     _DEFAULT_SAMPLE_SIZE,
     _HISTORICAL_RESULTS,
     _STATE_STD_FALLBACK,
@@ -102,6 +105,30 @@ def _compute_poll_confidence(polls_df: "pd.DataFrame") -> PollConfidence:
         n_methodologies=n_methodologies,
         label=label,
         tooltip=tooltip,
+    )
+
+
+def _build_candidate_info(race: str) -> CandidateInfo | None:
+    """Look up candidate data for a race from the static candidates_2026.json file.
+
+    The race parameter is the canonical race label (e.g. "2026 GA Senate").
+    Returns None when the race has no entry in the candidates file.
+    """
+    entry = _CANDIDATES.get(race)
+    if entry is None:
+        return None
+    incumbent_data = entry.get("incumbent")
+    if incumbent_data is None:
+        return None
+    return CandidateInfo(
+        incumbent=CandidateIncumbent(
+            name=incumbent_data["name"],
+            party=incumbent_data["party"],
+        ),
+        status=entry.get("status", "unknown"),
+        status_detail=entry.get("status_detail"),
+        rating=entry.get("rating"),
+        candidates=entry.get("candidates", {}),
     )
 
 
@@ -361,6 +388,7 @@ def get_race_detail(
         pred_hi90=state_hi90,
         historical_context=_build_historical_context(slug, prediction),
         poll_confidence=poll_confidence,
+        candidate_info=_build_candidate_info(race),
     )
 
 

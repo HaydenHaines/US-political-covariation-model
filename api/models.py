@@ -439,6 +439,27 @@ class PollConfidence(BaseModel):
     """Human-readable summary, e.g. '3 pollsters · 2 methods · 8 polls'."""
 
 
+class CandidateIncumbent(BaseModel):
+    """Current office holder for a race."""
+
+    name: str
+    party: str
+
+
+class CandidateInfo(BaseModel):
+    """Candidate field data for a race, sourced from candidates_2026.json.
+
+    status values: 'incumbent_running', 'open', 'special'
+    """
+
+    incumbent: CandidateIncumbent
+    status: str
+    status_detail: str | None = None
+    rating: str | None = None
+    candidates: dict[str, list[str]]
+    """Candidates by party (e.g. {"R": ["Name"], "D": ["Name"]})."""
+
+
 class RaceDetail(BaseModel):
     race: str
     slug: str
@@ -459,6 +480,7 @@ class RaceDetail(BaseModel):
     pred_hi90: float | None = None
     historical_context: HistoricalContext | None = None
     poll_confidence: PollConfidence | None = None
+    candidate_info: CandidateInfo | None = None
 
 
 # ── Embed widget ─────────────────────────────────────────────────────────

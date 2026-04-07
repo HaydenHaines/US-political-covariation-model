@@ -67,6 +67,19 @@ interface TypeBreakdown {
   total_votes: number | null;
 }
 
+interface CandidateIncumbent {
+  name: string;
+  party: string;
+}
+
+interface CandidateInfo {
+  incumbent: CandidateIncumbent;
+  status: string;
+  status_detail?: string | null;
+  rating?: string | null;
+  candidates: Record<string, string[]>;
+}
+
 interface RaceDetail {
   race: string;
   slug: string;
@@ -87,6 +100,7 @@ interface RaceDetail {
   pred_hi90?: number | null;
   historical_context?: HistoricalContext | null;
   poll_confidence?: PollConfidence | null;
+  candidate_info?: CandidateInfo | null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -121,6 +135,95 @@ async function fetchRaceSlugs(): Promise<string[]> {
 /** Fallback state-level std when API doesn't provide one. */
 const FALLBACK_STD = 0.065;
 
+// ── Candidate section ────────────────────────────────────────────────────
+
+/** Party abbreviation to display color CSS variable. */
+const PARTY_COLORS: Record<string, string> = {
+  D: "var(--color-dem)",
+  R: "var(--color-rep)",
+  I: "var(--color-text-muted)",
+};
+
+/**
+ * Displays candidate names, incumbent status, and race rating
+ * in the hero area above the forecast controls.
+ *
+ * Rendered server-side from static candidate data — no client
+ * interactivity needed.
+ */
+function CandidateSection({ info }: { info: CandidateInfo }) {
+  const isOpen = info.status === "open" || info.status === "special";
+  const partyColor = PARTY_COLORS[info.incumbent.party] ?? "var(--color-text-muted)";
+
+  // Collect all declared candidates across parties for the matchup line
+  const allCandidatesByParty = Object.entries(info.candidates)
+    .filter(([, names]) => names.length > 0)
+    .sort(([a], [b]) => {
+      // Show incumbent's party first
+      if (a === info.incumbent.party) return -1;
+      if (b === info.incumbent.party) return 1;
+      return a.localeCompare(b);
+    });
+
+  return (
+    <div
+      className="mb-6 rounded-md px-4 py-3 text-sm"
+      style={{
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+      }}
+    >
+      {/* Incumbent / open seat status */}
+      <p className="mb-1">
+        {isOpen ? (
+          <>
+            <span className="font-semibold" style={{ color: "var(--color-text)" }}>
+              Open Seat
+            </span>
+            {info.status_detail && (
+              <span style={{ color: "var(--color-text-muted)" }}>
+                {" "}&mdash; {info.status_detail}
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span style={{ color: "var(--color-text-muted)" }}>Incumbent: </span>
+            <span className="font-semibold" style={{ color: partyColor }}>
+              {info.incumbent.name} ({info.incumbent.party})
+            </span>
+          </>
+        )}
+      </p>
+
+      {/* Race rating badge */}
+      {info.rating && (
+        <p className="mb-1">
+          <span style={{ color: "var(--color-text-muted)" }}>Rating: </span>
+          <span className="font-medium" style={{ color: "var(--color-text)" }}>
+            {info.rating}
+          </span>
+        </p>
+      )}
+
+      {/* Declared candidates by party */}
+      {allCandidatesByParty.length > 0 && (
+        <div className="mt-2">
+          <span style={{ color: "var(--color-text-muted)" }}>Candidates: </span>
+          {allCandidatesByParty.map(([party, names], idx) => (
+            <span key={party}>
+              {idx > 0 && <span style={{ color: "var(--color-text-muted)" }}> vs </span>}
+              <span style={{ color: PARTY_COLORS[party] ?? "var(--color-text-muted)" }}>
+                {names.join(", ")} ({party})
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Metadata ──────────────────────────────────────────────────────────────
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -134,11 +237,49 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
   const stateName = STATE_NAMES[data.state_abbr] ?? data.state_abbr;
   const rating = data.prediction !== null ? marginToRating(data.prediction) : null;
-  const title = `${data.year} ${stateName} ${data.race_type} | WetherVane`;
+
+  // Build SEO title with candidate names when available.
+  // "2026 Georgia Senate Forecast -- Ossoff vs Carter | WetherVane"
+  // For open/special seats: "2026 Georgia Senate Forecast -- Open Seat | WetherVane"
+  const ci = data.candidate_info;
+  let titleSuffix = "";
+  if (ci) {
+    const isOpen = ci.status === "open" || ci.status === "special";
+    if (isOpen) {
+      titleSuffix = " -- Open Seat";
+    } else {
+      // Find the top challenger from the opposing party
+      const incumbentParty = ci.incumbent.party;
+      const opposingParty = incumbentParty === "D" ? "R" : "D";
+      const challengers = ci.candidates[opposingParty] ?? [];
+      const incumbentLast = ci.incumbent.name.split(" ").pop() ?? ci.incumbent.name;
+      if (challengers.length > 0) {
+        const challengerLast = challengers[0].split(" ").pop() ?? challengers[0];
+        titleSuffix = ` -- ${incumbentLast} vs ${challengerLast}`;
+      } else {
+        titleSuffix = ` -- ${incumbentLast}`;
+      }
+    }
+  }
+  const title = `${data.year} ${stateName} ${data.race_type} Forecast${titleSuffix} | WetherVane`;
+
+  // Build SEO description including candidate context
+  let candidateContext = "";
+  if (ci) {
+    const isOpen = ci.status === "open" || ci.status === "special";
+    if (isOpen && ci.status_detail) {
+      candidateContext = ` ${ci.status_detail}.`;
+    } else if (!isOpen) {
+      candidateContext = ` Incumbent: ${ci.incumbent.name} (${ci.incumbent.party}).`;
+    }
+    if (ci.rating) {
+      candidateContext += ` Rated ${ci.rating}.`;
+    }
+  }
   const description =
     data.prediction !== null && rating !== null
-      ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race as ${rating.replace("_", " ")}. Based on ${data.n_counties} ${data.n_counties === 1 ? "county" : "counties"} and electoral type modeling.`
-      : `WetherVane's forecast for the ${data.year} ${stateName} ${data.race_type} race. Explore county-level predictions and polling data.`;
+      ? `WetherVane forecasts the ${data.year} ${stateName} ${data.race_type} race as ${rating.replace("_", " ")}.${candidateContext} Based on ${data.n_counties} ${data.n_counties === 1 ? "county" : "counties"} and electoral type modeling.`
+      : `WetherVane's forecast for the ${data.year} ${stateName} ${data.race_type} race.${candidateContext} Explore county-level predictions and polling data.`;
 
   return {
     title,
@@ -270,6 +411,11 @@ export default async function RaceDetailPage({ params }: PageProps) {
           </li>
         </ol>
       </nav>
+
+      {/* Candidate info — SSR, static data from candidates_2026.json via API */}
+      {data.candidate_info && (
+        <CandidateSection info={data.candidate_info} />
+      )}
 
       {/*
         RaceBlendControls is a client component that owns:

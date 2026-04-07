@@ -17,6 +17,11 @@ from api.ratings import dem_share_to_rating, margin_to_rating  # noqa: F401
 # Path to the static historical results data file (lives alongside the api/ package)
 _HISTORICAL_RESULTS_PATH = Path(__file__).parent.parent.parent / "data" / "historical_results.json"
 
+# Path to the candidate data file (lives in the data/config/ directory at project root)
+_CANDIDATES_PATH = (
+    Path(__file__).parent.parent.parent.parent / "data" / "config" / "candidates_2026.json"
+)
+
 
 def _load_historical_results() -> dict:
     """Load and return the historical results dict from disk.
@@ -31,8 +36,30 @@ def _load_historical_results() -> dict:
     return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
-# Loaded once at import time - this file changes only when race data is manually updated
+def _load_candidates() -> dict[str, dict]:
+    """Load candidate data from candidates_2026.json, keyed by race_id.
+
+    The JSON file organizes candidates by race type (senate, governor).
+    This function flattens them into a single dict keyed by race_id
+    (e.g. "2026 GA Senate") for O(1) lookup during request handling.
+
+    Returns an empty dict when the file is missing (graceful degradation).
+    """
+    if not _CANDIDATES_PATH.exists():
+        return {}
+    with _CANDIDATES_PATH.open() as f:
+        data = json.load(f)
+    # Flatten: merge senate and governor dicts into one lookup
+    flat: dict[str, dict] = {}
+    for race_type_key in ("senate", "governor"):
+        if race_type_key in data:
+            flat.update(data[race_type_key])
+    return flat
+
+
+# Loaded once at import time - these files change only when race data is manually updated
 _HISTORICAL_RESULTS: dict = _load_historical_results()
+_CANDIDATES: dict[str, dict] = _load_candidates()
 
 # Uncertainty model parameters — see docs/ARCHITECTURE.md for calibration notes
 _STATE_STD_CAP = 0.15         # hard cap; beyond this, the race is essentially a coin flip

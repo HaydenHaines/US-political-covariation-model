@@ -8,6 +8,8 @@ Tests cover:
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -371,6 +373,10 @@ class TestPredictCombined:
 # ── Integration test on real data ─────────────────────────────────────────────
 
 
+@pytest.mark.skipif(
+    not (Path(__file__).parents[1] / "data" / "shifts" / "county_shifts_multiyear.parquet").exists(),
+    reason="county_shifts_multiyear.parquet not available (CI environment)",
+)
 class TestRunPartitioning:
     @pytest.fixture(scope="class")
     def results(self):

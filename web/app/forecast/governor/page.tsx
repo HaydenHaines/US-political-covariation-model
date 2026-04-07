@@ -1,88 +1,91 @@
+"use client";
+
+import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
+import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
+import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
+import { ErrorAlert } from "@/components/shared/ErrorAlert";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ELECTION_YEAR, GOVERNOR_RACES_COUNT } from "@/lib/config/election";
+import type { SenateRaceData } from "@/lib/api";
 
 /**
  * Governor overview page.
  *
- * Governor race data is not yet available from the API. Rather than showing
- * placeholder cards with fabricated EVEN/Tossup ratings, this page displays
- * an honest "coming soon" message explaining when forecasts will be available.
+ * Displays structural model forecasts for all 36 gubernatorial races.
+ * Unlike the Senate page there is no chamber control concept — governors
+ * are independent executives — so no balance bar, seat totals, or blend
+ * controls are shown.  Race cards link to the shared /forecast/[slug]
+ * detail page.
  */
 export default function GovernorPage() {
+  const { data, error, isLoading, mutate } = useGovernorOverview();
+
+  if (error) {
+    return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
+  }
+
+  if (isLoading || !data) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-4 w-96" />
+        <div className="grid grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-lg" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Count open seats: races where no incumbent is defending
+  // (term-limited or vacated seats).  These are the most competitive on average.
+  const openSeatStates = new Set(["FL", "GA", "KS", "ME", "OH", "OK", "SD", "TN", "WY"]);
+  const openSeatCount = data.races.filter((r) => openSeatStates.has(r.state)).length;
+
+  // Separate races into D-leaning / competitive / R-leaning groups for display.
+  // "Competitive" = tossup, lean_d, or lean_r.
+  const dLeaningRatings = new Set(["safe_d", "likely_d"]);
+  const rLeaningRatings = new Set(["safe_r", "likely_r"]);
+  const competitiveRatings = new Set(["tossup", "lean_d", "lean_r"]);
+
+  // GovernorRaceData is a superset of SenateRaceData — cast is safe
+  const allRaces = data.races as unknown as SenateRaceData[];
+
+  const competitiveRaces = allRaces.filter((r) => competitiveRatings.has(r.rating));
+  const dLeaningRaces = allRaces.filter((r) => dLeaningRatings.has(r.rating));
+  const rLeaningRaces = allRaces.filter((r) => rLeaningRatings.has(r.rating));
+
   return (
     <div>
-      <h1 className="font-serif text-2xl font-bold mb-4">{ELECTION_YEAR} Governor Races</h1>
+      <h1 className="font-serif text-2xl font-bold mb-2">
+        {ELECTION_YEAR} Governor Races
+      </h1>
       <p className="text-sm mb-6" style={{ color: "var(--color-text-muted)" }}>
-        {GOVERNOR_RACES_COUNT} governors are on the ballot in {ELECTION_YEAR}, including 11 open seats.
+        {GOVERNOR_RACES_COUNT} governors on the ballot in {ELECTION_YEAR},
+        including {openSeatCount} open seats.
+        {data.updated_at && (
+          <> Polls updated {data.updated_at}.</>
+        )}
       </p>
 
-      {/* Coming soon notice */}
-      <div
-        style={{
-          border: "1px solid var(--color-border)",
-          borderRadius: 8,
-          padding: "32px 24px",
-          background: "var(--color-surface)",
-          textAlign: "center",
-          maxWidth: 560,
-          margin: "0 auto",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 32,
-            marginBottom: 12,
-            color: "var(--color-text-muted)",
-          }}
-        >
-          &#9788;
-        </div>
-        <h2
-          style={{
-            fontFamily: "var(--font-serif)",
-            fontSize: 20,
-            fontWeight: 700,
-            marginBottom: 12,
-          }}
-        >
-          Governor forecasts coming soon
-        </h2>
-        <p
-          style={{
-            fontSize: 15,
-            lineHeight: 1.65,
-            color: "var(--color-text-muted)",
-            margin: "0 0 8px",
-          }}
-        >
-          Governor race predictions are based on structural model priors derived
-          from the electoral type system. Detailed state-level forecasts will
-          appear here as polling data arrives for each race.
-        </p>
-        <p
-          style={{
-            fontSize: 14,
-            lineHeight: 1.65,
-            color: "var(--color-text-muted)",
-            margin: 0,
-          }}
-        >
-          In the meantime, explore{" "}
-          <a
-            href="/forecast/senate"
-            style={{ color: "var(--color-dem)", textDecoration: "none" }}
-          >
-            Senate forecasts
-          </a>{" "}
-          or the{" "}
-          <a
-            href="/forecast"
-            style={{ color: "var(--color-dem)", textDecoration: "none" }}
-          >
-            national map
-          </a>
-          .
-        </p>
-      </div>
+      {/* National environment — structural forecast applies to all race types */}
+      <FundamentalsCard />
+
+      {/* Competitive races first — these are what readers care most about */}
+      {competitiveRaces.length > 0 && (
+        <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+      )}
+
+      {/* D-leaning races */}
+      {dLeaningRaces.length > 0 && (
+        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+      )}
+
+      {/* R-leaning races */}
+      {rLeaningRaces.length > 0 && (
+        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+      )}
     </div>
   );
 }

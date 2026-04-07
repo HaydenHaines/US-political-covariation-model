@@ -262,6 +262,30 @@ export async function fetchSenateOverview(): Promise<SenateOverviewData> {
   return res.json();
 }
 
+export interface GovernorRaceData {
+  state: string;
+  race: string;
+  slug: string;
+  rating: string;
+  /** Signed Dem margin: pred_dem_share - 0.5. Positive = Dem-favored. */
+  margin: number;
+  /** Which party currently holds the governorship ("D" or "R"). */
+  incumbent_party: string;
+  n_polls: number;
+}
+
+export interface GovernorOverviewData {
+  races: GovernorRaceData[];
+  /** ISO date string of the most recently scraped governor poll, if available. */
+  updated_at: string | null;
+}
+
+export async function fetchGovernorOverview(): Promise<GovernorOverviewData> {
+  const res = await fetch(`${API_BASE}/governor/overview`);
+  if (!res.ok) throw new Error(`/governor/overview failed: ${res.status}`);
+  return res.json();
+}
+
 export interface StructuralContext {
   baseline_year: number;
   baseline_label: string;

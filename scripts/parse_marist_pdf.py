@@ -1,13 +1,23 @@
 """
-Parse Marist Poll "NOS-and-Tables" crosstab PDFs to extract per-group vote shares.
+Parse Marist Poll "NOS-and-Tables" crosstab PDFs to extract per-group vote shares
+and sample composition demographics.
 
-Extracts demographic crosstab data from Marist PDF tables (which use text layout,
-not ruled tables) and converts to two-party Democratic share for use in the
-WetherVane poll enrichment pipeline.
+Extracts two types of data from Marist PDFs:
+
+1. **Crosstab vote shares** (xt_vote_* columns): Per-demographic two-party Democratic
+   share for the target question, parsed from the full crosstab table (e.g. page 13
+   for NYGOV26).  Enables Tier 2 W vector construction with both a different W and a
+   different y per demographic group.
+
+2. **Sample composition** (xt_* columns): Fraction of the poll sample in each
+   demographic group, parsed from the "Nature of the Sample" table on page 2.
+   These are required so ``_extract_crosstabs_from_xt()`` in forecast_engine can
+   build proper Tier 2 observations.  Without them the poll falls through to Tier 3.
 
 Usage:
     uv run python scripts/parse_marist_pdf.py data/raw/marist/NYS_202602201349.pdf NYGOV26
     uv run python scripts/parse_marist_pdf.py data/raw/marist/NYS_202602201349.pdf NYGOV26 --update
+    uv run python scripts/parse_marist_pdf.py data/raw/marist/NYS_202602201349.pdf NYGOV26 --update --update-composition
 """
 
 from __future__ import annotations
@@ -45,6 +55,36 @@ RACE_LABELS: dict[str, str] = {
     "White": "xt_vote_race_white",
     "Black": "xt_vote_race_black",
     "Latino": "xt_vote_race_hispanic",
+}
+
+
+# Page 2 "Nature of the Sample" label → xt_* column names.
+# We use the *Registered Voters* column because the governor question targets RVs.
+# Keys are the exact text labels that appear in the left column of the NOS table.
+SAMPLE_COMPOSITION_MAP: dict[str, str] = {
+    "White": "xt_race_white",
+    "Black": "xt_race_black",
+    "Latino": "xt_race_hispanic",
+    "College graduate": "xt_education_college",
+    "Not college graduate": "xt_education_noncollege",
+    "60 or older": "xt_age_senior",
+}
+
+# NOS table row labels that are section headers (they never carry percentages).
+# We skip them while walking through the NOS text.
+NOS_SECTION_HEADERS = {
+    "NYS Adults",
+    "NY Registered Voters",
+    "Party Registration",
+    "Region",
+    "Gender",
+    "Age",
+    "Race/Ethnicity",
+    "Household Income",
+    "Education",
+    "Education by Race",
+    "Area Description",
+    "Area Description - Gender",
 }
 
 
@@ -168,6 +208,58 @@ def parse_crosstab_text(text: str) -> dict[str, Optional[float]]:
     return result
 
 
+def parse_sample_composition(text: str) -> dict[str, float]:
+    """Parse the "Nature of the Sample" page and return xt_* composition fractions.
+
+    The NOS table has two data columns: "NYS Adults" and "NYS Registered Voters".
+    We target the *Registered Voters* column because the NY Governor question
+    (NYGOV26) is asked of registered voters.
+
+    The table uses a two-column layout where each row ends with two percentages,
+    e.g.::
+
+        Race/Ethnicity White 57% 63%
+        Black 14% 13%
+
+    The first percentage is NYS Adults; the second is NYS Registered Voters.
+    We extract the second value for each row that appears in SAMPLE_COMPOSITION_MAP.
+
+    Args:
+        text: Raw text extracted from the NOS page (page 2 of the Marist PDF).
+
+    Returns:
+        Dict mapping xt_* column names to fraction values in [0, 1].
+        Only keys with recognized labels are included; empty dict if nothing found.
+    """
+    # A NOS data row has exactly two percentage values at the end.
+    # We match lines ending with "NN% NN%" (with optional trailing whitespace).
+    two_pct_pattern = re.compile(r"^(.+?)\s+(\d+)%\s+(\d+)%\s*$")
+
+    result: dict[str, float] = {}
+    for line in text.split("\n"):
+        match = two_pct_pattern.match(line.strip())
+        if not match:
+            continue
+        label_raw = match.group(1).strip()
+        # The second percentage is the Registered Voters column.
+        reg_voter_pct = int(match.group(3))
+
+        # Strip any section header prefix (e.g. "Race/Ethnicity White" → "White").
+        # Section headers are known strings; we check longest-first to avoid
+        # partial matches (e.g. "Education" vs "Education by Race").
+        label = label_raw
+        for header in sorted(NOS_SECTION_HEADERS, key=len, reverse=True):
+            if label_raw.startswith(header):
+                label = label_raw[len(header):].strip()
+                break
+
+        if label in SAMPLE_COMPOSITION_MAP:
+            col = SAMPLE_COMPOSITION_MAP[label]
+            result[col] = reg_voter_pct / 100.0
+
+    return result
+
+
 def parse_marist_pdf(
     pdf_path: str | Path, question_code: str
 ) -> dict[str, Optional[float]]:
@@ -206,15 +298,73 @@ def parse_marist_pdf(
     return parse_crosstab_text(full_text)
 
 
+def extract_nos_page_text(pdf_path: str | Path, page_index: int = 1) -> str:
+    """Extract raw text from the Nature of the Sample page.
+
+    The NOS table is always on page 2 (0-indexed: 1) of Marist NOS-and-Tables PDFs.
+
+    Args:
+        pdf_path: Path to the Marist PDF.
+        page_index: 0-indexed page number of the NOS table (default 1 = page 2).
+
+    Returns:
+        Raw text string extracted by pdfplumber.
+    """
+    pdf_path = Path(pdf_path)
+    with pdfplumber.open(pdf_path) as pdf:
+        if page_index >= len(pdf.pages):
+            raise ValueError(
+                f"PDF only has {len(pdf.pages)} pages; "
+                f"requested NOS page index {page_index}"
+            )
+        text = pdf.pages[page_index].extract_text() or ""
+    return text
+
+
+def parse_marist_pdf_composition(
+    pdf_path: str | Path, nos_page_index: int = 1
+) -> dict[str, float]:
+    """Parse the Nature of the Sample table and return xt_* composition fractions.
+
+    Convenience wrapper that opens the PDF, extracts the NOS page text, and
+    delegates to ``parse_sample_composition()``.
+
+    Args:
+        pdf_path: Path to the Marist NOS-and-Tables PDF.
+        nos_page_index: 0-indexed page number of the NOS table (default 1 = page 2).
+
+    Returns:
+        Dict mapping xt_* column names to fraction values in [0, 1].
+    """
+    text = extract_nos_page_text(pdf_path, nos_page_index)
+    result = parse_sample_composition(text)
+    logger.info(
+        "Parsed NOS page (page %d): found %d composition values",
+        nos_page_index + 1,
+        len(result),
+    )
+    return result
+
+
 def update_polls_csv(
     extracted: dict[str, Optional[float]],
     race_filter: Optional[str] = None,
     pollster_filter: str = "Marist",
+    include_composition: bool = False,
 ) -> bool:
-    """Update polls_2026.csv with extracted xt_vote_* values.
+    """Update polls_2026.csv with extracted xt_vote_* and/or xt_* values.
 
     Matches polls by pollster name containing 'Marist'. If race_filter is
     provided, also filters by the race column.
+
+    Args:
+        extracted: Dict of column name → value pairs to write.
+        race_filter: Optional substring filter on the race column.
+        pollster_filter: Pollster name substring to match (default 'Marist').
+        include_composition: When True, also write xt_* (sample composition)
+            columns in addition to xt_vote_* columns.  When False (default),
+            only vote-share columns are written — preserving backward compatibility
+            with the original ``--update`` flag behaviour.
 
     Returns:
         True if any rows were updated, False otherwise.
@@ -233,10 +383,16 @@ def update_polls_csv(
         logger.error("Empty CSV")
         return False
 
-    # The xt_vote_* columns we can update.
-    xt_columns = [k for k in extracted if k.startswith("xt_vote_")]
+    # Decide which columns to write.
+    if include_composition:
+        # xt_vote_* AND xt_* (composition) columns, but not both prefixes
+        # doubling up — xt_vote_* is a subset of keys that start with "xt_".
+        xt_columns = [k for k in extracted if k.startswith("xt_")]
+    else:
+        xt_columns = [k for k in extracted if k.startswith("xt_vote_")]
+
     if not xt_columns:
-        logger.warning("No xt_vote_* values to update")
+        logger.warning("No xt_* values to update")
         return False
 
     updated = False
@@ -244,11 +400,13 @@ def update_polls_csv(
         pollster_match = pollster_filter.lower() in row.get("pollster", "").lower()
         race_match = race_filter is None or race_filter in row.get("race", "")
         if pollster_match and race_match:
+            row_updated = False
             for col in xt_columns:
                 if col in fieldnames and extracted[col] is not None:
                     row[col] = f"{extracted[col]:.6f}"
-                    updated = True
-            if updated:
+                    row_updated = True
+            if row_updated:
+                updated = True
                 logger.info("Updated poll: %s / %s", row.get("race"), row.get("date"))
 
     if updated:
@@ -263,14 +421,23 @@ def update_polls_csv(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Parse Marist Poll crosstab PDFs for demographic vote shares."
+        description="Parse Marist Poll crosstab PDFs for demographic vote shares "
+        "and sample composition demographics."
     )
     parser.add_argument("pdf_path", help="Path to Marist NOS-and-Tables PDF")
     parser.add_argument("question_code", help="Question code (e.g., NYGOV26)")
     parser.add_argument(
         "--update",
         action="store_true",
-        help="Update polls_2026.csv with extracted values",
+        help="Update polls_2026.csv with extracted xt_vote_* values",
+    )
+    parser.add_argument(
+        "--update-composition",
+        action="store_true",
+        help=(
+            "Also parse the Nature of the Sample page and write xt_* "
+            "(sample composition) columns.  Implies --update."
+        ),
     )
     parser.add_argument(
         "--race",
@@ -278,7 +445,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    extracted = parse_marist_pdf(args.pdf_path, args.question_code)
+    # Parse crosstab vote shares.
+    extracted: dict[str, Optional[float]] = parse_marist_pdf(
+        args.pdf_path, args.question_code
+    )
+
+    # Parse sample composition from NOS page when requested.
+    composition: dict[str, float] = {}
+    if args.update_composition:
+        composition = parse_marist_pdf_composition(args.pdf_path)
+        # Merge into extracted so we display and write everything together.
+        extracted.update(composition)
 
     # Display results.
     print(f"\nExtracted crosstab data for {args.question_code}:")
@@ -290,8 +467,12 @@ def main() -> None:
             print(f"  {key}: None")
     print()
 
-    if args.update:
-        success = update_polls_csv(extracted, race_filter=args.race)
+    if args.update or args.update_composition:
+        success = update_polls_csv(
+            extracted,
+            race_filter=args.race,
+            include_composition=args.update_composition,
+        )
         if not success:
             logger.warning("No matching polls found to update")
             sys.exit(1)

@@ -671,6 +671,13 @@ class TestHouseEffectsInPipeline:
         assert result[0].dem_share == pytest.approx(0.50, abs=1e-6)
 
 
+_SB_XLSX_PATH = Path(__file__).parents[1] / "data" / "raw" / "silver_bulletin" / "pollster_stats_full_2026.xlsx"
+
+
+@pytest.mark.skipif(
+    not _SB_XLSX_PATH.exists(),
+    reason="Silver Bulletin XLSX not available (CI environment)",
+)
 class TestLoadHouseEffects:
     """Tests for the loaders in silver_bulletin_ratings."""
 

@@ -48,6 +48,7 @@ dependencies = [
     "hdbscan>=0.8.41",
     "httpx>=0.28.1",
     "ruff>=0.15.6",
+    "pdfplumber>=0.11.9",
 ]
 
 [project.optional-dependencies]

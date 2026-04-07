@@ -213,10 +213,13 @@ class GenericBallotInfo(BaseModel):
     """shift expressed in percentage points (shift × 100)."""
 
     n_polls: int
-    """Number of generic ballot polls used to compute gb_avg."""
+    """Number of RCP CSV-sourced generic ballot polls used to compute gb_avg."""
+
+    n_yougov_polls: int = 0
+    """Number of YouGov weekly crosstab issues used (after deduplication with CSV)."""
 
     source: str
-    """'auto' (computed from polls CSV) or 'manual' (caller-provided)."""
+    """'auto' (computed from polls CSV + YouGov) or 'manual' (caller-provided)."""
 
     baseline_year: int = 2024
     """Election year used as the structural prior baseline (always 2024 for now)."""

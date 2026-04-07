@@ -27,6 +27,7 @@ Typical usage (called from predict_race or the forecast API):
 from __future__ import annotations
 
 import csv
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -47,6 +48,9 @@ _GB_GEO_LEVEL: str = "national"
 _PRIOR_MIN: float = 0.01
 _PRIOR_MAX: float = 0.99
 
+# Default path to the YouGov weekly generic ballot crosstab JSON file.
+_YOUGOV_GB_JSON_PATH: Path = PROJECT_ROOT / "data" / "polls" / "yougov_generic_ballot_2026.json"
+
 
 @dataclass(frozen=True)
 class GenericBallotInfo:
@@ -61,7 +65,9 @@ class GenericBallotInfo:
     shift:
         gb_avg - pres_baseline.  Positive = Dems doing better than 2024 pres.
     n_polls:
-        Number of generic ballot polls used.
+        Number of CSV-sourced generic ballot polls used.
+    n_yougov_polls:
+        Number of YouGov weekly crosstab issues used (after deduplication).
     source:
         Human-readable description for API/display ("auto" or "manual").
     """
@@ -70,6 +76,7 @@ class GenericBallotInfo:
     pres_baseline: float
     shift: float
     n_polls: int
+    n_yougov_polls: int
     source: str
 
 
@@ -122,6 +129,136 @@ def load_generic_ballot_polls(
     return result
 
 
+def load_yougov_generic_ballot_polls(
+    json_path: Path | str | None = None,
+) -> list[tuple[float, int, str, str]]:
+    """Load YouGov weekly generic ballot issues from the crosstab JSON file.
+
+    YouGov publishes weekly issues with demographic crosstabs.  Each issue has a
+    ``gb_topline`` (Dem two-party share) and ``n_total_ballot`` (number of
+    respondents who answered the ballot question).  We use both for a
+    sample-size-weighted average that mirrors the CSV poll format.
+
+    Returns a list of ``(dem_share, n_sample, date_start, date_end)`` tuples.
+    The date fields enable deduplication against the CSV when the same YouGov
+    poll appears in both sources (e.g., as an Economist/YouGov entry in RCP).
+    Returns an empty list if the file is missing or contains no valid entries.
+
+    Parameters
+    ----------
+    json_path:
+        Path to the YouGov crosstab JSON.  Defaults to
+        ``data/polls/yougov_generic_ballot_2026.json`` relative to the project root.
+    """
+    if json_path is None:
+        json_path = _YOUGOV_GB_JSON_PATH
+    json_path = Path(json_path)
+
+    if not json_path.exists():
+        log.debug("YouGov GB JSON not found at %s; skipping", json_path)
+        return []
+
+    try:
+        with json_path.open(encoding="utf-8") as f:
+            issues = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        log.warning("Failed to load YouGov GB JSON at %s: %s", json_path, exc)
+        return []
+
+    result: list[tuple[float, int, str, str]] = []
+    for entry in issues:
+        try:
+            gb_topline = float(entry["gb_topline"])
+            n_ballot = int(entry["n_total_ballot"])
+            date_start = str(entry.get("date_start", ""))
+            date_end = str(entry.get("date_end", ""))
+        except (KeyError, ValueError, TypeError):
+            log.warning("Skipping malformed YouGov GB entry: %r", entry)
+            continue
+
+        if not (0.0 < gb_topline < 1.0) or n_ballot <= 0:
+            log.warning("Skipping out-of-range YouGov GB entry: topline=%s n=%s", gb_topline, n_ballot)
+            continue
+
+        result.append((gb_topline, n_ballot, date_start, date_end))
+
+    log.debug("Loaded %d YouGov generic ballot issues from %s", len(result), json_path)
+    return result
+
+
+def _deduplicate_yougov_polls(
+    csv_polls_path: Path,
+    yougov_polls: list[tuple[float, int, str, str]],
+) -> list[tuple[float, int]]:
+    """Remove YouGov entries whose date range overlaps any row already in the CSV.
+
+    The CSV may contain an Economist/YouGov entry for a date that also appears in
+    the YouGov JSON.  We check each YouGov issue's (date_start, date_end) window
+    against the dates in the CSV's generic ballot rows; if any CSV date falls
+    within the window, we drop the YouGov issue to avoid double-counting.
+
+    Parameters
+    ----------
+    csv_polls_path:
+        Path to the polls CSV (may not exist; handled gracefully).
+    yougov_polls:
+        Output of ``load_yougov_generic_ballot_polls()``.
+
+    Returns
+    -------
+    list[tuple[float, int]]
+        YouGov polls with no date-range overlap against CSV rows, as
+        ``(dem_share, n_sample)`` tuples ready for ``compute_gb_average()``.
+    """
+    from datetime import date
+
+    # Collect all date strings from generic ballot CSV rows for fast lookup.
+    csv_dates: set[str] = set()
+    if csv_polls_path.exists():
+        with csv_polls_path.open(newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                race = row.get("race", "").strip()
+                geo_level = row.get("geo_level", "").strip()
+                if race.startswith(_GB_RACE_LABEL) and geo_level == _GB_GEO_LEVEL:
+                    raw_date = row.get("date", "").strip()
+                    if raw_date:
+                        csv_dates.add(raw_date)
+
+    result: list[tuple[float, int]] = []
+    for dem_share, n_sample, date_start, date_end in yougov_polls:
+        try:
+            # Parse the YouGov window boundaries; default to open-ended if missing.
+            start = date.fromisoformat(date_start) if date_start else None
+            end = date.fromisoformat(date_end) if date_end else None
+        except ValueError:
+            # Malformed date — keep the entry; can't check overlap.
+            result.append((dem_share, n_sample))
+            continue
+
+        overlaps = False
+        for csv_date_str in csv_dates:
+            try:
+                csv_dt = date.fromisoformat(csv_date_str)
+            except ValueError:
+                continue
+            # CSV date falls within [date_start, date_end] → overlap.
+            if start is not None and end is not None and start <= csv_dt <= end:
+                overlaps = True
+                break
+
+        if overlaps:
+            log.debug(
+                "Dropping YouGov GB issue %s–%s: date overlaps CSV entry",
+                date_start,
+                date_end,
+            )
+        else:
+            result.append((dem_share, n_sample))
+
+    return result
+
+
 def compute_gb_average(polls: list[tuple[float, int]]) -> float:
     """Compute sample-size-weighted average of generic ballot polls.
 
@@ -147,8 +284,14 @@ def compute_gb_average(polls: list[tuple[float, int]]) -> float:
 def compute_gb_shift(
     polls_path: Path | str | None = None,
     manual_shift: float | None = None,
+    yougov_json_path: Path | str | None = None,
 ) -> GenericBallotInfo:
     """Compute the national environment shift relative to the 2024 presidential baseline.
+
+    Combines polls from the RCP-sourced CSV (``polls_path``) and the YouGov
+    weekly crosstab JSON (``yougov_json_path``) into a single sample-size-weighted
+    average.  YouGov entries whose date window overlaps a CSV row are dropped to
+    prevent double-counting the same poll from two sources.
 
     Parameters
     ----------
@@ -158,11 +301,16 @@ def compute_gb_shift(
     manual_shift:
         When provided, use this value as the shift directly (skips poll loading).
         Useful for API callers that pass an explicit override.
+    yougov_json_path:
+        Path to the YouGov weekly GB crosstab JSON.  Defaults to
+        ``data/polls/yougov_generic_ballot_2026.json``.  Pass an explicit path
+        in tests to avoid depending on the real data file.
+        Ignored when ``manual_shift`` is provided.
 
     Returns
     -------
     GenericBallotInfo
-        Struct with gb_avg, pres_baseline, shift, n_polls, source.
+        Struct with gb_avg, pres_baseline, shift, n_polls, n_yougov_polls, source.
     """
     if manual_shift is not None:
         # Caller provided an explicit override — use it directly.
@@ -172,23 +320,42 @@ def compute_gb_shift(
             pres_baseline=PRES_DEM_SHARE_2024_NATIONAL,
             shift=manual_shift,
             n_polls=0,
+            n_yougov_polls=0,
             source="manual",
         )
 
-    polls = load_generic_ballot_polls(polls_path)
-    gb_avg = compute_gb_average(polls)
+    resolved_polls_path = Path(polls_path) if polls_path is not None else (
+        PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
+    )
+
+    # Load CSV polls and YouGov weekly issues separately so we can report counts.
+    csv_polls = load_generic_ballot_polls(resolved_polls_path)
+
+    yougov_raw = load_yougov_generic_ballot_polls(yougov_json_path)
+    # Deduplicate: drop YouGov entries whose date window overlaps a CSV entry.
+    yougov_polls = _deduplicate_yougov_polls(resolved_polls_path, yougov_raw)
+
+    all_polls = csv_polls + yougov_polls
+    gb_avg = compute_gb_average(all_polls)
     shift = gb_avg - PRES_DEM_SHARE_2024_NATIONAL
 
     log.info(
-        "Generic ballot: avg=%.4f, pres_baseline=%.4f, shift=%.4f pp (%d polls)",
-        gb_avg, PRES_DEM_SHARE_2024_NATIONAL, shift * 100, len(polls),
+        "Generic ballot: avg=%.4f, pres_baseline=%.4f, shift=%.4f pp "
+        "(%d CSV polls + %d YouGov issues = %d total)",
+        gb_avg,
+        PRES_DEM_SHARE_2024_NATIONAL,
+        shift * 100,
+        len(csv_polls),
+        len(yougov_polls),
+        len(all_polls),
     )
 
     return GenericBallotInfo(
         gb_avg=gb_avg,
         pres_baseline=PRES_DEM_SHARE_2024_NATIONAL,
         shift=shift,
-        n_polls=len(polls),
+        n_polls=len(csv_polls),
+        n_yougov_polls=len(yougov_polls),
         source="auto",
     )
 

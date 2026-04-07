@@ -163,6 +163,7 @@ def get_generic_ballot(
         shift=info.shift,
         shift_pp=info.shift * 100,
         n_polls=info.n_polls,
+        n_yougov_polls=info.n_yougov_polls,
         source=info.source,
         baseline_year=_BASELINE_YEAR,
         baseline_label=_format_baseline_label(PRES_DEM_SHARE_2024_NATIONAL),

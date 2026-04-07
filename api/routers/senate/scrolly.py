@@ -91,17 +91,18 @@ def _build_structural_context(races: list[dict]) -> dict:
     seats_needed_for_majority = 51
     structural_gap = seats_needed_for_majority - total_dem_projected
 
-    # The structural argument uses 2018 as the reference environment: the last
-    # midterm before 2026, and the strongest recent D midterm performance.
-    # Democrats won 53.4% of the national two-party House vote in 2018 (D+6.8).
-    # Source: MIT Election Data and Science Lab House Popular Vote Totals.
-    _MIDTERM_2018_DEM_TWO_PARTY: float = 0.534
-    baseline_label = _compute_baseline_label(_MIDTERM_2018_DEM_TWO_PARTY)
+    # The structural argument uses 2020 as the reference environment: Class II
+    # senators were last on the ballot in 2020 (presidential year). Democrats
+    # won approximately 52.4% of the aggregate two-party vote in Class II races
+    # that cycle, capturing most competitive seats (Ossoff, Hickenlooper, etc.).
+    # Source: Class II aggregate two-party results, MIT Election Data Lab.
+    _CLASS_II_2020_DEM_TWO_PARTY: float = 0.524
+    baseline_label = _compute_baseline_label(_CLASS_II_2020_DEM_TWO_PARTY)
 
     return {
-        "baseline_year": 2018,
+        "baseline_year": 2020,
         "baseline_label": baseline_label,
-        "baseline_dem_two_party": _MIDTERM_2018_DEM_TWO_PARTY,
+        "baseline_dem_two_party": _CLASS_II_2020_DEM_TWO_PARTY,
         "dem_wins_at_baseline": dem_wins_at_baseline,
         "dem_holdover_seats": _DEM_HOLDOVER_SEATS,
         "total_dem_projected": total_dem_projected,

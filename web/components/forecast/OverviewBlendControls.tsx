@@ -5,6 +5,7 @@ import { SectionWeightSliders, SectionWeights } from "./SectionWeightSliders";
 import { BalanceBar } from "./BalanceBar";
 import { RaceCardGrid } from "./RaceCardGrid";
 import { SeatBalanceTimeline } from "./SeatBalanceTimeline";
+import { TippingPointBar } from "./TippingPointBar";
 import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import type { SenateRaceData } from "@/lib/api";
 
@@ -231,6 +232,9 @@ export function OverviewBlendControls({
           </div>
         )}
       </div>
+
+      {/* Tipping point bar -- sorted by Dem vote share, marks the 18th seat needed for majority */}
+      <TippingPointBar races={races} />
 
       {/* Race card grids -- also faded during recalculation */}
       <div

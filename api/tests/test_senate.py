@@ -110,13 +110,25 @@ class TestBuildHeadline:
         assert dem_proj == _DEM_HOLDOVER_SEATS + 6
         assert gop_proj == _GOP_HOLDOVER_SEATS
 
-    def test_tossups_excluded_from_projections(self):
-        """Tossups do not count toward either party's projected total."""
+    def test_tossups_assigned_by_margin_direction(self):
+        """Tossup seats are assigned to D or R based on margin sign.
+
+        The new convention includes all 33 contested seats in the projected
+        totals — tossups lean one way or the other, so we assign them by
+        margin direction. This makes the headline numbers sum to 100 seats.
+        """
+        # 5 tossup races all with positive margin → all assigned to D
         races = [{"rating": "tossup", "margin": 0.02}] * 5
         _, _, dem_proj, gop_proj = _build_headline(races)
-        # Tossups add 0 to both sides; baseline is holdover seats not up in 2026
-        assert dem_proj == _DEM_HOLDOVER_SEATS
+        # All 5 tossups have margin > 0 → assigned to D
+        assert dem_proj == _DEM_HOLDOVER_SEATS + 5
         assert gop_proj == _GOP_HOLDOVER_SEATS
+
+        # 5 tossup races all with negative margin → all assigned to R
+        races_r = [{"rating": "tossup", "margin": -0.02}] * 5
+        _, _, dem_proj_r, gop_proj_r = _build_headline(races_r)
+        assert dem_proj_r == _DEM_HOLDOVER_SEATS
+        assert gop_proj_r == _GOP_HOLDOVER_SEATS + 5
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────

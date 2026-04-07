@@ -149,23 +149,31 @@ def _rating_sort_key(rating: str) -> int:
 def _build_headline(races: list[dict]) -> tuple[str, str, int, int]:
     """Derive a headline + subtitle and projected seat totals from current race ratings.
 
-    Seat projections count safe seats (not up in 2026) plus contested seats
-    that the model clearly favors for each party. Tossups are excluded from
-    both totals — the standard forecasting convention, matching how outlets
-    like 538 and Cook Report present seat projections.
+    Seat projections assign ALL 33 contested seats to D or R based on margin
+    sign (positive = D-favored, negative = R-favored). Tossups are included by
+    their margin direction so the headline totals always sum to 100 seats. The
+    tossup count is surfaced in the subtitle for context, since tossup seats
+    genuinely could go either way.
+
+    This convention shows projected outcomes assuming each race goes to the
+    currently-leading party, making the headline numbers more actionable than
+    the traditional "tossups excluded" approach.
 
     Returns (headline, subtitle, dem_projected, gop_projected).
     """
-    dem_favored = sum(1 for r in races if r["margin"] > _TOSSUP_MAX)
-    gop_favored = sum(1 for r in races if r["margin"] < -_TOSSUP_MAX)
+    # Every contested seat is assigned: positive margin → D, negative → R.
+    # Zero-margin ties are assigned to R (conservative default).
+    dem_wins = sum(1 for r in races if r["margin"] > 0)
+    gop_wins = sum(1 for r in races if r["margin"] <= 0)
+
     n_tossup = sum(1 for r in races if r["rating"] == "tossup")
     competitive = [r for r in races if r["rating"] in ("tossup", "lean_d", "lean_r")]
     n_competitive = len(competitive)
 
-    # Projected totals: holdover seats (not up in 2026) + Class II seats the
-    # model clearly favors.  Tossups excluded from both sides.
-    dem_projected = _DEM_HOLDOVER_SEATS + dem_favored
-    gop_projected = _GOP_HOLDOVER_SEATS + gop_favored
+    # Projected totals: holdover seats (not up in 2026) + all Class II seats
+    # assigned by margin direction (tossups included via their margin sign).
+    dem_projected = _DEM_HOLDOVER_SEATS + dem_wins
+    gop_projected = _GOP_HOLDOVER_SEATS + gop_wins
 
     headline, subtitle = _format_headline_text(
         dem_projected, gop_projected, n_tossup, n_competitive,

@@ -32,6 +32,7 @@ export const FOOTER_NAV: NavItem[] = [
   { label: "Methodology", href: "/methodology" },
   { label: "Compare",      href: "/compare" },
   { label: "Pollsters",   href: "/pollsters" },
+  { label: "Polls",       href: "/polls" },
   { label: "Race Compare", href: "/compare/races" },
   { label: "Changelog",   href: "/changelog" },
   { label: "About",       href: "/methodology#about" },
@@ -77,6 +78,9 @@ export const BREADCRUMB_ROUTES: Record<string, BreadcrumbSegment[]> = {
   "/changelog": [
     { label: "Home", href: "/" },
     { label: "Forecast", href: "/forecast" },
+  ],
+  "/polls": [
+    { label: "Home", href: "/" },
   ],
   "/methodology": [
     { label: "Home", href: "/" },

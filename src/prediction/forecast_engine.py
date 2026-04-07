@@ -261,6 +261,12 @@ def _extract_crosstabs_from_xt(poll: dict) -> list[dict] | None:
     for key, value in poll.items():
         if not key.startswith("xt_"):
             continue
+        # xt_vote_* columns contain per-group vote shares (e.g. xt_vote_race_black
+        # = 0.80 means 80% of Black respondents chose Dem).  These are referenced
+        # by the vote_key lookup below — they are NOT sample composition columns
+        # and must not be parsed as pct_of_sample.
+        if key.startswith("xt_vote_"):
+            continue
         # Column naming convention: xt_<group>_<value>
         # e.g. xt_race_black → group="race", value="black"
         remainder = key[3:]  # strip "xt_" prefix

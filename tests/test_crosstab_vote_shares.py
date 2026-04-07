@@ -617,3 +617,40 @@ class TestExtractCrosstabsFromXtVoteShares:
         # pct_of_sample comes from xt_race_black (0.13), not xt_vote_race_black (0.80)
         assert black_entry["pct_of_sample"] == pytest.approx(0.13)
         assert black_entry["dem_share"] == pytest.approx(0.80)
+
+    def test_xt_vote_only_poll_returns_none(self):
+        """A poll with only xt_vote_* columns (no xt_* sample composition) should
+        return None, not create noise entries with group='vote'.
+
+        Regression test: before the fix, xt_vote_race_white was parsed as
+        group='vote', value='race_white' with pct_of_sample=0.53 — a completely
+        wrong interpretation that created useless crosstab entries.
+        """
+        poll = {
+            "dem_share": 0.60,
+            "n_sample": 1442,
+            "state": "NY",
+            "xt_vote_race_white": 0.53,
+            "xt_vote_race_black": 0.91,
+            "xt_vote_education_college": 0.65,
+        }
+        crosstabs = _extract_crosstabs_from_xt(poll)
+        # No xt_* sample composition → no valid crosstab entries → None
+        assert crosstabs is None
+
+    def test_xt_vote_columns_not_parsed_as_sample_composition(self):
+        """xt_vote_* columns should not appear as crosstab entries even when
+        xt_* sample composition columns are also present."""
+        poll = {
+            "dem_share": 0.52,
+            "n_sample": 800,
+            "state": "GA",
+            "xt_race_black": 0.13,
+            "xt_vote_race_black": 0.80,
+            "xt_vote_race_white": 0.45,  # No matching xt_race_white
+        }
+        crosstabs = _extract_crosstabs_from_xt(poll)
+        assert crosstabs is not None
+        groups = [(c["demographic_group"], c["group_value"]) for c in crosstabs]
+        # "vote" should never appear as a demographic_group
+        assert not any(g == "vote" for g, _ in groups)

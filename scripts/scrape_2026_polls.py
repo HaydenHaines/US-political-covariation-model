@@ -181,10 +181,11 @@ RACE_CONFIG = {
         "state": "ME",
         "wiki_url": "https://en.wikipedia.org/wiki/2026_United_States_Senate_election_in_Maine",
         "ttw_url": "https://www.270towin.com/2026-senate-polls/maine",
-        "dem_candidates": ["gideon", "sara gideon", "pingree", "chellie pingree", "platner"],
+        "dem_candidates": ["gideon", "sara gideon", "pingree", "chellie pingree", "platner", "mills", "janet mills"],
         "rep_candidates": ["collins", "susan collins"],
         "rcp_urls": [
             "/polls/senate/general/2026/maine/collins-vs-platner",
+            "/polls/senate/general/2026/maine/collins-vs-mills",
         ],
     },
     "2026 MI Governor": {
@@ -353,11 +354,12 @@ RACE_CONFIG = {
         "wiki_url": "",
         "ttw_url": "",
         # hobbs (D) vs biggs/schweikert (R)
-        "dem_candidates": ["hobbs", "katie hobbs"],
-        "rep_candidates": ["biggs", "andy biggs", "schweikert", "david schweikert"],
+        "dem_candidates": ["hobbs", "katie hobbs", "mccain", "yee", "hoffman"],
+        "rep_candidates": ["biggs", "andy biggs", "schweikert", "david schweikert", "kirk", "taylor robson", "karrin taylor robson"],
         "rcp_urls": [
             "/polls/governor/general/2026/arizona/hobbs-vs-biggs",
             "/polls/governor/general/2026/arizona/schweikert-vs-hobbs",
+            "/polls/governor/general/2026/arizona/biggs-vs-kirk-vs-taylor-robson-vs-mccain-vs-yee-vs-hoffman",
         ],
     },
     "2026 MN Governor": {
@@ -378,10 +380,11 @@ RACE_CONFIG = {
         "ttw_url": "",
         # healey (D) vs kennealy/shortsleeve (R)
         "dem_candidates": ["healey", "maura healey"],
-        "rep_candidates": ["kennealy", "shortsleeve"],
+        "rep_candidates": ["kennealy", "shortsleeve", "minogue"],
         "rcp_urls": [
             "/polls/governor/general/2026/massachusetts/healey-vs-kennealy",
             "/polls/governor/general/2026/massachusetts/healey-vs-shortsleeve",
+            "/polls/governor/general/2026/massachusetts/minogue-vs-healey",
         ],
     },
     "2026 NH Governor": {

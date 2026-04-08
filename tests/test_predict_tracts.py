@@ -69,10 +69,12 @@ def synthetic_tau() -> np.ndarray:
 
 
 @pytest.fixture
-def synthetic_delta() -> np.ndarray:
-    """Per-type residual choice shifts — mostly small."""
+def synthetic_delta() -> dict[str, np.ndarray]:
+    """Per-type residual choice shifts — race-specific dicts, mostly small."""
     rng = np.random.default_rng(46)
-    return rng.uniform(-0.05, 0.05, size=10)
+    gov_delta = rng.uniform(-0.05, 0.05, size=10)
+    sen_delta = rng.uniform(-0.03, 0.06, size=10)
+    return {"governor": gov_delta, "senate": sen_delta, "default": gov_delta}
 
 
 # ---------------------------------------------------------------------------
@@ -225,23 +227,24 @@ def test_behavior_adjustment_senate_changes(
     )
 
 
-def test_behavior_adjustment_governor_changes(
+def test_behavior_adjustment_governor_vs_senate_different(
     synthetic_priors, synthetic_type_scores, synthetic_tau, synthetic_delta
 ):
-    """Governor races should receive the same behavior adjustment as senate."""
+    """Governor and senate races should use different CES δ values."""
     from src.prediction.predict_2026_tracts import adjust_priors_for_race_type
 
     gov_adjusted = adjust_priors_for_race_type(
         synthetic_priors, synthetic_type_scores, synthetic_tau, synthetic_delta,
         race_type="governor",
     )
-    # Governor and senate both route to apply_behavior_adjustment with is_offcycle=True.
-    # They should produce identical results when passed the same priors and behavior arrays.
     sen_adjusted = adjust_priors_for_race_type(
         synthetic_priors, synthetic_type_scores, synthetic_tau, synthetic_delta,
         race_type="senate",
     )
-    np.testing.assert_array_almost_equal(gov_adjusted, sen_adjusted)
+    # Governor and senate now use different CES-derived δ — they should differ.
+    assert not np.allclose(gov_adjusted, sen_adjusted), (
+        "Governor and senate should use different CES δ values"
+    )
 
 
 def test_behavior_adjustment_clipped_to_01(
@@ -254,10 +257,11 @@ def test_behavior_adjustment_clipped_to_01(
     extreme_priors = np.array([0.02, 0.98, 0.50])
     extreme_scores = np.ones((3, 10)) / 10  # uniform type membership
     extreme_delta = np.full(10, 0.15)  # large shift
+    extreme_deltas = {"governor": extreme_delta, "senate": extreme_delta, "default": extreme_delta}
     tau_small = synthetic_tau[:10]
 
     adjusted = adjust_priors_for_race_type(
-        extreme_priors, extreme_scores, tau_small, extreme_delta,
+        extreme_priors, extreme_scores, tau_small, extreme_deltas,
         race_type="senate",
     )
     assert (adjusted >= 0.0).all() and (adjusted <= 1.0).all(), (
@@ -340,14 +344,18 @@ def test_load_tract_votes_shape():
     reason="Behavior layer files not found",
 )
 def test_load_behavior_layer_shapes():
-    """τ and δ must both have shape (J,) = (100,)."""
+    """τ must be (100,) and deltas must be a dict with (100,) arrays per race type."""
     from src.prediction.predict_2026_tracts import load_behavior_layer
 
-    tau, delta = load_behavior_layer()
+    tau, deltas = load_behavior_layer()
     assert tau.shape == (100,), f"Expected tau shape (100,), got {tau.shape}"
-    assert delta.shape == (100,), f"Expected delta shape (100,), got {delta.shape}"
-    # tau should be positive
     assert (tau > 0).all()
+    # deltas should have governor, senate, and default keys
+    assert "governor" in deltas, "Missing governor δ"
+    assert "senate" in deltas, "Missing senate δ"
+    assert "default" in deltas, "Missing default δ"
+    for key, delta in deltas.items():
+        assert delta.shape == (100,), f"Expected {key} delta shape (100,), got {delta.shape}"
 
 
 # ---------------------------------------------------------------------------

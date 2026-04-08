@@ -27,7 +27,9 @@ Inputs:
   data/models/ridge_model/ridge_tract_priors.parquet — 79,660 tracts × ridge_pred
   data/assembled/tract_elections.parquet            — tract votes by year + race
   data/behavior/tau.npy                             — (J,) per-type turnout ratio
-  data/behavior/delta.npy                           — (J,) per-type choice shift
+  data/behavior/delta_ces_governor.npy              — (J,) CES governor δ (preferred)
+  data/behavior/delta_ces_senate.npy                — (J,) CES senate δ (preferred)
+  data/behavior/delta.npy                           — (J,) model-computed δ (fallback)
   data/polls/polls_2026.csv                         — state-level polls
 
 Outputs:
@@ -199,30 +201,54 @@ def derive_tract_states(tract_geoids: list[str]) -> list[str]:
     return [_STATE_FIPS_TO_ABBR.get(g[:2], "??") for g in tract_geoids]
 
 
-def load_behavior_layer() -> tuple[np.ndarray, np.ndarray]:
-    """Load per-type τ and δ arrays from the behavior layer training outputs.
+def load_behavior_layer() -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Load per-type τ and race-specific CES-derived δ arrays.
 
-    τ (tau): turnout ratio = off-cycle votes / presidential votes per type.
-             Values < 1.0 mean the type turns out less in midterms.
-    δ (delta): residual choice shift = off-cycle Dem share - presidential Dem share.
-               Positive = more Dem in off-cycle; negative = more Republican.
+    τ (tau): turnout ratio from the model-computed behavior layer.
+    δ (delta): per-type choice shift from CES external validation (248K voters).
+               Governor and Senate races get separate δ because the CES shows
+               different type-level behavior across race types (r=0.39 between
+               governor and senate δ).
+
+    Falls back to model-computed δ if CES files are missing.
 
     Returns
     -------
     tau : ndarray of shape (J,)
-    delta : ndarray of shape (J,)
+    deltas : dict mapping race type ("governor", "senate") to ndarray of shape (J,).
+             Also includes "default" key for backward compatibility.
     """
     tau_path = PROJECT_ROOT / "data" / "behavior" / "tau.npy"
-    delta_path = PROJECT_ROOT / "data" / "behavior" / "delta.npy"
-
     tau = np.load(tau_path)
-    delta = np.load(delta_path)
 
-    log.info(
-        "Behavior layer: J=%d, τ=[%.3f, %.3f], δ=[%.3f, %.3f]",
-        len(tau), tau.min(), tau.max(), delta.min(), delta.max(),
-    )
-    return tau, delta
+    # Prefer CES-derived δ (empirical, from 248K validated voters).
+    # CES δ correlates r=0.894 with model type structure; model-computed δ
+    # has r=-0.008 correlation with CES δ (i.e., no signal).
+    deltas: dict[str, np.ndarray] = {}
+    for race in ("governor", "senate"):
+        ces_path = PROJECT_ROOT / "data" / "behavior" / f"delta_ces_{race}.npy"
+        if ces_path.exists():
+            deltas[race] = np.load(ces_path)
+            log.info(
+                "CES δ (%s): J=%d, mean=%.4f, std=%.4f",
+                race, len(deltas[race]), deltas[race].mean(), deltas[race].std(),
+            )
+        else:
+            log.warning("CES δ for %s not found at %s, falling back to model δ", race, ces_path)
+
+    # Fallback: model-computed δ (weak signal but better than nothing).
+    if not deltas:
+        delta_path = PROJECT_ROOT / "data" / "behavior" / "delta.npy"
+        model_delta = np.load(delta_path)
+        deltas["governor"] = model_delta
+        deltas["senate"] = model_delta
+        log.warning("Using model-computed δ (no CES data available)")
+
+    # Default key for any code that doesn't specify race type.
+    deltas["default"] = deltas.get("governor", deltas.get("senate"))
+
+    log.info("Behavior layer: J=%d, τ=[%.3f, %.3f]", len(tau), tau.min(), tau.max())
+    return tau, deltas
 
 
 def load_polls() -> tuple[dict[str, list[dict]], dict[str, list[tuple[float, int, str]]]]:
@@ -303,7 +329,7 @@ def adjust_priors_for_race_type(
     priors: np.ndarray,
     type_scores: np.ndarray,
     tau: np.ndarray,
-    delta: np.ndarray,
+    deltas: dict[str, np.ndarray],
     race_type: str,
 ) -> np.ndarray:
     """Adjust tract priors for the given race type using behavior layer parameters.
@@ -311,21 +337,22 @@ def adjust_priors_for_race_type(
     Presidential races: no adjustment (τ and δ were estimated relative to the
     presidential baseline — applying them would double-count).
 
-    Off-cycle races (governor, senate): apply τ and δ via apply_behavior_adjustment.
-    τ reweights the effective electorate (types with lower off-cycle turnout shrink).
-    δ shifts the residual choice (small preference differences beyond turnout).
+    Off-cycle races (governor, senate): apply τ and race-specific CES δ via
+    apply_behavior_adjustment. Governor and senate races get different δ because
+    CES data shows different type-level behavior across race types.
 
     Args:
         priors: Ridge tract priors, shape (N,).
         type_scores: Soft membership matrix, shape (N, J).
         tau: Per-type turnout ratio, shape (J,).
-        delta: Per-type choice shift, shape (J,).
+        deltas: Dict mapping race type to per-type choice shift arrays.
         race_type: Registry race_type string ("president", "senate", "governor").
 
     Returns:
         Adjusted priors, shape (N,). Clipped to [0, 1].
     """
     is_offcycle = race_type in _OFFCYCLE_REGISTRY_TYPES
+    delta = deltas.get(race_type, deltas["default"])
     return apply_behavior_adjustment(priors, type_scores, tau, delta, is_offcycle)
 
 
@@ -425,7 +452,7 @@ def run() -> None:
     tract_priors = load_tract_priors(tract_geoids)
     tract_votes = load_tract_votes(tract_geoids)
     states = derive_tract_states(tract_geoids)
-    tau, delta = load_behavior_layer()
+    tau, deltas = load_behavior_layer()
     polls_by_race, poll_lookup = load_polls()
 
     J = type_scores.shape[1]
@@ -474,14 +501,11 @@ def run() -> None:
     # the behavior layer integration transparent.
 
     pres_race_ids = [rid for rid in all_race_ids if race_type_lookup.get(rid) == "president"]
-    offcycle_race_ids = [
-        rid for rid in all_race_ids
-        if race_type_lookup.get(rid) in _OFFCYCLE_REGISTRY_TYPES
-    ]
+    n_offcycle = sum(1 for rid in all_race_ids if race_type_lookup.get(rid) in _OFFCYCLE_REGISTRY_TYPES)
 
     log.info(
         "Running forecast: %d presidential races, %d off-cycle races",
-        len(pres_race_ids), len(offcycle_race_ids),
+        len(pres_race_ids), n_offcycle,
     )
 
     all_results: dict = {}
@@ -512,26 +536,39 @@ def run() -> None:
         )
         all_results.update(pres_results)
 
-    # Off-cycle races: apply behavior adjustment, then run forecast
-    if offcycle_race_ids:
-        offcycle_priors_raw = adjust_priors_for_race_type(
-            tract_priors, type_scores, tau, delta, race_type="senate",  # representative type
+    # Off-cycle races: apply race-specific CES δ, then run forecast.
+    # Governor and senate races get different δ from CES external validation
+    # (r=0.39 correlation between governor and senate δ — they're genuinely different).
+    gov_race_ids = [
+        rid for rid in all_race_ids
+        if race_type_lookup.get(rid) == "governor"
+    ]
+    sen_race_ids = [
+        rid for rid in all_race_ids
+        if race_type_lookup.get(rid) == "senate"
+    ]
+
+    for race_type, race_ids in [("governor", gov_race_ids), ("senate", sen_race_ids)]:
+        if not race_ids:
+            continue
+        adjusted_priors = adjust_priors_for_race_type(
+            tract_priors, type_scores, tau, deltas, race_type=race_type,
         )
-        offcycle_priors = offcycle_priors_raw + gb_shift
-        offcycle_results = run_forecast(
+        adjusted_priors = adjusted_priors + gb_shift
+        results = run_forecast(
             type_scores=type_scores,
-            county_priors=offcycle_priors,
+            county_priors=adjusted_priors,
             states=states,
             county_votes=tract_votes,
             polls_by_race={
                 rid: polls_by_race[rid]
-                for rid in offcycle_race_ids
+                for rid in race_ids
                 if rid in polls_by_race
             },
-            races=offcycle_race_ids,
+            races=race_ids,
             lam=lam,
             mu=mu,
-            generic_ballot_shift=0.0,           # shift already baked into offcycle_priors
+            generic_ballot_shift=0.0,           # shift already baked into adjusted_priors
             w_vector_mode=w_vector_mode,
             reference_date=str(date.today()),
             half_life_days=half_life_days,
@@ -539,7 +576,7 @@ def run() -> None:
             accuracy_path=accuracy_path,
             methodology_weights=methodology_weights,
         )
-        all_results.update(offcycle_results)
+        all_results.update(results)
 
     # --- Build output DataFrame ---
     all_predictions: list[pd.DataFrame] = []

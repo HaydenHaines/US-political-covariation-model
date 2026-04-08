@@ -90,7 +90,7 @@ def _load_tract_type_data(
 
     # Assignments: deduplicated tract GEOIDs with J=100 type scores.
     # Source: data/communities/tract_type_assignments.parquet (T.3 migration output).
-    # NOTE: data/tracts/national_tract_assignments.parquet is STALE (J=130, pre-migration).
+    # NOTE: Stale J=130 artifacts moved to data/tracts/_deprecated_j130/ (S508).
     assignments = pd.read_parquet(communities_dir / "tract_type_assignments.parquet")
     assignments = assignments.drop_duplicates(subset="tract_geoid")
     score_cols = sorted(

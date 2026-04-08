@@ -85,9 +85,8 @@ class TestRidgePriorsStartupLoading:
     def test_ridge_priors_loaded_from_db(self, tmp_path):
         """Tract priors parquet present → app.state.ridge_priors populated.
 
-        The ridge_priors dict is now loaded from data/tracts/tract_priors.parquet
-        (not from DuckDB's ridge_county_priors table). Keys are 11-digit tract
-        GEOIDs; values are prior Dem vote shares.
+        The ridge_priors dict is loaded from data/communities/type_priors.parquet.
+        Keys are 11-digit tract GEOIDs; values are prior Dem vote shares.
         """
         import duckdb
         db_path = tmp_path / "wethervane.duckdb"

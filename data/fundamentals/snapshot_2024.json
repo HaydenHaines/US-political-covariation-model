@@ -1,0 +1,17 @@
+{
+  "cycle": 2024,
+  "in_party": "D",
+  "approval_net_oct": -15.0,
+  "gdp_q2_growth_pct": 3.0,
+  "unemployment_oct": 4.1,
+  "cpi_yoy_oct": 2.6,
+  "consumer_sentiment": 70.5,
+  "source_notes": {
+    "approval": "FiveThirtyEight average — October 2024. Entered manually for backtest use.",
+    "gdp": "BEA Q2 2024 advance estimate, annualized real GDP growth (%). Entered manually for backtest use.",
+    "unemployment": "BLS UNRATE — Unemployment rate (%) — October 2024. Entered manually for backtest use.",
+    "cpi": "BLS CPI-U — October 2024 year-over-year percent change. Entered manually for backtest use.",
+    "consumer_sentiment": "University of Michigan Consumer Sentiment Index — October 2024 final. Entered manually for backtest use.",
+    "note": "Historical fundamentals snapshot for 2024 backtest cycle. Not fetched programmatically."
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "cycle": 2022,
+  "in_party": "D",
+  "approval_net_oct": -13.5,
+  "gdp_q2_growth_pct": -0.6,
+  "unemployment_oct": 3.7,
+  "cpi_yoy_oct": 7.7,
+  "consumer_sentiment": 59.9,
+  "source_notes": {
+    "approval": "FiveThirtyEight average — October 2022. Entered manually for backtest use.",
+    "gdp": "BEA Q2 2022 real GDP growth (%) — two consecutive negative quarters, technical recession. Entered manually for backtest use.",
+    "unemployment": "BLS UNRATE — Unemployment rate (%) — October 2022. Entered manually for backtest use.",
+    "cpi": "BLS CPI-U — October 2022 year-over-year percent change (inflation peak). Entered manually for backtest use.",
+    "consumer_sentiment": "University of Michigan Consumer Sentiment Index — October 2022 final. Entered manually for backtest use.",
+    "note": "Historical fundamentals snapshot for 2022 backtest cycle. Not fetched programmatically."
+  }
+}

@@ -111,6 +111,7 @@ def get_governor_overview(
               "rating": "lean_r",
               "margin": -0.054,
               "incumbent_party": "R",
+              "is_open_seat": true,
               "n_polls": 16
             },
             ...

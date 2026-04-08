@@ -54,6 +54,22 @@ _GOVERNOR_INCUMBENT: dict[str, str] = {
     "WY": "R",  # Mark Gordon (R) — term-limited, open seat
 }
 
+# States with open seats in 2026 (term-limited, resigned, or vacated).
+# These races lack the typical 3-5pp incumbency advantage and tend to
+# regress toward the state's partisan baseline.
+GOVERNOR_2026_OPEN_SEATS = {
+    "FL",  # DeSantis — term-limited
+    "GA",  # Kemp — term-limited
+    "KS",  # Kelly — term-limited
+    "ME",  # Mills — term-limited
+    "OH",  # DeWine — term-limited
+    "OK",  # Stitt — term-limited
+    "SD",  # Noem — resigned (DHS Secretary)
+    "TN",  # Lee — term-limited
+    "VT",  # Scott — expected to not seek re-election
+    "WY",  # Gordon — term-limited
+}
+
 # Default margin used when no model prediction is available.
 # Sign: positive = safe D, negative = safe R.
 _DEFAULT_SAFE_MARGIN = 0.25
@@ -93,6 +109,7 @@ def classify_governor_race(
         "rating": rating,
         "margin": round(margin, 4),
         "incumbent_party": incumbent_party,
+        "is_open_seat": st in GOVERNOR_2026_OPEN_SEATS,
         "n_polls": 0,
     }
 

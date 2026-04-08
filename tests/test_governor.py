@@ -145,6 +145,7 @@ def test_overview_race_fields(client):
     assert isinstance(race["rating"], str)
     assert isinstance(race["margin"], float)
     assert race["incumbent_party"] in ("D", "R")
+    assert isinstance(race["is_open_seat"], bool)
     assert isinstance(race["n_polls"], int)
 
 
@@ -226,6 +227,16 @@ def test_classify_governor_race_fallback_is_safe():
     assert info["rating"] == "safe_r"
     assert info["incumbent_party"] == "R"
     assert info["margin"] < 0
+    assert info["is_open_seat"] is True  # OH is term-limited
+
+
+def test_classify_governor_race_open_seat_field():
+    """Open-seat flag is True for term-limited/vacated states, False otherwise."""
+    oh = classify_governor_race("OH")  # DeWine term-limited
+    assert oh["is_open_seat"] is True
+
+    il = classify_governor_race("IL")  # Pritzker running
+    assert il["is_open_seat"] is False
 
 
 def test_classify_governor_race_with_prediction():

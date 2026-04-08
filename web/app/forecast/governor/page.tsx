@@ -38,10 +38,8 @@ export default function GovernorPage() {
     );
   }
 
-  // Count open seats: races where no incumbent is defending
-  // (term-limited or vacated seats).  These are the most competitive on average.
-  const openSeatStates = new Set(["FL", "GA", "KS", "ME", "OH", "OK", "SD", "TN", "WY"]);
-  const openSeatCount = data.races.filter((r) => openSeatStates.has(r.state)).length;
+  // Count open seats from API data (term-limited, resigned, or vacated).
+  const openSeatCount = data.races.filter((r) => r.is_open_seat).length;
 
   // Separate races into D-leaning / competitive / R-leaning groups for display.
   // "Competitive" = tossup, lean_d, or lean_r.

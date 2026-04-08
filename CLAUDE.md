@@ -34,6 +34,7 @@ A political modeling platform that discovers electoral communities directly from
 - **Religious adherence rate is per-1,000, not a fraction.** RCMS data uses "adherents per 1,000 population" convention. Display as `value / 10` with "%" suffix. Do NOT pass through formatPct (which multiplies by 100). (Source: S245, Type 66 showed 53,383%.)
 - **Hardcoded model parameters in frontend/data artifacts are a recurring source of bugs.** When J changes, super-type count changes, or column naming changes, stale artifacts break silently. Schedule periodic audits using the hardcoded-values skill. (Source: S245, also S243 column naming mismatch.)
 - **DRA tract assignments have duplicate GEOIDs.** The clustering pipeline may produce 112K rows for 81K unique tracts. Always `drop_duplicates(subset="GEOID")` before using as an index. (Source: S245.)
+- **`data/tracts/` contains stale J=130 artifacts — do NOT use for J=100 model.** After the tract-primary migration (T.1-T.7), the current model uses J=100 data from `data/communities/` (type assignments, priors) and `data/covariance/` (type covariance). The files in `data/tracts/` (`national_tract_assignments.parquet`, `tract_type_covariance.npy`, `tract_type_priors.npy`) are all J=130 from the pre-migration model. The API was silently using these stale files for live poll propagation until S504. Always verify J consistency when loading type data. (Source: S504.)
 
 **BASELINE METRICS (beat these or don't merge):**
 - County holdout r: 0.698 (J=100, StandardScaler+pw=8, national 3,154 counties)

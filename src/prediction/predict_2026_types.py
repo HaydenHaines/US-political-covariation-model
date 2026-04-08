@@ -433,10 +433,10 @@ def run() -> None:
         if unmatched:
             log.warning("Polls for unregistered races (ignored): %s", unmatched)
 
-    # Generate baseline using presidential priors (structural baseline, no polls,
-    # no GB shift) — kept presidential to match historical benchmark comparisons.
-    theta_baseline = compute_theta_prior(type_scores, county_prior_values_pres)
-    baseline_preds = type_scores @ theta_baseline
+    # Generate baseline: county Ridge priors without polls or GB shift.
+    # With residual blending, baseline = priors + W @ (θ_prior - θ_prior) = priors.
+    # This is the correct structural baseline: each county's own historical lean.
+    baseline_preds = county_prior_values_pres
     all_predictions.append(pd.DataFrame({
         "county_fips": county_fips,
         "state": states,

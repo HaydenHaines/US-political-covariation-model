@@ -464,8 +464,26 @@ def run_forecast(
         else:
             delta = np.zeros(J)
 
-        county_preds_national = type_scores @ theta_national
-        county_preds_local = type_scores @ (theta_national + delta)
+        # County-level residual blending with poll-count adaptive weight.
+        #
+        # Problem: purely type-based projection (type_scores @ theta)
+        # compresses all counties to type means, making NJ R+1 despite
+        # being D+16.  But using county priors alone ignores poll signal,
+        # breaking well-polled races like GA.
+        #
+        # Solution: blend county priors with type projection, weighting
+        # by how many polls inform the race.  With zero polls, trust
+        # county priors fully (NJ gets its D+16 lean).  With many polls,
+        # trust the type projection (GA matches its D+2.6 polling).
+        #
+        # alpha = 1 / (1 + n_polls / k), where k controls the transition.
+        # k=5: at 5 polls, weight is 50/50.  At 15 polls, 75% type model.
+        _POLL_BLEND_SCALE = 5.0
+        alpha = 1.0 / (1.0 + n_polls / _POLL_BLEND_SCALE)
+        type_proj_national = type_scores @ theta_national
+        type_proj_local = type_scores @ (theta_national + delta)
+        county_preds_national = alpha * adjusted_priors + (1 - alpha) * type_proj_national
+        county_preds_local = alpha * adjusted_priors + (1 - alpha) * type_proj_local
 
         results[race_id] = ForecastResult(
             theta_prior=theta_prior,

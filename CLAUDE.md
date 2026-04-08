@@ -110,7 +110,7 @@ Four-layer tract-primary model:
 
 **Layer 2 — Voter Behavior Layer (NEW):** Per-type parameters learned from historical data:
 - τ (turnout ratio): off-cycle turnout / presidential turnout per type. Captures which communities don't show up in midterms.
-- δ (residual choice shift): off-cycle Dem share minus expected share from turnout reweighting alone. Captures genuine preference shifts beyond turnout composition.
+- δ (residual choice shift): off-cycle Dem share minus expected share from turnout reweighting alone. **DISABLED (S501):** temporal stability analysis shows governor δ has cross-year r=0.091 — cycle-specific noise, not a type property. Infrastructure retained; route choice-level signal through polls instead.
 - Binary cycle type: presidential vs off-cycle (turnout is ballot-level, not race-level).
 - Governor/Senate results are training data for τ and δ, NOT inputs to type discovery.
 

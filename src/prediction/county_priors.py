@@ -111,6 +111,97 @@ def compute_county_priors_from_data(
     return np.array([dem_share_map.get(f, fallback) for f in county_fips])
 
 
+def load_county_priors_with_ridge_governor(
+    county_fips: list[str],
+    governor_priors_path: Path | None = None,
+    presidential_priors_path: Path | None = None,
+    assembled_dir: Path | None = None,
+) -> np.ndarray:
+    """Load governor-specific county priors, falling back to presidential priors.
+
+    Loads from the governor Ridge model first.  For counties not covered by
+    the governor model (states that never had a governor race in the training
+    data, or counties missing from the feature matrix), falls back to the
+    presidential Ridge priors.  Finally falls back to historical presidential
+    results for any county still uncovered.
+
+    The two-level fallback is important: governor data is sparse (only states
+    with a governor election that year contribute training data), so some
+    counties will genuinely have no governor-specific prediction.  The
+    presidential prior is a reasonable structural substitute there.
+
+    Parameters
+    ----------
+    county_fips : list[str]
+        FIPS codes (zero-padded to 5 digits).
+    governor_priors_path : Path or None
+        Path to the governor Ridge county priors parquet.
+        Defaults to data/models/ridge_model_governor/ridge_county_priors_governor.parquet.
+    presidential_priors_path : Path or None
+        Path to the presidential Ridge county priors parquet, used as first
+        fallback when a county has no governor prior.
+        Defaults to data/models/ridge_model/ridge_county_priors.parquet.
+    assembled_dir : Path or None
+        Directory containing MEDSL county parquet files (for final fallback).
+
+    Returns
+    -------
+    ndarray of shape (N,)
+        Prior Dem share per county, governor-trained where available.
+    """
+    if governor_priors_path is None:
+        governor_priors_path = (
+            PROJECT_ROOT
+            / "data"
+            / "models"
+            / "ridge_model_governor"
+            / "ridge_county_priors_governor.parquet"
+        )
+    if presidential_priors_path is None:
+        presidential_priors_path = (
+            PROJECT_ROOT / "data" / "models" / "ridge_model" / "ridge_county_priors.parquet"
+        )
+
+    # Start with presidential priors (historical or Ridge) as the baseline.
+    # This ensures every county has a value before we overlay governor priors.
+    county_prior_values = load_county_priors_with_ridge(
+        county_fips,
+        ridge_priors_path=presidential_priors_path,
+        assembled_dir=assembled_dir,
+    )
+
+    if not governor_priors_path.exists():
+        log.warning(
+            "Governor Ridge model not found at %s — using presidential priors for all counties",
+            governor_priors_path,
+        )
+        return county_prior_values
+
+    log.info("Loading governor Ridge county priors from %s", governor_priors_path)
+    gov_df = pd.read_parquet(governor_priors_path)
+    gov_df["county_fips"] = gov_df["county_fips"].astype(str).str.zfill(5)
+    gov_map = dict(zip(gov_df["county_fips"], gov_df["ridge_pred_dem_share"]))
+
+    n_matched = 0
+    for i, fips in enumerate(county_fips):
+        if fips in gov_map:
+            county_prior_values[i] = gov_map[fips]
+            n_matched += 1
+    n_fallback = len(county_fips) - n_matched
+
+    log.info(
+        "Governor priors: %d/%d counties matched; %d using presidential fallback",
+        n_matched,
+        len(county_fips),
+        n_fallback,
+    )
+    print(
+        f"Using governor Ridge priors for {n_matched}/{len(county_fips)} counties "
+        f"({n_fallback} fallback to presidential priors)"
+    )
+    return county_prior_values
+
+
 def load_county_priors_with_ridge(
     county_fips: list[str],
     ridge_priors_path: Path | None = None,

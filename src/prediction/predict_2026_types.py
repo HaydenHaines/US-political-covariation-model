@@ -31,7 +31,10 @@ import numpy as np
 import pandas as pd
 
 from src.core import config as _cfg
-from src.prediction.county_priors import load_county_priors_with_ridge
+from src.prediction.county_priors import (
+    load_county_priors_with_ridge,
+    load_county_priors_with_ridge_governor,
+)
 from src.prediction.forecast_engine import compute_theta_prior, run_forecast
 from src.prediction.fundamentals import (
     compute_fundamentals_shift,
@@ -257,7 +260,15 @@ def _load_polls(
 def run() -> None:
     """Load inputs from data/ and produce type-based 2026 predictions."""
     county_fips, type_scores, type_covariance, type_priors = _load_type_data()
-    county_prior_values = load_county_priors_with_ridge(county_fips)
+
+    # Load race-type-specific county priors.  Governor races use priors trained
+    # on governor outcomes; Senate and other races use presidential priors.
+    # This corrects the structural mismatch from using presidential-trained priors
+    # for governor forecasts (backtest showed presidential baseline r=0.770 beat
+    # model r=0.715 because the priors were trained on the wrong target).
+    county_prior_values_pres = load_county_priors_with_ridge(county_fips)
+    county_prior_values_gov = load_county_priors_with_ridge_governor(county_fips)
+
     states, county_names = _load_county_metadata(county_fips)
     county_votes = _load_county_votes(county_fips)
     polls_by_race, poll_lookup = _load_polls(county_fips)
@@ -343,19 +354,30 @@ def run() -> None:
     # Iterate over ALL registered races using the hierarchical forecast engine.
     # Produces dual-mode output: "national" (θ_national only) and
     # "local" (θ_national + δ_race) for every race.
+    #
+    # Governor races use governor-trained priors; Senate and other races use
+    # presidential priors.  We split the race registry by type and call
+    # run_forecast() twice — once per prior set — then merge results.
     from src.assembly.define_races import load_races
 
     registry = load_races(2026)
     all_race_ids = [r.race_id for r in registry]
-    log.info("Race registry: %d races loaded", len(registry))
+    governor_race_ids = [r.race_id for r in registry if r.race_type == "governor"]
+    non_governor_race_ids = [r.race_id for r in registry if r.race_type != "governor"]
 
-    forecast_results = run_forecast(
+    log.info(
+        "Race registry: %d races (%d governor, %d other)",
+        len(registry),
+        len(governor_race_ids),
+        len(non_governor_race_ids),
+    )
+
+    # Build the shared kwargs to avoid repetition.
+    _shared_forecast_kwargs = dict(
         type_scores=type_scores,
-        county_priors=county_prior_values,
         states=states,
         county_votes=county_votes,
         polls_by_race=polls_by_race,
-        races=all_race_ids,
         lam=_LAM,
         mu=_MU,
         generic_ballot_shift=gb_shift,
@@ -368,6 +390,28 @@ def run() -> None:
         methodology_weights=_METHODOLOGY_WEIGHTS,
         state_population_vectors=state_population_vectors,
     )
+
+    forecast_results: dict = {}
+
+    # Governor races: use governor Ridge priors (governor-trained).
+    if governor_race_ids:
+        log.info("Running governor forecast with governor-trained priors...")
+        gov_results = run_forecast(
+            county_priors=county_prior_values_gov,
+            races=governor_race_ids,
+            **_shared_forecast_kwargs,
+        )
+        forecast_results.update(gov_results)
+
+    # Senate and all other races: use presidential Ridge priors.
+    if non_governor_race_ids:
+        log.info("Running non-governor forecast with presidential priors...")
+        other_results = run_forecast(
+            county_priors=county_prior_values_pres,
+            races=non_governor_race_ids,
+            **_shared_forecast_kwargs,
+        )
+        forecast_results.update(other_results)
 
     # Convert ForecastResult → DataFrame rows (both modes per race)
     all_predictions = []
@@ -389,8 +433,9 @@ def run() -> None:
         if unmatched:
             log.warning("Polls for unregistered races (ignored): %s", unmatched)
 
-    # Generate baseline (pure model prior, no polls, no GB shift)
-    theta_baseline = compute_theta_prior(type_scores, county_prior_values)
+    # Generate baseline using presidential priors (structural baseline, no polls,
+    # no GB shift) — kept presidential to match historical benchmark comparisons.
+    theta_baseline = compute_theta_prior(type_scores, county_prior_values_pres)
     baseline_preds = type_scores @ theta_baseline
     all_predictions.append(pd.DataFrame({
         "county_fips": county_fips,

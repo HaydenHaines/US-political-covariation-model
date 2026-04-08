@@ -1,3 +1,6 @@
+# Git worktrees
+.worktrees/
+
 # Data directory (large files, not versioned)
 data/raw/
 data/assembled/

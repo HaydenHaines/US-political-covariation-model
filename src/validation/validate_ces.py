@@ -392,6 +392,71 @@ def compare_ces_to_model(
     return merged.sort_values("type_id").reset_index(drop=True)
 
 
+def validate_per_year(
+    type_year: pd.DataFrame,
+    model_priors: pd.DataFrame,
+    min_respondents: int = MIN_N_PER_TYPE,
+) -> list[ValidationResults]:
+    """
+    Compute validation statistics for each presidential election year separately.
+
+    This reveals whether the type model is stable across time or if certain
+    election years align better/worse with model priors. Temporal stability
+    of r values is evidence that types capture durable partisan structure,
+    not cycle-specific noise.
+
+    Only includes presidential election years (2008, 2012, 2016, 2020, 2024)
+    because the model priors are trained on presidential shifts.
+
+    Args:
+        type_year: Per-type-year aggregated CES data from aggregate_by_type_year().
+        model_priors: Model type priors with type_id and prior_dem_share.
+        min_respondents: Minimum respondents per type-year to include.
+
+    Returns:
+        List of ValidationResults, one per year with sufficient data.
+    """
+    pres_years = [y for y in sorted(type_year["year"].unique()) if y % 4 == 0 and y >= 2008]
+
+    results = []
+    for year in pres_years:
+        year_data = type_year[
+            (type_year["year"] == year) & (type_year["n_respondents"] >= min_respondents)
+        ].copy()
+
+        if len(year_data) < 5:
+            log.warning("Year %d has only %d types with enough data, skipping", year, len(year_data))
+            continue
+
+        # Merge with model priors
+        merged = year_data.merge(model_priors, on="type_id", how="inner")
+
+        ces_vals = merged["ces_dem_share"].values
+        model_vals = merged["prior_dem_share"].values
+
+        if len(merged) < 2:
+            continue
+
+        pearson_r = float(np.corrcoef(ces_vals, model_vals)[0, 1])
+        rmse = float(np.sqrt(np.mean((ces_vals - model_vals) ** 2)))
+        bias = float(np.mean(ces_vals - model_vals))
+
+        results.append(
+            ValidationResults(
+                pearson_r=round(pearson_r, 4),
+                rmse=round(rmse, 4),
+                bias=round(bias, 4),
+                n_types=len(merged),
+                n_respondents=int(merged["n_respondents"].sum()),
+                comparison_year=year,
+                ces_dem_share_mean=round(float(np.mean(ces_vals)), 4),
+                model_dem_share_mean=round(float(np.mean(model_vals)), 4),
+            )
+        )
+
+    return results
+
+
 def compute_validation_stats(comparison: pd.DataFrame) -> ValidationResults:
     """
     Compute summary validation statistics from the type comparison DataFrame.
@@ -434,6 +499,7 @@ def save_outputs(
     results: ValidationResults,
     match_stats: dict,
     type_year: pd.DataFrame,
+    per_year_results: list[ValidationResults] | None = None,
 ) -> None:
     """
     Save validation results to JSON summary and CSV per-type comparison.
@@ -453,6 +519,20 @@ def save_outputs(
         "years_included": sorted(type_year["year"].unique().tolist()),
         "min_respondents_threshold": MIN_N_PER_TYPE,
     }
+
+    if per_year_results:
+        summary["per_year"] = [
+            {
+                "year": int(r.comparison_year),
+                "pearson_r": r.pearson_r,
+                "rmse": r.rmse,
+                "bias": r.bias,
+                "n_types": int(r.n_types),
+                "n_respondents": int(r.n_respondents),
+            }
+            for r in per_year_results
+        ]
+
     with open(OUTPUT_JSON, "w") as f:
         json.dump(summary, f, indent=2)
     log.info("Saved validation summary to %s", OUTPUT_JSON)
@@ -467,7 +547,12 @@ def save_outputs(
 # ---------------------------------------------------------------------------
 
 
-def print_report(results: ValidationResults, comparison: pd.DataFrame, match_stats: dict) -> None:
+def print_report(
+    results: ValidationResults,
+    comparison: pd.DataFrame,
+    match_stats: dict,
+    per_year_results: list[ValidationResults] | None = None,
+) -> None:
     """Print a clear human-readable summary of the validation results."""
     print("\n" + "=" * 70)
     print("CES/CCES Type Model External Validation")
@@ -518,6 +603,23 @@ def print_report(results: ValidationResults, comparison: pd.DataFrame, match_sta
             f"{int(row['total_respondents']):>8,}"
         )
 
+    if per_year_results:
+        print("\n── Per-Year Stability ──────────────────────────────────────────────────")
+        print(f"  {'Year':<8}  {'r':>8}  {'RMSE':>10}  {'Bias':>10}  {'Types':>8}  {'N':>8}")
+        print("  " + "-" * 56)
+        for yr in per_year_results:
+            print(
+                f"  {yr.comparison_year:<8}  "
+                f"{yr.pearson_r:>+8.4f}  "
+                f"{yr.rmse * 100:>8.2f}pp  "
+                f"{yr.bias * 100:>+8.2f}pp  "
+                f"{yr.n_types:>8}  "
+                f"{yr.n_respondents:>8,}"
+            )
+        r_values = [yr.pearson_r for yr in per_year_results]
+        r_std = float(np.std(r_values))
+        print(f"\n  r std across years: {r_std:.4f}  ({'stable' if r_std < 0.05 else 'moderate variation' if r_std < 0.10 else 'high variation'})")
+
     print()
 
 
@@ -567,9 +669,12 @@ def run_validation(
     comparison = compare_ces_to_model(type_means, model_priors)
     results = compute_validation_stats(comparison)
 
+    # Step 6b: Per-year validation for temporal stability analysis
+    per_year_results = validate_per_year(type_year, model_priors)
+
     # Step 7: Save and report
-    save_outputs(comparison, results, match_stats, type_year)
-    print_report(results, comparison, match_stats)
+    save_outputs(comparison, results, match_stats, type_year, per_year_results)
+    print_report(results, comparison, match_stats, per_year_results)
 
     return results, comparison
 

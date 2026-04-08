@@ -24,6 +24,7 @@ from src.validation.validate_ces import (
     filter_validated_presidential_voters,
     join_county_types,
     normalize_fips,
+    validate_per_year,
 )
 
 # ---------------------------------------------------------------------------
@@ -502,6 +503,116 @@ def test_compute_validation_stats_insufficient_types() -> None:
     )
     with pytest.raises(ValueError, match="Insufficient types"):
         compute_validation_stats(comparison)
+
+
+# ---------------------------------------------------------------------------
+# validate_per_year tests
+# ---------------------------------------------------------------------------
+
+
+def test_validate_per_year_returns_only_pres_years() -> None:
+    """Per-year validation should only include presidential years (divisible by 4)."""
+    # Include both presidential (2016, 2020) and midterm (2018) years
+    type_year = pd.DataFrame(
+        {
+            "type_id": list(range(10)) * 3,
+            "year": [2016] * 10 + [2018] * 10 + [2020] * 10,
+            "ces_dem_share": np.linspace(0.3, 0.7, 10).tolist() * 3,
+            "n_respondents": [50] * 30,
+            "n_weighted": [50.0] * 30,
+        }
+    )
+    model_priors = pd.DataFrame(
+        {"type_id": list(range(10)), "prior_dem_share": np.linspace(0.3, 0.7, 10)}
+    )
+    results = validate_per_year(type_year, model_priors, min_respondents=1)
+    years = [r.comparison_year for r in results]
+    assert 2016 in years
+    assert 2020 in years
+    assert 2018 not in years
+
+
+def test_validate_per_year_perfect_correlation() -> None:
+    """When CES exactly matches model, per-year r should be 1.0."""
+    vals = np.linspace(0.2, 0.8, 10)
+    type_year = pd.DataFrame(
+        {
+            "type_id": list(range(10)),
+            "year": [2020] * 10,
+            "ces_dem_share": vals,
+            "n_respondents": [100] * 10,
+            "n_weighted": [100.0] * 10,
+        }
+    )
+    model_priors = pd.DataFrame(
+        {"type_id": list(range(10)), "prior_dem_share": vals}
+    )
+    results = validate_per_year(type_year, model_priors, min_respondents=1)
+    assert len(results) == 1
+    assert results[0].pearson_r == pytest.approx(1.0, abs=1e-6)
+    assert results[0].comparison_year == 2020
+
+
+def test_validate_per_year_skips_insufficient_types() -> None:
+    """Years with fewer than 5 types above min_respondents are skipped."""
+    type_year = pd.DataFrame(
+        {
+            "type_id": [0, 1, 2, 3],
+            "year": [2020, 2020, 2020, 2020],
+            "ces_dem_share": [0.4, 0.5, 0.6, 0.7],
+            "n_respondents": [100, 100, 100, 100],
+            "n_weighted": [100.0, 100.0, 100.0, 100.0],
+        }
+    )
+    model_priors = pd.DataFrame(
+        {"type_id": [0, 1, 2, 3], "prior_dem_share": [0.4, 0.5, 0.6, 0.7]}
+    )
+    results = validate_per_year(type_year, model_priors, min_respondents=1)
+    assert len(results) == 0  # Only 4 types, need >=5
+
+
+def test_validate_per_year_respects_min_respondents() -> None:
+    """Types below min_respondents threshold should be excluded per year."""
+    type_year = pd.DataFrame(
+        {
+            "type_id": list(range(10)),
+            "year": [2020] * 10,
+            "ces_dem_share": np.linspace(0.3, 0.7, 10),
+            "n_respondents": [100] * 5 + [3] * 5,  # 5 types below threshold
+            "n_weighted": [100.0] * 5 + [3.0] * 5,
+        }
+    )
+    model_priors = pd.DataFrame(
+        {"type_id": list(range(10)), "prior_dem_share": np.linspace(0.3, 0.7, 10)}
+    )
+    results = validate_per_year(type_year, model_priors, min_respondents=10)
+    assert len(results) == 1
+    assert results[0].n_types == 5
+
+
+def test_validate_per_year_bias_varies_by_year() -> None:
+    """Different years should show different biases reflecting temporal shift."""
+    n_types = 10
+    vals = np.linspace(0.3, 0.7, n_types)
+    type_year = pd.DataFrame(
+        {
+            "type_id": list(range(n_types)) * 2,
+            "year": [2016] * n_types + [2020] * n_types,
+            # 2016: CES matches model; 2020: CES is +0.05 higher
+            "ces_dem_share": list(vals) + list(vals + 0.05),
+            "n_respondents": [100] * (n_types * 2),
+            "n_weighted": [100.0] * (n_types * 2),
+        }
+    )
+    model_priors = pd.DataFrame(
+        {"type_id": list(range(n_types)), "prior_dem_share": vals}
+    )
+    results = validate_per_year(type_year, model_priors, min_respondents=1)
+    assert len(results) == 2
+    r_2016 = next(r for r in results if r.comparison_year == 2016)
+    r_2020 = next(r for r in results if r.comparison_year == 2020)
+    assert r_2016.bias == pytest.approx(0.0, abs=1e-4)
+    assert r_2020.bias == pytest.approx(0.05, abs=1e-4)
 
 
 # ---------------------------------------------------------------------------

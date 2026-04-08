@@ -464,7 +464,6 @@ class TestPredictRaceTypePriorRouting:
             patch("src.prediction.predict_2026_types._load_polls") as mock_polls,
             patch("src.prediction.predict_2026_types.compute_gb_shift") as mock_gb,
             patch("src.prediction.predict_2026_types.run_forecast") as mock_run_forecast,
-            patch("src.prediction.predict_2026_types.compute_theta_prior") as mock_theta,
         ):
             from src.assembly.define_races import Race
 
@@ -486,8 +485,6 @@ class TestPredictRaceTypePriorRouting:
 
             # run_forecast returns {race_id: ForecastResult}
             mock_run_forecast.return_value = {"2026 OH Governor": mock_fr}
-
-            mock_theta.return_value = np.full(j, 0.45)
 
             with (
                 patch(

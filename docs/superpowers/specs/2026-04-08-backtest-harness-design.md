@@ -424,7 +424,9 @@ All metrics computed at state level unless prefixed with "county_" or "type_".
 - `ReportGenerator` (single-cycle sections only)
 - `BacktestCatalog` (save/load/index)
 
-**Success criterion:** The 2024 Senate report produces state-level errors with plausible MAE (expecting 2–5pp range), and the chamber seat count is within 3 seats of actual.
+**Completion criterion:** Phase 1 is done when the harness produces a complete error artifact and a readable report for 2024 Senate + Presidential. There is no pass/fail threshold — Phase 1's job is observation, not certification.
+
+What matters is whether the error *structure* makes sense: are large errors concentrated in specific states or types? Is there a consistent directional bias across races? Is the magnitude of errors roughly what you'd expect from a model of this type? Those questions can only be answered by reading the output, not by comparing a number against a threshold. Seat count accuracy in particular is a poor primary metric — missing the Senate majority call by 5 seats could mean the model was unlucky on genuinely uncertain races, or it could mean a systematic 1pp underestimation of Democrats in every competitive race. The error artifact distinguishes these; a seat count threshold does not.
 
 **Explicit limitation in report:** *"Type assignments used in this backtest were trained on data including 2024 results. State-level errors are therefore a lower bound on true out-of-sample error. See Phase 3 for epoch-trained comparison."*
 

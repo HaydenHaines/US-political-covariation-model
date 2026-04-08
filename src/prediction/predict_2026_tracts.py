@@ -536,16 +536,21 @@ def run() -> None:
         )
         all_results.update(pres_results)
 
-    # Off-cycle races: apply τ-only behavior adjustment (δ DISABLED).
+    # Off-cycle races: behavior layer FULLY INERT (both δ and τ no-ops).
     #
     # δ is DISABLED based on CES temporal stability analysis (S501):
     #   - Governor δ has mean cross-year r=0.091 (cycle noise, not type property)
     #   - CES δ backtest: r drops from 0.839 to 0.777 when applied
     #   - Model δ backtest: r drops from 0.839 to 0.793
-    # τ IS stable (r=0.599) and captures genuine turnout engagement differences.
+    # τ is stable (r=0.599) but PRACTICALLY NEGLIGIBLE at J=100 (S504):
+    #   - With δ=0, τ has no effect — adjust_priors computes τ-weighted δ, which is 0.
+    #   - Even if τ were applied to type_scores directly, avg composition shift
+    #     is only 1.14% per tract (τ range [0.733, 1.027], std=0.072).
+    #   - Correct τ integration would reweight type_scores before forecast_engine,
+    #     but the effect size is < 0.5pp on state predictions. Not worth the complexity.
     # Race-specific δ infrastructure retained for future use if pooling improves.
     #
-    # Zero out δ while keeping τ reweighting active:
+    # Zero out δ (τ passes through adjust_priors but has no effect with δ=0):
     zero_deltas = {k: np.zeros_like(v) for k, v in deltas.items()}
 
     gov_race_ids = [

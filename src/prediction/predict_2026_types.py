@@ -262,27 +262,12 @@ def run() -> None:
     county_votes = _load_county_votes(county_fips)
     polls_by_race, poll_lookup = _load_polls(county_fips)
 
-    # Apply voter behavior layer (τ/δ) adjustment.
-    # All 2026 races are off-cycle (governor/senate), so the adjustment applies
-    # universally.  The δ per type captures the systematic Dem share shift in
-    # off-cycle elections beyond what differential turnout (τ) explains.
-    # We compute each county's adjustment as the type-membership-weighted mean δ.
-    behavior_dir = PROJECT_ROOT / "data" / "behavior"
-    tau_path = behavior_dir / "tau.npy"
-    delta_path = behavior_dir / "delta.npy"
-    if tau_path.exists() and delta_path.exists():
-        tau = np.load(tau_path)
-        delta = np.load(delta_path)
-        # Per-county adjustment = weighted sum of δ_j by type membership scores.
-        # type_scores shape: (n_counties, J); delta shape: (J,).
-        county_delta_shift = type_scores @ delta  # (n_counties,)
-        county_prior_values = np.clip(county_prior_values + county_delta_shift, 0.0, 1.0)
-        log.info(
-            "Behavior layer applied: mean δ shift = %+.3f pp (τ mean=%.3f, δ mean=%+.4f)",
-            county_delta_shift.mean() * 100, tau.mean(), delta.mean(),
-        )
-    else:
-        log.warning("Behavior layer data not found at %s, skipping adjustment", behavior_dir)
+    # Behavior layer (τ/δ) is DISABLED pending a more sophisticated integration.
+    # Backtest (governor-backtest-2022-S492.md) showed the flat δ adjustment REDUCES
+    # correlation vs 2022 actuals (r 0.729 → 0.715). The mean δ = -0.011 (R shift)
+    # hurts D-leaning states more than it helps R-leaning ones. The behavior layer
+    # data (data/behavior/) and compute modules (src/behavior/) are retained for
+    # future use when full τ-reweighted type composition adjustment is implemented.
 
     # Load type profiles for W vector enrichment
     type_profiles_path = PROJECT_ROOT / "data" / "communities" / "type_profiles.parquet"

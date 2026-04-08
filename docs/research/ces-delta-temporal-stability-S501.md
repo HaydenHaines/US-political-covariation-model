@@ -74,3 +74,36 @@ the D wave year compared to the 2008 presidential baseline which was also D-favo
   is answered: δ is not a type-level property. It's a race-level property.
 - **Direct future effort toward poll integration.** The cycle-specific signal
   that δ was supposed to capture is better captured by actual polls.
+
+---
+
+## Appendix: τ Temporal Stability (for comparison)
+
+τ (turnout engagement ratio) was analyzed with the same methodology.
+CES-derived τ proxy = governor respondent count / presidential respondent count
+per type, normalized by overall ratio.
+
+### Cross-Year τ Correlations
+
+|      | 2006  | 2010  | 2014  | 2018  | 2022  |
+|------|-------|-------|-------|-------|-------|
+| 2006 | —     | 0.752 | 0.441 | 0.708 | 0.578 |
+| 2010 | 0.752 | —     | 0.607 | 0.723 | 0.507 |
+| 2014 | 0.441 | 0.607 | —     | 0.526 | 0.521 |
+| 2018 | 0.708 | 0.723 | 0.526 | —     | 0.628 |
+| 2022 | 0.578 | 0.507 | 0.521 | 0.628 | —     |
+
+**Mean cross-year τ stability: r = 0.599**
+**Range: [0.441, 0.752]**
+
+### Comparison
+
+| Parameter | Mean Stability | Interpretation |
+|-----------|---------------|----------------|
+| τ (turnout) | r = 0.599 | Durable type property — worth modeling |
+| δ (choice) | r = 0.091 | Cycle noise — not worth modeling at type level |
+
+τ is ~7x more stable than δ across election cycles. This confirms that turnout
+engagement patterns (who shows up for off-cycle elections) are a genuine structural
+property of electoral types, while choice shifts (who they vote for when they
+show up) are driven by cycle-specific candidates and issues.

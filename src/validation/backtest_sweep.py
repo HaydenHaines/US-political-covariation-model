@@ -74,6 +74,116 @@ def _find_prior_presidential_year(target_year: int) -> int | None:
     return max(candidates) if candidates else None
 
 
+def build_blended_priors(
+    county_fips: list[str],
+    target_year: int,
+    prior_decay: float = 0.0,
+    assembled_dir: Path | None = None,
+) -> np.ndarray:
+    """Load and blend all prior presidential actuals before target_year.
+
+    Each historical election is weighted by exponential decay based on its
+    distance (in 4-year election cycles) from target_year:
+
+        weight_i = prior_decay ^ (distance_i / 4)
+
+    where distance_i = target_year - election_year_i (positive integer).
+
+    Weights are then normalized to sum to 1.
+
+    Special cases:
+    - prior_decay=0.0 → only the most recent election gets non-zero weight,
+      producing results identical to build_year_adaptive_priors().
+    - prior_decay=1.0 → all prior elections weighted equally.
+    - prior_decay=0.5 → 4 years back gets 0.5 weight relative to most recent.
+
+    Missing counties fall back to _FALLBACK_DEM_SHARE in each election's
+    data, so the blended value is a weighted average of whatever coverage
+    exists across the available election files.
+
+    Parameters
+    ----------
+    county_fips : list[str]
+        Zero-padded 5-digit FIPS codes defining the county ordering.
+    target_year : int
+        The election year being backtested. Only elections STRICTLY before
+        this year are included.
+    prior_decay : float
+        Exponential decay base in [0, 1].  See decay formula above.
+    assembled_dir : Path or None
+        Directory containing MEDSL presidential parquet files.
+
+    Returns
+    -------
+    ndarray of shape (N,)
+        Blended prior Dem share per county.
+    """
+    if assembled_dir is None:
+        assembled_dir = PROJECT_ROOT / "data" / "assembled"
+
+    # All prior years strictly before target_year, sorted ascending (oldest first).
+    prior_years = sorted(y for y in _PRESIDENTIAL_ACTUALS_YEARS if y < target_year)
+
+    if not prior_years:
+        log.warning(
+            "No presidential actuals before %d — falling back to %.2f for all counties",
+            target_year, _FALLBACK_DEM_SHARE,
+        )
+        return np.full(len(county_fips), _FALLBACK_DEM_SHARE)
+
+    # When prior_decay=0.0, only the most recent election contributes.
+    # This exactly replicates build_year_adaptive_priors() behavior.
+    if prior_decay == 0.0:
+        return build_year_adaptive_priors(county_fips, target_year, assembled_dir=assembled_dir)
+
+    # Compute unnormalized weights: w_i = prior_decay ^ ((target_year - year_i) / 4)
+    # The exponent is in election-cycle units (4 years = 1 cycle).
+    # More recent elections get a higher weight because their exponent is smaller.
+    distances = [target_year - y for y in prior_years]  # positive integers
+    raw_weights = np.array([prior_decay ** (d / 4) for d in distances], dtype=float)
+    weights = raw_weights / raw_weights.sum()
+
+    # Load per-year share arrays, blending as we go.
+    blended = np.zeros(len(county_fips), dtype=float)
+
+    for year, weight in zip(prior_years, weights):
+        path = assembled_dir / f"medsl_county_presidential_{year}.parquet"
+        share_col = f"pres_dem_share_{year}"
+
+        if not path.exists():
+            log.warning(
+                "Blended prior: file missing for %d (%s) — substituting %.2f for all counties",
+                year, path, _FALLBACK_DEM_SHARE,
+            )
+            blended += weight * _FALLBACK_DEM_SHARE
+            continue
+
+        df = pd.read_parquet(path)
+        df["county_fips"] = df["county_fips"].astype(str).str.zfill(5)
+
+        if share_col not in df.columns:
+            raise KeyError(
+                f"Expected column '{share_col}' not in {path}. Got: {df.columns.tolist()}"
+            )
+
+        fips_to_share = dict(zip(df["county_fips"], df[share_col]))
+        year_shares = np.array([
+            float(fips_to_share.get(f, _FALLBACK_DEM_SHARE))
+            if not pd.isna(fips_to_share.get(f, _FALLBACK_DEM_SHARE))
+            else _FALLBACK_DEM_SHARE
+            for f in county_fips
+        ])
+        blended += weight * year_shares
+
+    n_years = len(prior_years)
+    log.info(
+        "Blended priors for %d: decay=%.2f, %d prior elections %s, weights=%s",
+        target_year, prior_decay, n_years, prior_years,
+        [f"{w:.3f}" for w in weights],
+    )
+    return blended
+
+
 def build_year_adaptive_priors(
     county_fips: list[str],
     target_year: int,
@@ -193,6 +303,12 @@ def run_backtest_with_params(
           use_year_adaptive_priors (bool): Use prior-election actuals. Default False.
           use_local_preds (bool): Use county_preds_local (with δ_race) for
               per-race accuracy. Default True.
+          prior_decay (float): Exponential decay base for blending multiple
+              prior elections.  0.0 = most-recent-only (default).  1.0 =
+              equal weight across all prior elections.  Only used when
+              use_year_adaptive_priors=True.
+          half_life_days (float): Poll time-decay half-life in days.
+              Default 30.0.  Passed directly to run_forecast().
 
     Returns
     -------
@@ -206,6 +322,8 @@ def run_backtest_with_params(
     poll_blend_scale = params.get("poll_blend_scale", 5.0)
     use_year_adaptive = params.get("use_year_adaptive_priors", False)
     use_local = params.get("use_local_preds", True)
+    prior_decay = params.get("prior_decay", 0.0)
+    half_life_days = params.get("half_life_days", 30.0)
 
     # Load polls.
     polls_by_race = load_historic_polls(year, race_type)
@@ -225,9 +343,11 @@ def run_backtest_with_params(
     states = _county_metadata(county_fips)
     county_votes_arr = _load_county_votes(county_fips)
 
-    # Load county priors: year-adaptive or frozen Ridge.
+    # Load county priors: year-adaptive (single or blended) or frozen Ridge.
     if use_year_adaptive:
-        county_priors = build_year_adaptive_priors(county_fips, year)
+        # prior_decay > 0 → weighted blend of all prior elections.
+        # prior_decay == 0 → single most-recent election (original behavior).
+        county_priors = build_blended_priors(county_fips, year, prior_decay=prior_decay)
     else:
         # Frozen 2024 Ridge priors (same as default backtest_harness behavior).
         from src.prediction.county_priors import (
@@ -254,6 +374,7 @@ def run_backtest_with_params(
         w_vector_mode="core",
         reference_date=reference_date,
         poll_blend_scale=poll_blend_scale,
+        half_life_days=half_life_days,
     )
 
     # Load actuals and compute metrics.
@@ -554,6 +675,8 @@ def _quick_grid() -> tuple[dict[str, list], list[tuple[int, str]]]:
         "mu": [0.5, 1.0, 3.0],
         "poll_blend_scale": [3.0, 5.0, 10.0],
         "use_year_adaptive_priors": [True, False],
+        "prior_decay": [0.0, 0.3, 0.5],
+        "half_life_days": [15.0, 30.0, 60.0],
     }
     # Subset: 2 presidential + 2 senate + 1 governor = 5 elections.
     race_configs = [
@@ -573,6 +696,8 @@ def _full_grid() -> tuple[dict[str, list], list[tuple[int, str]]]:
         "mu": [0.1, 0.3, 0.5, 1.0, 2.0, 5.0],
         "poll_blend_scale": [2.0, 3.0, 5.0, 7.0, 10.0, 15.0],
         "use_year_adaptive_priors": [True, False],
+        "prior_decay": [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 1.0],
+        "half_life_days": [7.0, 14.0, 21.0, 30.0, 45.0, 60.0, 90.0],
     }
     return param_grid, _ALL_RACE_CONFIGS
 

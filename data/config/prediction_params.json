@@ -1,18 +1,18 @@
 {
   "_comment": "Hyperparameters for the type-primary forecast pipeline (predict_2026_types.py / forecast_engine.run_forecast).",
-  "_tuning_notes": "lam and mu were calibrated on 2026-04-01 via scripts/calibrate_lam_mu.py. See data/experiments/lam_mu_sweep_raw.csv and lam_mu_sweep_summary.csv for full results.",
-  "_lam_notes": "lam=3.0 set via 11-election backtest sweep (S531). Optimal in grid search over [0.5, 1, 2, 3, 5, 10] with year-adaptive priors. Mean backtest r=0.928 (up from 0.882 at lam=1). Higher lam trusts priors more, which is correct when year-adaptive priors closely match the target election cycle.",
-  "_mu_notes": "mu=1.0 retained. Calibration confirms mu has essentially zero impact on forecast RMSE across the full [0.1,20] sweep range. This is expected: delta_race is underdetermined when each race has only a handful of state-level polls. mu will matter more once richer within-state poll crosstabs are available (Tier 1 W vectors). Any positive value in [0.1,10] is valid for now.",
+  "_tuning_notes": "Full parameter sweep S532: 7056-row grid sweep + 528-row focused blending sweep across 11 historic elections (2008-2022). See data/experiments/backtest_sweep_20260408_235337.csv and focused_blending_sweep_*.csv.",
+  "_lam_notes": "lam=10.0 optimal via full sweep (S532). Higher lam trusts priors more — with year-adaptive priors closely matching the target cycle, strong prior regularization improves calibration. lam matters less than pbs: within pbs=15, lam=10 vs lam=5 is only +0.001 r.",
+  "_mu_notes": "mu=1.0 retained. Confirmed irrelevant — identical results across all mu values in full sweep. delta_race underdetermined with sparse state-level polls.",
   "_w_vector_mode_notes": "core vs full modes produce identical results until method_reach_profiles gains entries for phone_live, phone_ivr, and unknown methodologies. See Known Tech Debt in CLAUDE.md.",
   "forecast": {
-    "lam": 3.0,
+    "lam": 10.0,
     "mu": 1.0,
     "w_vector_mode": "core",
     "poll_blend_scale": 15.0,
-    "_poll_blend_scale_notes": "k in alpha = 1/(1 + n_polls/k). Controls blend between county priors (few polls) and type-projected predictions (many polls). k=15 optimal via full 7056-row backtest sweep (S532). pbs=15 dominates pbs=10 across ALL lam/adaptive combinations (+0.5-1% r). At k=15, 15 polls → 50/50 blend. Higher k trusts county priors longer, reducing type-compression artifacts."
+    "_poll_blend_scale_notes": "k in alpha = 1/(1 + n_polls/k). Controls blend between county priors (few polls) and type-projected predictions (many polls). k=15 optimal — dominates k=10 across ALL lam/adaptive combinations (+0.5-1% r). Biggest single lever in the sweep."
   },
   "poll_weighting": {
-    "_half_life_notes": "Exponential decay half-life in days. At 30 days a poll loses half its effective weight. Shorter values prioritize recency; longer values retain more historical polling signal. Calibrate via scripts/experiments/sweep_poll_half_life.py.",
+    "_half_life_notes": "Exponential decay half-life in days. At 30 days a poll loses half its effective weight. Backtest sweep found half_life_days has zero differentiating effect on historic elections — likely due to sparse temporal poll coverage in backtests. Retained at 30 as a reasonable default for 2026 forward predictions where polls are dense.",
     "_pre_primary_discount_notes": "Multiplicative factor applied to n_sample for polls conducted before the primary. Pre-primary polls are less informative about general election matchups. Must be in (0, 1]. 0.5 = pre-primary polls count for half.",
     "_use_pollster_rmse_weights_notes": "When true, pollster quality is weighted by empirical RMSE from data/experiments/pollster_accuracy.json (backtest results) rather than Silver Bulletin grades. RMSE weights replace grade-based weights for any pollster found in the accuracy file; grade-based weights remain as fallback for unknown pollsters.",
     "_methodology_weights_notes": "Multiplicative n_sample adjustment by survey mode. Phone live-interview polls are empirically most accurate; IVR (robocall) polls have the worst track record. Applied multiplicatively on top of RMSE/Silver Bulletin/grade quality weights. unknown = neutral 1.0. Calibrate from pollster accuracy backtests by methodology group.",

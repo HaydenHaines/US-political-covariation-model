@@ -1,8 +1,8 @@
-"""2026 predictions using type structure (type-primary pipeline).
+"""Type-primary forecast pipeline.
 
 Loads type assignments, type covariance, county-level historical baselines,
 and polls. Performs Gaussian Bayesian update through type structure to produce
-county-level 2026 predictions.
+county-level predictions.
 
 Key design: county-level priors, type-level covariance.
   - Each county's prior prediction = its own historical baseline (mean Dem share)
@@ -10,7 +10,19 @@ Key design: county-level priors, type-level covariance.
   - The Bayesian update shifts type means; the shift propagates to counties via
     type scores, but is added to county baselines (not type baselines)
 
-Inputs:
+Public API (for backtest harness and other callers):
+  - ForecastParams: dataclass holding all hyperparameters
+  - load_forecast_params(): load ForecastParams from prediction_params.json
+  - load_type_data(): load type assignments, covariance, and priors
+  - load_county_metadata(): derive state abbreviations and county names
+  - load_county_votes(): load vote counts for W vector construction
+  - load_polls(): load and prepare poll data
+  - run_forecast_pipeline(): run the full pipeline with custom parameters
+
+Convenience entry point:
+  - run(): loads defaults from disk and calls run_forecast_pipeline()
+
+Default data paths (used by run()):
   data/communities/type_assignments.parquet       — county type scores
   data/covariance/type_covariance.parquet          — J x J covariance
   data/communities/type_profiles.parquet           — type demographic profiles
@@ -24,6 +36,7 @@ from __future__ import annotations
 
 import json
 import logging
+from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -48,60 +61,98 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # State FIPS -> abbreviation (all 50 states + DC, sourced from config/model.yaml)
 _STATE_FIPS_TO_ABBR: dict[str, str] = _cfg.STATE_ABBR
 
+
 # ---------------------------------------------------------------------------
-# Forecast hyperparameters — loaded from data/config/prediction_params.json.
-# lam: θ_national regularization strength. Calibrated 2026-04-01 via
-#      scripts/calibrate_lam_mu.py. lam=1.0 retained (see prediction_params.json
-#      for full calibration notes). Sweep range [0.1, 20]; RMSE improvement is
-#      monotonic but small (~0.0001) and is a validation-data artifact.
-# mu:  δ_race regularization strength. Calibrated 2026-04-01. mu has no
-#      measurable impact on RMSE across [0.1, 20] — delta_race is underdetermined
-#      with state-level polls only. mu=1.0 retained.
-# w_vector_mode: W vector construction tier ("core" vs "full" — benchmark first)
+# ForecastParams — all hyperparameters in one place for parameterized runs.
 # ---------------------------------------------------------------------------
-_PARAMS_PATH = PROJECT_ROOT / "data" / "config" / "prediction_params.json"
-_all_params: dict = json.loads(_PARAMS_PATH.read_text())
-_forecast_params: dict = _all_params["forecast"]
-_LAM: float = _forecast_params["lam"]
-_MU: float = _forecast_params["mu"]
-_W_VECTOR_MODE: str = _forecast_params["w_vector_mode"]
-_POLL_BLEND_SCALE: float = float(_forecast_params.get("poll_blend_scale", 5.0))
 
-# Poll weighting hyperparameters.  These live in prediction_params.json so they
-# can be swept via scripts/experiments/sweep_poll_half_life.py without touching
-# source code.  Function-level defaults in poll_decay.py serve as fallbacks.
-_poll_weighting_params: dict = _all_params.get("poll_weighting", {})
-_HALF_LIFE_DAYS: float = float(_poll_weighting_params.get("half_life_days", 30.0))
-_PRE_PRIMARY_DISCOUNT: float = float(_poll_weighting_params.get("pre_primary_discount", 0.5))
-# When True, use empirical RMSE data from pollster_accuracy.json to weight polls.
-# Falls back to Silver Bulletin / 538-grade weights for unknown pollsters.
-_USE_POLLSTER_RMSE_WEIGHTS: bool = bool(_poll_weighting_params.get("use_pollster_rmse_weights", True))
-_ACCURACY_PATH: Path | None = (
-    PROJECT_ROOT / "data" / "experiments" / "pollster_accuracy.json"
-    if _USE_POLLSTER_RMSE_WEIGHTS
-    else None
-)
-# Methodology-based quality multipliers.  Loaded from prediction_params.json so
-# weights can be updated without code changes.  Falls back to module defaults.
-from src.propagation.poll_methodology import (  # noqa: E402
-    _DEFAULT_METHODOLOGY_WEIGHTS,
-    load_methodology_weights,
-)
+@dataclass
+class ForecastParams:
+    """All forecast hyperparameters needed by the pipeline.
 
-_METHODOLOGY_WEIGHTS: dict[str, float] = (
-    load_methodology_weights(_PARAMS_PATH)
-    if _poll_weighting_params.get("methodology_weights")
-    else dict(_DEFAULT_METHODOLOGY_WEIGHTS)
-)
-# Fundamentals model configuration.  When enabled, the structural fundamentals
-# shift is blended with the generic ballot shift to produce a combined national
-# environment prior.  Weight of 0.0 = pure GB (old behavior), 1.0 = pure fundamentals.
-_fundamentals_params: dict = _all_params.get("fundamentals", {})
-_FUNDAMENTALS_ENABLED: bool = bool(_fundamentals_params.get("enabled", False))
-_FUNDAMENTALS_WEIGHT: float = float(_fundamentals_params.get("fundamentals_weight", 0.3))
+    Load from disk with ``load_forecast_params()``, or construct directly
+    to override values (e.g., in backtests or parameter sweeps).
+    """
+
+    # θ_national regularization strength.  Higher values trust priors more.
+    lam: float = 1.0
+    # δ_race regularization strength.  Largely irrelevant with sparse state polls.
+    mu: float = 1.0
+    # W vector construction tier ("core" vs "full").
+    w_vector_mode: str = "core"
+    # Controls blend between county priors (few polls) and type-projected
+    # predictions (many polls).  k in alpha = 1/(1 + n_polls/k).
+    poll_blend_scale: float = 5.0
+
+    # Poll weighting
+    half_life_days: float = 30.0
+    pre_primary_discount: float = 0.5
+    accuracy_path: Path | None = None
+    methodology_weights: dict[str, float] = field(default_factory=dict)
+
+    # Fundamentals blending
+    fundamentals_enabled: bool = False
+    fundamentals_weight: float = 0.3
 
 
-def _load_type_data() -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
+def load_forecast_params(
+    params_path: Path | None = None,
+) -> ForecastParams:
+    """Load forecast parameters from prediction_params.json.
+
+    Parameters
+    ----------
+    params_path : Path or None
+        Path to prediction_params.json.  Defaults to
+        ``PROJECT_ROOT / "data" / "config" / "prediction_params.json"``.
+
+    Returns
+    -------
+    ForecastParams
+        Populated dataclass with all hyperparameters.
+    """
+    if params_path is None:
+        params_path = PROJECT_ROOT / "data" / "config" / "prediction_params.json"
+
+    all_params: dict = json.loads(params_path.read_text())
+    forecast_section: dict = all_params["forecast"]
+    poll_section: dict = all_params.get("poll_weighting", {})
+    fund_section: dict = all_params.get("fundamentals", {})
+
+    use_rmse = bool(poll_section.get("use_pollster_rmse_weights", True))
+    accuracy_path: Path | None = (
+        PROJECT_ROOT / "data" / "experiments" / "pollster_accuracy.json"
+        if use_rmse
+        else None
+    )
+
+    # Methodology weights: load from JSON if present, else use module defaults.
+    from src.propagation.poll_methodology import (
+        _DEFAULT_METHODOLOGY_WEIGHTS,
+        load_methodology_weights,
+    )
+
+    methodology_weights: dict[str, float] = (
+        load_methodology_weights(params_path)
+        if poll_section.get("methodology_weights")
+        else dict(_DEFAULT_METHODOLOGY_WEIGHTS)
+    )
+
+    return ForecastParams(
+        lam=float(forecast_section["lam"]),
+        mu=float(forecast_section["mu"]),
+        w_vector_mode=str(forecast_section["w_vector_mode"]),
+        poll_blend_scale=float(forecast_section.get("poll_blend_scale", 5.0)),
+        half_life_days=float(poll_section.get("half_life_days", 30.0)),
+        pre_primary_discount=float(poll_section.get("pre_primary_discount", 0.5)),
+        accuracy_path=accuracy_path,
+        methodology_weights=methodology_weights,
+        fundamentals_enabled=bool(fund_section.get("enabled", False)),
+        fundamentals_weight=float(fund_section.get("fundamentals_weight", 0.3)),
+    )
+
+
+def load_type_data() -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
     """Load type assignments, covariance, and priors from disk.
 
     Returns
@@ -141,7 +192,7 @@ def _load_type_data() -> tuple[list[str], np.ndarray, np.ndarray, np.ndarray]:
     return county_fips, type_scores, type_covariance, type_priors
 
 
-def _load_county_metadata(county_fips: list[str]) -> tuple[list[str], list[str]]:
+def load_county_metadata(county_fips: list[str]) -> tuple[list[str], list[str]]:
     """Derive state abbreviations and county names from FIPS codes.
 
     Returns
@@ -162,7 +213,7 @@ def _load_county_metadata(county_fips: list[str]) -> tuple[list[str], list[str]]
     return states, county_names
 
 
-def _load_county_votes(county_fips: list[str]) -> np.ndarray:
+def load_county_votes(county_fips: list[str]) -> np.ndarray:
     """Load 2024 total vote counts per county for vote-weighted W construction.
 
     Falls back to equal weight (1.0 per county) if the file is unavailable.
@@ -180,10 +231,19 @@ def _load_county_votes(county_fips: list[str]) -> np.ndarray:
     return county_votes
 
 
-def _load_polls(
+def load_polls(
     county_fips: list[str],
+    polls_path: Path | None = None,
 ) -> tuple[dict[str, list[dict]], dict[str, list[tuple[float, int, str]]]]:
-    """Load and prepare state-level polls from polls_2026.csv.
+    """Load and prepare state-level polls from a CSV file.
+
+    Parameters
+    ----------
+    county_fips : list[str]
+        County FIPS codes (used for context; not directly filtered).
+    polls_path : Path or None
+        Path to the polls CSV.  Defaults to
+        ``PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"``.
 
     Returns
     -------
@@ -192,7 +252,8 @@ def _load_polls(
     poll_lookup : dict[str, list[tuple]]
         Legacy format used for unmatched-race warnings.
     """
-    polls_path = PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
+    if polls_path is None:
+        polls_path = PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
     log.info("Loading polls from %s", polls_path)
     polls = pd.read_csv(polls_path)
 
@@ -258,9 +319,61 @@ def _load_polls(
     return polls_by_race, poll_lookup
 
 
-def run() -> None:
-    """Load inputs from data/ and produce type-based 2026 predictions."""
-    county_fips, type_scores, type_covariance, type_priors = _load_type_data()
+def run_forecast_pipeline(
+    *,
+    year: int = 2026,
+    params: ForecastParams | None = None,
+    polls_path: Path | None = None,
+    output_path: Path | None = None,
+    reference_date: str | None = None,
+    include_baseline: bool = True,
+) -> pd.DataFrame:
+    """Run the full type-primary forecast pipeline with configurable parameters.
+
+    This is the primary public entry point for producing county-level forecasts.
+    It loads type data, county priors, polls, and fundamentals, then runs the
+    hierarchical forecast engine for all registered races.
+
+    Parameters
+    ----------
+    year : int
+        Election year.  Used to load the race registry (``load_races(year)``).
+    params : ForecastParams or None
+        Forecast hyperparameters.  When None, loads defaults from
+        ``prediction_params.json`` via ``load_forecast_params()``.
+    polls_path : Path or None
+        Path to the polls CSV.  Defaults to ``data/polls/polls_{year}.csv``.
+    output_path : Path or None
+        Where to write the output parquet.  When None, writes to
+        ``data/predictions/county_predictions_{year}_types.parquet``.
+        Pass ``Path("/dev/null")`` to skip writing entirely.
+    reference_date : str or None
+        ISO date string for poll time-decay weighting.  Defaults to today.
+    include_baseline : bool
+        Whether to include a "baseline" race row (county priors with no polls).
+
+    Returns
+    -------
+    pd.DataFrame
+        County-level predictions with columns: county_fips, state,
+        county_name, pred_dem_share, race, forecast_mode.
+    """
+    if params is None:
+        params = load_forecast_params()
+
+    if polls_path is None:
+        polls_path = PROJECT_ROOT / "data" / "polls" / f"polls_{year}.csv"
+
+    if output_path is None:
+        output_path = (
+            PROJECT_ROOT / "data" / "predictions"
+            / f"county_predictions_{year}_types.parquet"
+        )
+
+    if reference_date is None:
+        reference_date = str(date.today())
+
+    county_fips, type_scores, type_covariance, type_priors = load_type_data()
 
     # Load race-type-specific county priors.  Governor races use priors trained
     # on governor outcomes; Senate and other races use presidential priors.
@@ -270,9 +383,9 @@ def run() -> None:
     county_prior_values_pres = load_county_priors_with_ridge(county_fips)
     county_prior_values_gov = load_county_priors_with_ridge_governor(county_fips)
 
-    states, county_names = _load_county_metadata(county_fips)
-    county_votes = _load_county_votes(county_fips)
-    polls_by_race, poll_lookup = _load_polls(county_fips)
+    states, county_names = load_county_metadata(county_fips)
+    county_votes = load_county_votes(county_fips)
+    polls_by_race, poll_lookup = load_polls(county_fips, polls_path=polls_path)
 
     # Behavior layer (τ/δ) is DISABLED pending a more sophisticated integration.
     # Backtest (governor-backtest-2022-S492.md) showed the flat δ adjustment REDUCES
@@ -334,11 +447,11 @@ def run() -> None:
     # unemployment, CPI).  The combined shift is:
     #   shift = w * fundamentals + (1 - w) * generic_ballot
     # where w = fundamentals_weight from prediction_params.json.
-    if _FUNDAMENTALS_ENABLED:
+    if params.fundamentals_enabled:
         try:
             snapshot = load_fundamentals_snapshot()
             fund_info = compute_fundamentals_shift(snapshot)
-            w = _FUNDAMENTALS_WEIGHT
+            w = params.fundamentals_weight
             combined_shift = w * fund_info.shift + (1 - w) * gb_shift
             log.info(
                 "Fundamentals shift: %+.1f pp (LOO RMSE=%.1f pp, weight=%.0f%%)",
@@ -361,7 +474,7 @@ def run() -> None:
     # run_forecast() twice — once per prior set — then merge results.
     from src.assembly.define_races import load_races
 
-    registry = load_races(2026)
+    registry = load_races(year)
     all_race_ids = [r.race_id for r in registry]
     governor_race_ids = [r.race_id for r in registry if r.race_type == "governor"]
     non_governor_race_ids = [r.race_id for r in registry if r.race_type != "governor"]
@@ -374,23 +487,23 @@ def run() -> None:
     )
 
     # Build the shared kwargs to avoid repetition.
-    _shared_forecast_kwargs = dict(
+    shared_forecast_kwargs = dict(
         type_scores=type_scores,
         states=states,
         county_votes=county_votes,
         polls_by_race=polls_by_race,
-        lam=_LAM,
-        mu=_MU,
+        lam=params.lam,
+        mu=params.mu,
         generic_ballot_shift=gb_shift,
-        w_vector_mode=_W_VECTOR_MODE,
-        reference_date=str(date.today()),
+        w_vector_mode=params.w_vector_mode,
+        reference_date=reference_date,
         type_profiles=type_profiles_df,
-        half_life_days=_HALF_LIFE_DAYS,
-        pre_primary_discount=_PRE_PRIMARY_DISCOUNT,
-        accuracy_path=_ACCURACY_PATH,
-        methodology_weights=_METHODOLOGY_WEIGHTS,
+        half_life_days=params.half_life_days,
+        pre_primary_discount=params.pre_primary_discount,
+        accuracy_path=params.accuracy_path,
+        methodology_weights=params.methodology_weights,
         state_population_vectors=state_population_vectors,
-        poll_blend_scale=_POLL_BLEND_SCALE,
+        poll_blend_scale=params.poll_blend_scale,
     )
 
     forecast_results: dict = {}
@@ -401,7 +514,7 @@ def run() -> None:
         gov_results = run_forecast(
             county_priors=county_prior_values_gov,
             races=governor_race_ids,
-            **_shared_forecast_kwargs,
+            **shared_forecast_kwargs,
         )
         forecast_results.update(gov_results)
 
@@ -411,7 +524,7 @@ def run() -> None:
         other_results = run_forecast(
             county_priors=county_prior_values_pres,
             races=non_governor_race_ids,
-            **_shared_forecast_kwargs,
+            **shared_forecast_kwargs,
         )
         forecast_results.update(other_results)
 
@@ -438,22 +551,40 @@ def run() -> None:
     # Generate baseline: county Ridge priors without polls or GB shift.
     # With residual blending, baseline = priors + W @ (θ_prior - θ_prior) = priors.
     # This is the correct structural baseline: each county's own historical lean.
-    baseline_preds = county_prior_values_pres
-    all_predictions.append(pd.DataFrame({
-        "county_fips": county_fips,
-        "state": states,
-        "county_name": county_names,
-        "pred_dem_share": baseline_preds,
-        "race": "baseline",
-        "forecast_mode": "national",
-    }))
+    if include_baseline:
+        baseline_preds = county_prior_values_pres
+        all_predictions.append(pd.DataFrame({
+            "county_fips": county_fips,
+            "state": states,
+            "county_name": county_names,
+            "pred_dem_share": baseline_preds,
+            "race": "baseline",
+            "forecast_mode": "national",
+        }))
 
     output = pd.concat(all_predictions, ignore_index=True) if all_predictions else pd.DataFrame()
 
-    out_path = PROJECT_ROOT / "data" / "predictions" / "county_predictions_2026_types.parquet"
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    output.to_parquet(out_path, index=False)
-    log.info("Saved %d predictions to %s", len(output), out_path)
+    # Write output if a real path was given (not /dev/null).
+    if str(output_path) != "/dev/null":
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output.to_parquet(output_path, index=False)
+        log.info("Saved %d predictions to %s", len(output), output_path)
+
+    return output
+
+
+def run() -> None:
+    """Load inputs from data/ and produce type-based 2026 predictions.
+
+    Convenience wrapper around ``run_forecast_pipeline()`` with defaults
+    for 2026.  Prints summary statistics to stdout.
+    """
+    output = run_forecast_pipeline(year=2026)
+
+    out_path = (
+        PROJECT_ROOT / "data" / "predictions"
+        / "county_predictions_2026_types.parquet"
+    )
     print(f"Saved {len(output)} county predictions to {out_path}")
 
     if len(output):

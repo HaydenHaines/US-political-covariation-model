@@ -140,6 +140,7 @@ election:
   - 2018
   - 2020
   - 2022
+  - 2024
   senate_pairs:
   - - 2002
     - 2008
@@ -157,6 +158,8 @@ election:
     - 2020
   - - 2016
     - 2022
+  - - 2018
+    - 2024
   presidential_pairs:
   - - 2000
     - 2004
@@ -301,4 +304,5 @@ data:
     '18': medsl_county_senate_2018.parquet
     '20': medsl_county_senate_2020.parquet
     '22': medsl_county_senate_2022.parquet
+    '24': medsl_county_senate_2024.parquet
   spine_file: medsl_county_presidential_2024.parquet

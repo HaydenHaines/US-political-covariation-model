@@ -1,6 +1,11 @@
-"""Fetch county-level U.S. Senate returns for FL, GA, AL.
+"""Fetch county-level U.S. Senate returns nationally (all 50 states + DC).
 
 Data sources by year:
+  2024: MEDSL 2024-elections-official GitHub repo (per-state precinct ZIPs)
+        https://github.com/MEDSL/2024-elections-official/tree/main/individual_states
+        Same source used for presidential 2024 data (fetch_2024_president.py).
+        Each ZIP contains multi-office precinct-level CSVs; we filter to Senate
+        and aggregate to county.
   2022: MEDSL county-level results
         doi:10.7910/DVN/YB60EJ  (senate_2022.tab, has county_fips)
   2016/2018/2020: VEST Senate Precinct-Level Returns, aggregated to county
@@ -14,23 +19,6 @@ Data sources by year:
         Not every state has a Senate race every cycle (each seat is contested
         every 6 years), so some year-state combos produce 0 counties — correct.
 
-Senate seats per state in this model:
-  FL  Class I   (2000, 2006, 2012, 2018, 2024)  Nelson/Scott seat
-  FL  Class III (2004, 2010, 2016, 2022)         Martinez/Rubio seat
-  GA  Class II  (2002, 2008, 2014, 2020)         Cleland/Warnock seat
-  GA  Class III (2004, 2010, 2016, 2022)         Miller/Ossoff seat
-  AL  Class II  (2002, 2008, 2014, 2020)         Sessions/Jones seat
-  AL  Class III (2004, 2010, 2016, 2022)         Shelby seat
-
-So for 2002-2014:
-  2002: GA Class II + AL Class II → county data expected
-  2004: FL Class III + GA Class III + AL Class III → county data expected
-  2006: FL Class I → county data expected
-  2008: GA Class II + AL Class II → county data expected
-  2010: FL Class III + GA Class III + AL Class III → county data expected
-  2012: FL Class I → county data expected
-  2014: GA Class II + AL Class II → county data expected
-
 NOTE: Multiple Senate races may exist in the same state-year (e.g. GA 2020
 special + regular). When that happens candidatevotes are summed across races
 per county. This produces a blended dem_share weighted by turnout.
@@ -41,6 +29,7 @@ Output (one parquet per election year, data/assembled/):
            senate_total_{year}, senate_dem_share_{year}
 
 Caches:
+  data/raw/medsl/2024/{abbr}24.zip  (per-state MEDSL 2024 precinct ZIPs)
   data/raw/medsl/senate_2022.tab
   data/raw/medsl/senate_precinct_2016.tab
   data/raw/medsl/senate_precinct_2018.tab
@@ -50,6 +39,7 @@ Caches:
 from __future__ import annotations
 
 import logging
+import zipfile
 from pathlib import Path
 
 import pandas as pd
@@ -67,7 +57,7 @@ ASSEMBLED_DIR = PROJECT_ROOT / "data" / "assembled"
 DATAVERSE_API = "https://dataverse.harvard.edu/api"
 
 STATES: dict[str, str] = _cfg.STATE_ABBR   # fips_prefix → abbr  e.g. "12" → "FL"
-STATE_PO_SET: set[str] = set(STATES.values())  # {"FL", "GA", "AL"}
+STATE_PO_SET: set[str] = set(STATES.values())  # all 50 states + DC
 
 # Public constants consumed by tests and downstream modules
 SENATE_YEARS: list[int] = _cfg.SENATE_YEARS
@@ -93,6 +83,19 @@ ALGARA_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "algara_amlani"
 ALGARA_SENATE_FILE_ID = 5028534
 ALGARA_SENATE_FILENAME = "dataverse_shareable_us_senate_county_returns_1908_2020.Rdata"
 ALGARA_SENATE_CACHE = ALGARA_RAW_DIR / ALGARA_SENATE_FILENAME
+
+# MEDSL 2024-elections-official GitHub repo (per-state precinct ZIPs).
+# Same ZIP files used by fetch_2024_president.py — they contain all offices
+# including Senate.  We reuse the same cache directory to avoid double-downloading.
+MEDSL_2024_BASE_URL = (
+    "https://github.com/MEDSL/2024-elections-official/raw/main/individual_states"
+)
+MEDSL_2024_RAW_DIR = PROJECT_ROOT / "data" / "raw" / "medsl" / "2024"
+# Build per-state ZIP info from config: abbr → (zip_filename, fips_prefix)
+MEDSL_2024_STATES: dict[str, tuple[str, str]] = {
+    abbr: (f"{abbr.lower()}24.zip", fips)
+    for abbr, fips in _cfg.STATES.items()
+}
 
 
 # ── Download helpers ───────────────────────────────────────────────────────────
@@ -204,7 +207,7 @@ def _aggregate_to_county(df: pd.DataFrame, year: int) -> pd.DataFrame:
 # ── Public-API wrappers (used by tests and build_county_shifts_multiyear) ──────
 
 def filter_senate_rows(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep only D/R U.S. Senate rows for FL, GA, AL.
+    """Keep only D/R U.S. Senate rows for all configured states (50 + DC).
 
     Expects columns: office, party_simplified, state_po (or state_postal for
     2016 VEST).  This is the public-API entry-point used by test_senate.py and
@@ -283,7 +286,7 @@ def fetch_2022() -> pd.DataFrame:
     df = pd.read_csv(path, sep="\t", low_memory=False)
     log.info("2022 MEDSL raw rows: %d", len(df))
 
-    # Filter to FL/GA/AL, US Senate, D/R, general election, TOTAL mode
+    # Filter to configured states, US Senate, D/R, general election, TOTAL mode
     mask = (
         (df["state_po"].isin(STATE_PO_SET))
         & (df["office"].str.upper().str.contains("SENATE"))
@@ -314,6 +317,185 @@ def fetch_2022() -> pd.DataFrame:
     # Add year column expected by _aggregate_to_county
     df["year"] = 2022
     return _aggregate_to_county(df, 2022)
+
+
+# ── 2024 MEDSL GitHub per-state precinct ZIPs ────────────────────────────────
+
+
+def _download_2024_zip(state_abbr: str, filename: str) -> Path | None:
+    """Download a per-state MEDSL 2024 ZIP from GitHub. Returns path or None on 404.
+
+    Reuses the same cache directory as fetch_2024_president.py, so ZIPs that
+    were already downloaded for presidential data won't be re-downloaded.
+    """
+    dest = MEDSL_2024_RAW_DIR / filename
+    if dest.exists():
+        log.info("  Cached: %s", dest.name)
+        return dest
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    url = f"{MEDSL_2024_BASE_URL}/{filename}"
+    log.info("  Downloading %s ...", url)
+    try:
+        resp = requests.get(url, stream=True, timeout=120)
+        resp.raise_for_status()
+    except requests.HTTPError:
+        log.warning("  %s: HTTP error downloading %s — skipping", state_abbr, url)
+        return None
+
+    with open(dest, "wb") as fh:
+        for chunk in resp.iter_content(chunk_size=65536):
+            fh.write(chunk)
+    log.info("  Saved → %s (%.1f MB)", dest, dest.stat().st_size / 1e6)
+    return dest
+
+
+def _load_2024_zip_csv(zip_path: Path) -> pd.DataFrame:
+    """Read the precinct-level CSV from a MEDSL 2024 state ZIP.
+
+    2024 repo stores files without .csv extension inside the ZIP (e.g. 'fl24'
+    not 'fl24.csv').  Falls back to the first non-directory entry.
+    """
+    with zipfile.ZipFile(zip_path) as zf:
+        csv_files = [n for n in zf.namelist() if n.endswith(".csv")]
+        if not csv_files:
+            csv_files = [n for n in zf.namelist() if not zf.getinfo(n).is_dir()]
+        if not csv_files:
+            raise FileNotFoundError(f"No data file in {zip_path}")
+        with zf.open(csv_files[0]) as f:
+            df = pd.read_csv(f, low_memory=False)
+    # Coerce vote columns — some states store as strings
+    for col in ("votes", "totalvotes", "candidatevotes"):
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    return df
+
+
+def _extract_senate_from_2024_precinct(
+    df: pd.DataFrame, state_abbr: str
+) -> pd.DataFrame:
+    """Filter 2024 precinct data to US Senate general election and aggregate to county.
+
+    Uses the same office/stage/writein filter logic as fetch_2024_president.py
+    but targets Senate instead of President.  Mode dedup (TOTAL vs per-mode)
+    follows the standard MEDSL pattern.
+
+    Returns a long-form DataFrame with columns:
+      county_fips, party_simplified, candidatevotes
+    ready for _aggregate_to_county.  Returns empty DataFrame if no Senate rows
+    exist for this state (not every state has a Senate race in 2024).
+    """
+    # Required columns — if missing, state file has unexpected schema
+    required = {"office", "county_fips"}
+    if not required.issubset(df.columns):
+        log.warning("  %s: missing required columns %s — skipping", state_abbr, required - set(df.columns))
+        return pd.DataFrame()
+
+    # Filter to US Senate general election rows (exclude state senate, specials).
+    # stage may not exist in all state files — when absent, include all rows.
+    mask = (
+        (df["office"].str.upper().str.contains("SENATE", na=False))
+        & (~df["office"].str.upper().str.contains("STATE", na=False))
+    )
+    if "stage" in df.columns:
+        mask &= df["stage"].str.lower().str.strip().isin({"gen", "general"})
+    if "writein" in df.columns:
+        mask &= ~df["writein"].fillna(False).astype(str).str.upper().str.strip().isin({"TRUE", "1"})
+
+    senate = df[mask].copy()
+    if senate.empty:
+        # No Senate race in this state for 2024 — perfectly normal (Class I/II/III cycle)
+        return pd.DataFrame()
+
+    log.info("  %s: %d Senate precinct rows before mode dedup", state_abbr, len(senate))
+
+    # Mode dedup: prefer TOTAL rows if they exist; otherwise sum across all modes
+    if "mode" in senate.columns:
+        modes = senate["mode"].str.upper().unique()
+        if "TOTAL" in modes:
+            senate = senate[senate["mode"].str.upper() == "TOTAL"]
+            log.info("  Using TOTAL mode rows only (%d rows)", len(senate))
+
+    # Normalise party column — 2024 data uses 'party_simplified'
+    if "party_simplified" not in senate.columns and "party" in senate.columns:
+        senate["party_simplified"] = senate["party"].fillna("OTHER").str.upper().str.strip()
+    elif "party_simplified" in senate.columns:
+        senate["party_simplified"] = senate["party_simplified"].fillna("OTHER").str.upper().str.strip()
+    else:
+        log.warning("  %s: no party column found — skipping", state_abbr)
+        return pd.DataFrame()
+
+    # Normalise party names (DEMOCRATIC → DEMOCRAT, etc.)
+    party_map = {"DEMOCRATIC": "DEMOCRAT", "DEM": "DEMOCRAT", "REP": "REPUBLICAN"}
+    senate["party_simplified"] = senate["party_simplified"].replace(party_map)
+
+    # Use 'votes' as candidatevotes if the column name differs
+    vote_col = "candidatevotes" if "candidatevotes" in senate.columns else "votes"
+    if vote_col not in senate.columns:
+        log.warning("  %s: no vote column found — skipping", state_abbr)
+        return pd.DataFrame()
+
+    # Zero-pad county_fips
+    senate["county_fips"] = (
+        senate["county_fips"]
+        .astype(str)
+        .str.replace(r"\.0$", "", regex=True)
+        .str.zfill(5)
+    )
+
+    # Aggregate to county × party (summing across precincts and any multi-race rows)
+    agg = (
+        senate.groupby(["county_fips", "party_simplified"])[vote_col]
+        .sum()
+        .reset_index()
+        .rename(columns={vote_col: "candidatevotes"})
+    )
+    log.info(
+        "  %s 2024 Senate: %d county-party rows (%d counties)",
+        state_abbr, len(agg), agg["county_fips"].nunique(),
+    )
+    return agg
+
+
+def fetch_2024() -> pd.DataFrame:
+    """Download MEDSL 2024 per-state ZIPs and aggregate Senate results to county.
+
+    Iterates over all states in config.  States without a Senate race in 2024
+    are silently skipped (expected — only ~33 states have a Senate race each cycle).
+    States whose ZIP file is unavailable (HTTP 404) are also skipped with a warning.
+
+    Returns a single aggregated DataFrame with the standard county-level columns
+    for 2024, or an empty DataFrame if no data could be loaded.
+    """
+    frames: list[pd.DataFrame] = []
+
+    for state_abbr, (filename, _fips) in MEDSL_2024_STATES.items():
+        zip_path = _download_2024_zip(state_abbr, filename)
+        if zip_path is None:
+            continue
+
+        try:
+            raw = _load_2024_zip_csv(zip_path)
+        except Exception as exc:
+            log.error("  %s: failed to read ZIP — %s", state_abbr, exc)
+            continue
+
+        county_party = _extract_senate_from_2024_precinct(raw, state_abbr)
+        if county_party.empty:
+            continue
+
+        frames.append(county_party)
+
+    if not frames:
+        log.warning("2024: no Senate data loaded from any state")
+        return pd.DataFrame(columns=[
+            "county_fips", "state_abbr",
+            "senate_dem_2024", "senate_rep_2024",
+            "senate_total_2024", "senate_dem_share_2024",
+        ])
+
+    combined = pd.concat(frames, ignore_index=True)
+    return _aggregate_to_county(combined, 2024)
 
 
 # ── VEST precinct-level (2016/2018/2020) ──────────────────────────────────────
@@ -354,7 +536,7 @@ def _normalise_vest_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _build_vest_row_mask(df: pd.DataFrame) -> "pd.Series":
-    """Build boolean mask selecting FL/GA/AL US Senate general-election rows.
+    """Build boolean mask selecting US Senate general-election rows.
 
     Excludes state-level senate races (contains "STATE"), filters to the
     state set, and optionally filters by stage and writein columns.
@@ -373,7 +555,7 @@ def _build_vest_row_mask(df: pd.DataFrame) -> "pd.Series":
 
 
 def _filter_vest_senate(df: pd.DataFrame, year: int) -> pd.DataFrame:
-    """Filter VEST precinct data to FL/GA/AL US Senate all-candidate general rows.
+    """Filter VEST precinct data to US Senate all-candidate general rows.
 
     Returns one row per (county_fips, party_simplified) with summed candidatevotes.
     Keeps ALL party rows (not just D/R) so _aggregate_to_county uses total-vote
@@ -493,13 +675,13 @@ def fetch_algara_historical(years: list[int] | None = None) -> dict[int, "pd.Dat
     ----------
     years:
         Election years to process. Defaults to 2002-2014 (the years not covered
-        by VEST or MEDSL county-level data).  Years where no FL/GA/AL race ran
+        by VEST or MEDSL county-level data).  Years where no state had a race
         will return an empty DataFrame (not an error).
 
     Returns
     -------
     dict mapping year → aggregated county DataFrame (may be empty for years
-    with no contested races in FL/GA/AL).
+    with no contested races in the configured states).
     """
     if years is None:
         years = [2002, 2004, 2006, 2008, 2010, 2012, 2014]
@@ -510,7 +692,7 @@ def fetch_algara_historical(years: list[int] | None = None) -> dict[int, "pd.Dat
         raw[raw["state"].isin(STATE_PO_SET) & (raw["election_type"] == "G")]
         .copy().reset_index(drop=True)
     )
-    log.info("Algara Senate after FL/GA/AL + general filter: %d rows", len(raw_filtered))
+    log.info("Algara Senate after state + general filter: %d rows", len(raw_filtered))
     raw_filtered["county_fips"] = _normalise_fips(raw_filtered["fips"])
 
     results: dict[int, pd.DataFrame] = {}
@@ -518,7 +700,7 @@ def fetch_algara_historical(years: list[int] | None = None) -> dict[int, "pd.Dat
         year_df = raw_filtered[raw_filtered["election_year"] == float(year)].copy().reset_index(drop=True)
 
         if year_df.empty:
-            log.info("Algara Senate %d: no FL/GA/AL general races found — skipping", year)
+            log.info("Algara Senate %d: no general races found — skipping", year)
             results[year] = pd.DataFrame()
             continue
 
@@ -538,7 +720,7 @@ def _save_parquet(agg: "pd.DataFrame | None", year: int) -> None:
     """Save an aggregated county DataFrame to the assembled parquet directory.
 
     Silently skips when agg is None or empty (expected for years where no
-    FL/GA/AL race was on the ballot).
+    race was on the ballot in the configured states).
     """
     if agg is None or agg.empty:
         return
@@ -550,7 +732,7 @@ def _save_parquet(agg: "pd.DataFrame | None", year: int) -> None:
 def _log_summary() -> None:
     """Log a one-line status for every output parquet in ASSEMBLED_DIR."""
     import pyarrow.parquet as pq  # noqa: PLC0415
-    all_years = [2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022]
+    all_years = [2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024]
     for year in all_years:
         p = ASSEMBLED_DIR / f"medsl_county_senate_{year}.parquet"
         if p.exists():
@@ -583,6 +765,12 @@ def main() -> None:
         _save_parquet(fetch_2022(), 2022)
     except Exception as exc:
         log.error("2022 failed: %s", exc)
+
+    log.info("=== Processing 2024 (MEDSL GitHub per-state precinct ZIPs) ===")
+    try:
+        _save_parquet(fetch_2024(), 2024)
+    except Exception as exc:
+        log.error("2024 failed: %s", exc)
 
     log.info("=== Senate fetch complete ===")
     _log_summary()

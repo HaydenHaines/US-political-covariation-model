@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { GlobalNav } from "@/components/nav/GlobalNav";
+import { SiteHeader } from "@/components/nav/SiteHeader";
 import { Footer } from "@/components/nav/Footer";
 
 /**
@@ -26,7 +26,7 @@ export function SiteChrome({ children }: { children: React.ReactNode }) {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <GlobalNav />
+      <SiteHeader />
       <main id="main-content" className="flex-1">
         {children}
       </main>

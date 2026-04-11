@@ -148,9 +148,12 @@ export function QuantileDotplot({
         <strong style={{ color: PALETTE.GOP_SECONDARY }}>{effectiveNDots - nDemWins}</strong>, the Republican wins.
       </p>
 
-      {/* Visually-hidden table for screen reader users */}
-      <table className="sr-only" aria-label="Outcome distribution data">
-        <caption>Model outcome distribution — {effectiveNDots} simulated scenarios</caption>
+      {/* Visually-hidden table for screen reader users.
+         The caption is rendered as a <caption> element inside sr-only — but browsers
+         give <caption> display:table-caption which can escape the clip rect and float
+         visibly on the page.  Using aria-label on the table is sufficient for screen
+         readers and avoids the visual leak. */}
+      <table className="sr-only" aria-label={`Model outcome distribution — ${effectiveNDots} simulated scenarios`}>
         <thead>
           <tr>
             <th scope="col">Outcome</th>

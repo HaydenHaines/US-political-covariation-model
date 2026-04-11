@@ -69,44 +69,13 @@ See `docs/ROADMAP.md` for the full path forward and `docs/TODO-autonomous-improv
 
 ## Self-Improvement Protocol
 
-### When to Update CLAUDE.md
-- Architectural decision made --> add to Architecture / Key Decisions Log
-- Convention established --> add to Conventions
-- Build/test/deploy command confirmed --> add to Commands
-- Constraint or gotcha discovered --> add to Constraints
-- Project structure changes --> update Directory Map
-- New data source integrated --> update Data Sources reference
-
-### When to Update the Reference Web
-- Needed the same external information twice --> create a reference file + index entry
-- Starting a new pipeline stage --> capture the references you're about to use
-- Reference file grows past 150 lines --> split it
-- Approach rejected --> move to `_deprecated/` with a note
-- See `docs/references/GOVERNANCE.md` for full rules
-
-### When to Flag a Skill
-- Same type of task recurs across sessions --> flag to user: "this should become a skill"
-- Same reference file consulted 3+ times for the same operation --> flag it
-- After using a skill 2-3 times, propose concrete improvements based on what actually happened
-
-### When to Update Memory Files
-- Mistake made and corrected --> `memory/lessons.md`
-- Debugging technique works --> `memory/debugging.md`
-- Workflow improvement found --> `memory/workflow.md`
-- User preference expressed --> `memory/preferences.md`
-
-### When to Prune
-- Info contradicts codebase --> update this file
-- Memory file exceeds 150 lines --> split or summarize
-- Something proven wrong --> remove it
+See `~/projects/claude-workspace-meta/process/self-improvement-protocol.md` for the full protocol. Key triggers: architectural decisions → decisions log, gotchas → this file, memory files > 150 lines → split/summarize.
 
 ---
 
 ## Architecture
 
-> **⚠️ MIGRATION IN PROGRESS (2026-03-27):** Migrating from county-primary to tract-primary architecture with new voter behavior layer. See spec: `docs/superpowers/specs/2026-03-27-tract-primary-behavior-layer-design.md`. Until migration is complete, the county model remains the production system. Do not delete county infrastructure until tract model is validated and deployed.
-
-### Target Architecture (IN PROGRESS)
+### Production Architecture (tract-primary, deployed S341)
 
 Four-layer tract-primary model:
 
@@ -124,14 +93,9 @@ Four-layer tract-primary model:
 
 **Frontend:** Tract community polygons as sole map view. County layer removed.
 
-### Current Production (county-primary, being replaced)
-
-**Algorithm:** KMeans J=100 on StandardScaler-normalized shifts with presidential weight=8.0 + state-centered governor/Senate shifts (33 dims, 2008+). All 50 states + DC, 3,154 counties.
-**Holdout r:** 0.698 (type-mean prior). Coherence=0.783. RMSE=0.073.
-**Known limitation:** No cycle-type awareness. Ridge priors trained on 2024 presidential outcomes. Off-cycle races predicted with presidential-shaped electorate, systematically overestimating R in midterms.
-
 ### Historical approaches (shelved, retained for comparison):
-- HAC community-primary (K=10, ADR-005): retained as `county_baseline` in model versioning
+- County-primary KMeans (pre-S341): J=100, 3,154 counties, holdout r=0.698. Superseded by tract model.
+- HAC community-primary (K=10, ADR-005): retained as `county_baseline`
 - NMF-on-demographics (K=7): original two-stage approach, R²~0.66
 
 **Separate silo: Political Sabermetrics** -- Advanced analytics for politician performance. Shares data infrastructure with the shift discovery pipeline but has its own compute pipeline. Decomposes election outcomes into district baseline + national environment + candidate effect. See `docs/SABERMETRICS_ARCHITECTURE.md`.
@@ -175,7 +139,7 @@ wethervane/
 
 ### Data
 - **Free data only**: Census, ACS, election returns, FEC, religious congregation data -- all publicly available at no cost.
-- **Tracts are the unit of analysis** (migration in progress): ~81K tracts from DRA block data. County layer is production until tract model is validated and deployed.
+- **Tracts are the unit of analysis**: ~81K tracts from DRA block data. County layer retained for ensemble features and Ridge priors.
 - **Soft assignment**: Tracts/counties have mixed membership across types via KMeans inverse-distance scores. Scores are always in [0,1], row-normalized to sum to 1.
 - **Census interpolation**: Decennial census (2000/2010/2020) linearly interpolated for election years. Provides time-matched demographics for type description and covariance construction.
 
@@ -235,59 +199,30 @@ The goal: every file should be code you'd be proud to show in a portfolio. This 
 ## Commands
 
 ```bash
-# Python environment
+# Setup
 pip install -e .                                    # Install project in dev mode
 
-# Data ingestion (run once; downloads raw data from MEDSL/VEST)
-python src/assembly/fetch_vest_multi_year.py        # VEST 2016/2018/2020 → tract-level
-python src/assembly/fetch_2022_governor.py          # MEDSL 2022 governor → county-level
-python src/assembly/fetch_2024_president.py         # MEDSL 2024 president → county-level
-
-# Community back-calculation (extend prior chain)
-python src/assembly/estimate_2022_community_shares.py  # Stan prior → 2022 governor
-python src/assembly/estimate_2024_community_shares.py  # 2022 prior → 2024 president
-
-# Validation (out-of-sample tests)
-python src/validation/validate_2020.py              # 2020 holdout: within-state corr
-python src/validation/validate_2022.py              # 2022 governor: 2020 prior → actuals
-python src/validation/validate_2024.py              # 2024 president: 2022 prior → actuals
-
-# Census interpolation
-python -m src.assembly.fetch_census_decennial --all         # Decennial census 2000/2010/2020 → data/assembled/census_{year}.parquet
-python -m src.assembly.interpolate_demographics             # Interpolate for election years → data/assembled/demographics_interpolated.parquet
-
-# Type-primary pipeline (current)
-python -m src.discovery.select_j                            # J selection sweep via leave-one-pair-out CV
+# Core pipeline (tract-primary)
 python -m src.discovery.run_type_discovery                  # KMeans → type assignments
-python -m src.description.describe_types                    # Overlay time-matched demographics on types
-python -m src.covariance.construct_type_covariance          # Observed LW-regularized covariance (primary)
+python -m src.description.describe_types                    # Overlay demographics on types
+python -m src.covariance.construct_type_covariance          # Observed LW-regularized covariance
 python -m src.prediction.predict_2026_types                 # Type-based 2026 predictions
 python -m src.validation.validate_types                     # Type validation report
 
-# Legacy HAC pipeline (retained for comparison)
-python src/prediction/predict_2026.py               # All 2026 races (old HAC pipeline)
-
-# Multi-year county data pipeline
-python src/assembly/fetch_medsl_county_presidential.py      # MEDSL county pres 2000–2024 (Harvard Dataverse)
-python src/assembly/fetch_algara_amlani.py                  # Algara/Amlani governor 2002–2018 (Harvard Dataverse)
-python src/assembly/build_county_shifts_multiyear.py        # 54-dim county shift vectors → data/shifts/county_shifts_multiyear.parquet
-python -m src.validation.validate_county_holdout_multiyear  # Compare multi-year vs 3-cycle baseline
+# Data rebuild
+python src/db/build_database.py --reset             # Build/rebuild DuckDB
+python scripts/build_county_geojson.py              # Rebuild county GeoJSON
+python scripts/build_national_tract_geojson.py      # Rebuild tract GeoJSON (after retrain)
 
 # Quality
-ruff check src/ api/                               # Lint Python
-ruff format src/ api/                              # Format Python
-python src/assembly/fetch_irs_migration.py          # IRS migration flows (latest 3 year pairs) → data/raw/irs_migration.parquet
-pytest                                              # Run all Python tests (src + api)
+uv run pytest                                       # Run all tests (4,099)
+ruff check src/ api/ && ruff format src/ api/       # Lint + format
 
-# Phase 2 — one-time setup (run before building DuckDB)
-python scripts/fetch_fips_crosswalk.py             # Download Census FIPS→county name → data/raw/fips_county_crosswalk.csv
-python scripts/build_county_geojson.py             # Generate FL+GA+AL county GeoJSON → web/public/counties-fl-ga-al.geojson
-python src/db/build_database.py --reset             # Build/rebuild data/wethervane.duckdb
-
-# Phase 2 — run API locally
-pip install -r api/requirements.txt
-uvicorn api.main:app --reload --port 8000          # API at http://localhost:8000/api/docs
+# API
+uvicorn api.main:app --reload --port 8000           # Local API at http://localhost:8000/api/docs
 ```
+
+See `docs/ARCHITECTURE.md` for full pipeline documentation including data ingestion and validation commands.
 
 ## API–Frontend Contract
 
@@ -305,29 +240,20 @@ The API is the contract boundary between model pipeline and frontend. The fronte
 
 ## Known Tech Debt
 
-### Poll Ingestion — Rich Ingestion Model (Partially Resolved)
-**PARTIALLY RESOLVED 2026-03-30** (Phase 4 rich poll ingestion, S251–S252): Tiered W vector construction implemented in `src/prediction/poll_enrichment.py`. Three tiers: Tier 1 (crosstab-based W, structure ready but no crosstab data yet), Tier 2 (LV/RV propensity + methodology-based dimension adjustments via `data/config/poll_method_adjustments.json`), Tier 3 (state-level W fallback). Pipeline wired into `forecast_engine.py` via `w_builder` callable and `type_profiles` param. Poll quality weighting (`prepare_polls()`) applies time decay, pollster grade, and house effects. Integration test (S253): avg 2.64pp shift vs unweighted baseline across 7 Senate races. Core and full W vector modes currently produce identical results because `method_reach_profiles` only has one active entry (`online_panel: log_pop_density_shift`).
+### Poll Ingestion — Rich W Vectors (Partially Resolved)
+Tiered W vector construction in `src/prediction/poll_enrichment.py`. Tier 1 (crosstab) ready but no data. Tier 2 (methodology adjustments) active. Tier 3 (state fallback) active. Remaining: crosstab data, GA tuning of propensity coefficients. See `docs/TODO-autonomous-improvements.md`.
 
-**REMAINING DEBT:** (1) No crosstab data ingested yet — Tier 1 is structural scaffolding only. (2) `method_reach_profiles` now has profiles for phone_live, phone_ivr, sms, mail, online_panel, and unknown (issue #86 resolved 2026-04-01); values are research-based estimates, not GA-tuned. (3) No GA tuning of propensity coefficients. See `docs/TODO-autonomous-improvements.md` for the full enrichment TODO list.
+### Covariance — Cross-Race (RESOLVED 2026-04-01)
+Equal-weight combined approach wins (LOEO r=0.9943). Reweighting does not help. Full report: `docs/research/covariance-cross-race-audit.md`.
 
-### Covariance — Cross-Race Underrepresentation
-**RESOLVED (2026-04-01, branch research/covariance-cross-race):** Audited in `scripts/audit_covariance_cross_race.py`. Key findings:
-- Per-race covariances (pres/gov/senate) are nearly orthogonal to each other (r~0.12-0.17). Presidential, governor, and Senate elections tap different comovement structures.
-- LOEO r: current combined=0.9943, pres-only=0.8495, gov-only=0.9267, senate-only=0.9252. Combined approach wins because it has 20 election pairs vs 5-8.
-- The production Σ most resembles presidential covariance (r=0.46) even though pres is only 25% of dims, because presidential shifts are lower-noise.
-- **Reweighting does not help.** No tested weight scheme outperforms the current equal-weight combined approach.
-- **Downgraded to low priority.** The current approach is adequate. Per-type cross-race divergence (~10-15 types with row_mad>0.50) is real but belongs in the voter behavior layer (τ/δ), not the covariance matrix.
-- One data quality finding: early governor pairs (1994→1998, 1998→2002) have ~10x the variance of presidential pairs, suggesting noisy/uncontested races. Worth filtering.
-- Full report: `docs/research/covariance-cross-race-audit.md`
-
-### Fundamentals — State-Level Signal
-**RESOLVED (2026-04-10, #88):** State-level economic signal added via QCEW employment/wage data (`src/prediction/state_economics.py`). Per-county fundamentals adjustment based on state relative employment growth, wage growth, and manufacturing share. Governor backtest: +0.010 r (0.745→0.754). FundamentalsCard shows top/bottom states by job growth. Sensitivity parameter in `prediction_params.json`.
+### Fundamentals — State-Level (RESOLVED 2026-04-10, #88)
+QCEW employment/wage signal in `src/prediction/state_economics.py`. Governor backtest +0.010 r.
 
 ## Constraints
 
 - **Free data only**: Census, ACS, election returns, congregation data, public polls. No paid subscriptions.
 - **October 2026 target**: Functional public prediction tool for the 2026 midterms. Hard external deadline.
-- **FL+GA+AL pilot first**: County model and visualization ship before national expansion. But architecture must support national from day one.
+- **National scope**: All 50 states + DC. Originally FL+GA+AL pilot, expanded nationally S199+.
 - **Build it right, not fast**: Operational complexity is no longer a constraint to minimize. Correct models and expandable architecture take priority.
 - **Public-facing**: Code quality, documentation, and methodology must be publication-ready. Assume others will read and attempt to replicate.
 - **Hybrid stack**: Python + R + Stan. Stan is the bridge — both cmdstanpy and cmdstanr compile the same .stan files. FastAPI exposes outputs; React + Deck.gl consumes them.

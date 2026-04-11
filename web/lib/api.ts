@@ -433,6 +433,20 @@ export interface FundamentalsSnapshot {
   consumer_sentiment: number | null;
 }
 
+/** State-level economic signal from QCEW data. */
+export interface StateEconEntry {
+  state_fips: string;
+  state_abbr: string | null;
+  /** Employment growth relative to national (pp). */
+  emp_growth_rel_pp: number;
+  /** Wage growth relative to national (pp). */
+  wage_growth_rel_pp: number;
+  /** Manufacturing employment share (percent). */
+  mfg_emp_share_pct: number;
+  /** Resulting shift adjustment from state econ (pp). */
+  shift_adjustment_pp: number;
+}
+
 export interface FundamentalsData {
   /** Dem two-party share shift (0-1 scale, positive = Dem gain). */
   shift: number;
@@ -459,6 +473,12 @@ export interface FundamentalsData {
   combined_shift_pp: number;
   /** Current-cycle economic snapshot values. */
   snapshot: FundamentalsSnapshot;
+  /** Whether state-level economic adjustment is active. */
+  state_econ_enabled: boolean;
+  /** Sensitivity parameter for state economic modulation. */
+  state_econ_sensitivity: number;
+  /** Per-state economic signals and adjustments (empty if disabled). */
+  state_econ: StateEconEntry[];
 }
 
 export async function fetchFundamentals(): Promise<FundamentalsData> {

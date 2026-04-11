@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { MAIN_NAV } from "@/lib/config/navigation";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
-import { RATING_COLORS } from "@/lib/config/palette";
+import { RATING_COLORS, RATING_LABELS } from "@/lib/config/palette";
 import { cn } from "@/lib/utils";
 import type { SenateRaceData } from "@/lib/api";
+import type { Rating } from "@/lib/types";
 
 /**
  * Number of Dem and GOP holdover seats (not up in 2026).
@@ -27,15 +28,130 @@ const DEM_WINS_NEEDED = 51 - DEM_HOLDOVER_SEATS;
 /** Height of each segment in the compact header bar (px). */
 const BAR_HEIGHT = 24;
 
+/** Format a margin number as a human-readable string like "D+5.2" or "R+3.1". */
+function formatMargin(margin: number): string {
+  const pct = Math.abs(margin * 100).toFixed(1);
+  if (Math.abs(margin) < 0.001) return "Even";
+  return margin >= 0 ? `D+${pct}` : `R+${pct}`;
+}
+
+/**
+ * Tooltip for a tipping point bar segment.
+ *
+ * Positioned above the hovered segment using a ref to the segment element.
+ * Uses Dusty Ink design system CSS variables for consistent styling.
+ */
+function SegmentTooltip({
+  race,
+  segmentRef,
+  barRef,
+}: {
+  race: SenateRaceData;
+  segmentRef: HTMLDivElement;
+  barRef: HTMLDivElement;
+}) {
+  const [pos, setPos] = useState<{ left: number; bottom: number } | null>(null);
+
+  useEffect(() => {
+    const segRect = segmentRef.getBoundingClientRect();
+    const barRect = barRef.getBoundingClientRect();
+    // Center tooltip horizontally on the segment, relative to the bar container
+    const left = segRect.left - barRect.left + segRect.width / 2;
+    // Position above the bar
+    const bottom = barRect.height + 6;
+    setPos({ left, bottom });
+  }, [segmentRef, barRef]);
+
+  if (!pos) return null;
+
+  const label =
+    RATING_LABELS[race.rating as Rating] ?? race.rating;
+  const color =
+    RATING_COLORS[race.rating as Rating] ?? RATING_COLORS.tossup;
+
+  return (
+    <div
+      className="absolute pointer-events-none"
+      style={{
+        left: pos.left,
+        bottom: pos.bottom,
+        transform: "translateX(-50%)",
+        zIndex: 60,
+      }}
+    >
+      <div
+        style={{
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 6,
+          padding: "6px 10px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+          whiteSpace: "nowrap",
+          fontSize: 12,
+          lineHeight: 1.4,
+          color: "var(--color-text)",
+        }}
+      >
+        <div style={{ fontWeight: 700, marginBottom: 2 }}>{race.race}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              display: "inline-block",
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: color,
+              flexShrink: 0,
+            }}
+          />
+          <span style={{ fontWeight: 600 }}>{label}</span>
+          <span style={{ color: "var(--color-text-muted)" }}>
+            {formatMargin(race.margin)}
+          </span>
+        </div>
+        {race.n_polls > 0 && (
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--color-text-muted)",
+              marginTop: 2,
+            }}
+          >
+            {race.n_polls} poll{race.n_polls !== 1 ? "s" : ""}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
  * Compact tipping point bar for the site header.
  *
  * Shows the 33 contested Senate seats sorted by Dem margin with a tipping
- * point marker, but without heading text or description paragraph — just
- * the colored segments with state labels and holdover seat counts.
+ * point marker. Segments are interactive: hover shows a tooltip with race
+ * details, click navigates to the race's forecast page.
  */
 function HeaderTippingPointBar({ races }: { races: SenateRaceData[] }) {
   const sorted = [...races].sort((a, b) => b.margin - a.margin);
+  const router = useRouter();
+  const barRef = useRef<HTMLDivElement>(null);
+  const segmentRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [hoveredSlug, setHoveredSlug] = useState<string | null>(null);
+
+  const handleClick = useCallback(
+    (slug: string) => {
+      router.push(`/forecast/${slug}`);
+    },
+    [router],
+  );
+
+  const hoveredRace = hoveredSlug
+    ? sorted.find((r) => r.slug === hoveredSlug) ?? null
+    : null;
+  const hoveredSegment = hoveredSlug
+    ? segmentRefs.current.get(hoveredSlug) ?? null
+    : null;
 
   return (
     <div className="w-full">
@@ -51,69 +167,97 @@ function HeaderTippingPointBar({ races }: { races: SenateRaceData[] }) {
         </span>
       </div>
 
-      {/* Bar */}
-      <div
-        className="flex w-full rounded-sm overflow-hidden border border-[rgb(var(--color-border))]"
-        style={{ height: BAR_HEIGHT }}
-      >
-        {sorted.map((race, idx) => {
-          const isTippingPoint = idx + 1 === DEM_WINS_NEEDED;
-          const color =
-            RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
-            RATING_COLORS.tossup;
+      {/* Wrapper — position:relative anchors the tooltip above the bar */}
+      <div ref={barRef} className="relative" onMouseLeave={() => setHoveredSlug(null)}>
+        {/* Bar — overflow-hidden clips segment corners to the rounded border */}
+        <div
+          className="flex w-full rounded-sm overflow-hidden border border-[rgb(var(--color-border))]"
+          style={{ height: BAR_HEIGHT }}
+        >
+          {sorted.map((race, idx) => {
+            const isTippingPoint = idx + 1 === DEM_WINS_NEEDED;
+            const color =
+              RATING_COLORS[race.rating as keyof typeof RATING_COLORS] ??
+              RATING_COLORS.tossup;
+            const isHovered = hoveredSlug === race.slug;
 
-          return (
-            <div
-              key={race.slug}
-              className="relative flex items-center justify-center min-w-0"
-              style={{
-                flex: 1,
-                height: BAR_HEIGHT,
-                backgroundColor: color,
-                ...(isTippingPoint
-                  ? { borderRight: "3px solid #111111", zIndex: 1 }
-                  : {}),
-              }}
-              title={`${race.state}: ${race.margin >= 0 ? "D+" : "R+"}${(Math.abs(race.margin) * 100).toFixed(1)} (${race.rating})`}
-              aria-label={`${race.state}: ${race.rating}`}
-            >
-              {/* State abbreviation — hidden on narrow viewports */}
-              <span
-                className="pointer-events-none select-none hidden md:inline"
-                style={{
-                  fontSize: "8px",
-                  fontWeight: 600,
-                  color: "rgba(255,255,255,0.85)",
-                  lineHeight: 1,
-                  letterSpacing: "0.02em",
+            return (
+              <div
+                key={race.slug}
+                ref={(el) => {
+                  if (el) segmentRefs.current.set(race.slug, el);
                 }}
-                aria-hidden="true"
+                className="relative flex items-center justify-center min-w-0"
+                style={{
+                  flex: 1,
+                  height: BAR_HEIGHT,
+                  backgroundColor: color,
+                  cursor: "pointer",
+                  opacity: hoveredSlug && !isHovered ? 0.65 : 1,
+                  transition: "opacity 0.12s ease",
+                  ...(isTippingPoint
+                    ? { borderRight: "3px solid #111111", zIndex: 1 }
+                    : {}),
+                }}
+                onMouseEnter={() => setHoveredSlug(race.slug)}
+                onClick={() => handleClick(race.slug)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleClick(race.slug);
+                  }
+                }}
+                aria-label={`${race.race}: ${RATING_LABELS[race.rating as Rating] ?? race.rating}, ${formatMargin(race.margin)}. Click to view forecast.`}
               >
-                {race.state}
-              </span>
-
-              {/* Tipping point marker */}
-              {isTippingPoint && (
+                {/* State abbreviation — hidden on narrow viewports */}
                 <span
-                  className="absolute pointer-events-none select-none"
+                  className="pointer-events-none select-none hidden md:inline"
                   style={{
-                    bottom: BAR_HEIGHT + 1,
-                    right: -18,
                     fontSize: "8px",
-                    fontWeight: 700,
-                    color: "#111111",
-                    whiteSpace: "nowrap",
+                    fontWeight: 600,
+                    color: "rgba(255,255,255,0.85)",
                     lineHeight: 1,
-                    zIndex: 2,
+                    letterSpacing: "0.02em",
                   }}
                   aria-hidden="true"
                 >
-                  Maj.
+                  {race.state}
                 </span>
-              )}
-            </div>
-          );
-        })}
+
+                {/* Tipping point marker */}
+                {isTippingPoint && (
+                  <span
+                    className="absolute pointer-events-none select-none"
+                    style={{
+                      bottom: BAR_HEIGHT + 1,
+                      right: -18,
+                      fontSize: "8px",
+                      fontWeight: 700,
+                      color: "#111111",
+                      whiteSpace: "nowrap",
+                      lineHeight: 1,
+                      zIndex: 2,
+                    }}
+                    aria-hidden="true"
+                  >
+                    Maj.
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Tooltip — rendered outside the bar's overflow-hidden container */}
+        {hoveredRace && hoveredSegment && barRef.current && (
+          <SegmentTooltip
+            race={hoveredRace}
+            segmentRef={hoveredSegment}
+            barRef={barRef.current}
+          />
+        )}
       </div>
     </div>
   );

@@ -149,14 +149,12 @@ export function rgbToHex(rgb: [number, number, number]): string {
  * Values between breakpoints are linearly interpolated.
  */
 export function dustyInkChoropleth(demShare: number): [number, number, number, number] {
-  // 7 color stops anchored to dem share values.
-  // Tossup band uses warm gold (#d4a017) so competitive/swing tracts
-  // pop visually against the red-blue spectrum — "these could swing the race."
+  // 7 color stops anchored to dem share values — clean red→purple→blue.
   const stops: Array<[number, [number, number, number]]> = [
     [0.35, [110,  53,  53]],  // Safe R
     [0.40, [158,  94,  78]],  // Likely R
     [0.45, [196, 144, 122]],  // Lean R
-    [0.50, [212, 160,  23]],  // Tossup — gold/amber swing indicator
+    [0.50, [138, 107, 138]],  // Tossup — purple
     [0.55, [126, 154, 181]],  // Lean D
     [0.60, [ 75, 109, 144]],  // Likely D
     [0.65, [ 45,  74, 111]],  // Safe D
@@ -183,6 +181,17 @@ export function dustyInkChoropleth(demShare: number): [number, number, number, n
   // Fallback (shouldn't reach)
   return [45, 74, 111, 230];
 }
+
+/**
+ * Whether a dem share falls in the competitive "swing" band (within 8pp of 50/50).
+ * These are tracts where small shifts could flip the outcome.
+ */
+export function isSwingShare(demShare: number): boolean {
+  return Math.abs(demShare - 0.5) < 0.08;
+}
+
+/** Gold border color for swing tracts: [R, G, B, A]. */
+export const SWING_BORDER_COLOR: [number, number, number, number] = [212, 160, 23, 255];
 
 /**
  * Convert a dem share (0-1) to a Rating category.

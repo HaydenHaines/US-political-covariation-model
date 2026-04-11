@@ -42,6 +42,7 @@ import {
   TRANSITION_MS,
 } from "./map-utils";
 import { getColorForSuperType, dustyInkChoropleth } from "./map-palette";
+import { isSwingShare, SWING_BORDER_COLOR } from "@/lib/config/palette";
 import { fetchHistoricalElection } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -455,8 +456,32 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
             const base = getColorForSuperType(st);
             return [...base, 180];
           }) as never,
-          getLineColor: [200, 195, 188, 40],
+          getLineColor: ((f: { properties?: Record<string, unknown> }) => {
+            // Gold border on competitive/swing tracts (within 8pp of 50/50)
+            if (defaultOverlayMode === "forecast") {
+              const typeId = f.properties?.type_id as number | undefined;
+              if (typeId != null) {
+                const typeData = typeDataMap.get(typeId);
+                if (typeData?.mean_pred_dem_share != null && isSwingShare(typeData.mean_pred_dem_share)) {
+                  return SWING_BORDER_COLOR;
+                }
+              }
+            }
+            return [200, 195, 188, 40];
+          }) as never,
           lineWidthMinPixels: 0.5,
+          getLineWidth: ((f: { properties?: Record<string, unknown> }) => {
+            if (defaultOverlayMode === "forecast") {
+              const typeId = f.properties?.type_id as number | undefined;
+              if (typeId != null) {
+                const typeData = typeDataMap.get(typeId);
+                if (typeData?.mean_pred_dem_share != null && isSwingShare(typeData.mean_pred_dem_share)) {
+                  return 2;
+                }
+              }
+            }
+            return 0.5;
+          }) as never,
           pickable: true,
           onHover: ({ object, x, y }: { object?: { properties?: Record<string, unknown> }; x: number; y: number }) => {
             if (object) {
@@ -543,6 +568,8 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
           },
           updateTriggers: {
             getFillColor: [forecastChoropleth, defaultOverlayMode, typeDataMap],
+            getLineColor: [defaultOverlayMode, typeDataMap],
+            getLineWidth: [defaultOverlayMode, typeDataMap],
           },
         })
       );

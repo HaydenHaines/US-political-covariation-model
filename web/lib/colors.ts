@@ -40,23 +40,5 @@ export function ratingLabel(rating: Rating): string {
   return map[rating];
 }
 
-// Dusty Ink choropleth: demShare 0.3→safeR through 0.5→tossup to 0.7→safeD
-export function dustyInkChoropleth(demShare: number): [number, number, number, number] {
-  const t = Math.max(0, Math.min(1, (demShare - 0.3) / 0.4));
-  if (t >= 0.5) {
-    const s = (t - 0.5) * 2;
-    return [
-      Math.round(181 * (1 - s) + 45 * s),
-      Math.round(169 * (1 - s) + 74 * s),
-      Math.round(149 * (1 - s) + 111 * s),
-      200,
-    ];
-  }
-  const s = t * 2;
-  return [
-    Math.round(110 * (1 - s) + 181 * s),
-    Math.round(53 * (1 - s) + 169 * s),
-    Math.round(53 * (1 - s) + 149 * s),
-    200,
-  ];
-}
+// Dusty Ink choropleth — delegates to the canonical implementation in palette.ts
+export { dustyInkChoropleth } from "@/lib/config/palette";

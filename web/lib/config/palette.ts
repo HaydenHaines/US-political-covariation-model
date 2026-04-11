@@ -134,29 +134,52 @@ export function rgbToHex(rgb: [number, number, number]): string {
 /**
  * Dusty Ink choropleth: continuous dem share (0-1) to RGBA.
  *
- * Maps 0.3 -> safe R, 0.5 -> tossup, 0.7 -> safe D.
- * Values outside [0.3, 0.7] are clamped.
+ * Uses the 7-tier Dusty Ink partisan scale at full opacity for bold,
+ * saturated colors that match the national state-level view.
+ *
+ * Breakpoints (dem share → color):
+ *   ≤0.35  Safe R      #6e3535
+ *    0.40  Likely R    #9e5e4e
+ *    0.45  Lean R      #c4907a
+ *    0.50  Tossup      #8a6b8a
+ *    0.55  Lean D      #7e9ab5
+ *    0.60  Likely D    #4b6d90
+ *   ≥0.65  Safe D      #2d4a6f
+ *
+ * Values between breakpoints are linearly interpolated.
  */
 export function dustyInkChoropleth(demShare: number): [number, number, number, number] {
-  const t = Math.max(0, Math.min(1, (demShare - 0.3) / 0.4));
-  if (t >= 0.5) {
-    // Tossup -> Safe D (purple to blue)
-    const s = (t - 0.5) * 2;
-    return [
-      Math.round(181 * (1 - s) + 45 * s),
-      Math.round(169 * (1 - s) + 74 * s),
-      Math.round(149 * (1 - s) + 111 * s),
-      200,
-    ];
-  }
-  // Safe R -> Tossup (red to purple)
-  const s = t * 2;
-  return [
-    Math.round(110 * (1 - s) + 181 * s),
-    Math.round(53 * (1 - s) + 169 * s),
-    Math.round(53 * (1 - s) + 149 * s),
-    200,
+  // 7 color stops anchored to dem share values
+  const stops: Array<[number, [number, number, number]]> = [
+    [0.35, [110,  53,  53]],  // Safe R
+    [0.40, [158,  94,  78]],  // Likely R
+    [0.45, [196, 144, 122]],  // Lean R
+    [0.50, [138, 107, 138]],  // Tossup
+    [0.55, [126, 154, 181]],  // Lean D
+    [0.60, [ 75, 109, 144]],  // Likely D
+    [0.65, [ 45,  74, 111]],  // Safe D
   ];
+
+  // Clamp to stop range
+  const ds = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], demShare));
+
+  // Find the two surrounding stops and interpolate
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [lo, cLo] = stops[i];
+    const [hi, cHi] = stops[i + 1];
+    if (ds <= hi) {
+      const t = (ds - lo) / (hi - lo);
+      return [
+        Math.round(cLo[0] * (1 - t) + cHi[0] * t),
+        Math.round(cLo[1] * (1 - t) + cHi[1] * t),
+        Math.round(cLo[2] * (1 - t) + cHi[2] * t),
+        230,
+      ];
+    }
+  }
+
+  // Fallback (shouldn't reach)
+  return [45, 74, 111, 230];
 }
 
 /**

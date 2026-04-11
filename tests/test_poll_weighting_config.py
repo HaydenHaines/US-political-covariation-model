@@ -364,19 +364,19 @@ class TestFallbackDefaults:
         assert "2026 FL Senate" in result
 
     def test_predict_2026_types_loads_poll_weighting_or_uses_defaults(self):
-        """predict_2026_types module-level loading falls back gracefully if section absent.
+        """ForecastParams loads poll_weighting from config, falling back to defaults.
 
-        We test this by patching the JSON to omit poll_weighting and verifying
-        the module constants fall back to the documented defaults.
+        Verify that load_forecast_params() reads the config on disk and produces
+        the expected half_life_days and pre_primary_discount values.
         """
-        import src.prediction.predict_2026_types as module_under_test
+        from src.prediction.predict_2026_types import load_forecast_params
 
-        # Verify current values match the config on disk (integration check)
-        assert module_under_test._HALF_LIFE_DAYS == pytest.approx(30.0), (
-            "_HALF_LIFE_DAYS should equal prediction_params.json poll_weighting.half_life_days=30.0"
+        params = load_forecast_params()
+        assert params.half_life_days == pytest.approx(30.0), (
+            "half_life_days should equal prediction_params.json poll_weighting.half_life_days=30.0"
         )
-        assert module_under_test._PRE_PRIMARY_DISCOUNT == pytest.approx(0.5), (
-            "_PRE_PRIMARY_DISCOUNT should match poll_weighting.pre_primary_discount=0.5 in config"
+        assert params.pre_primary_discount == pytest.approx(0.5), (
+            "pre_primary_discount should match poll_weighting.pre_primary_discount=0.5 in config"
         )
 
     def test_poll_weighting_fallback_with_mock_empty_section(self):

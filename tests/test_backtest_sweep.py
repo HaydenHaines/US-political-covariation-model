@@ -277,8 +277,8 @@ class TestQuickGrid:
 
 class TestAllRaceConfigs:
     def test_all_configs_count(self):
-        """Should have 4 pres + 7 senate + 3 governor = 14 elections."""
-        assert len(_ALL_RACE_CONFIGS) == 14
+        """Should have 4 pres + 8 senate + 3 governor = 15 elections."""
+        assert len(_ALL_RACE_CONFIGS) == 15
 
     def test_all_configs_contain_expected_types(self):
         types = {rt for _, rt in _ALL_RACE_CONFIGS}

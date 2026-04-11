@@ -431,6 +431,29 @@ class TestPredict2026TypesFallback:
         polls_df.to_csv(tmp_path / "data" / "polls" / "polls_2026.csv", index=False)
         (tmp_path / "data" / "predictions").mkdir(parents=True)
 
+        # prediction_params.json — load_forecast_params() reads from
+        # PROJECT_ROOT / data / config / prediction_params.json
+        config_dir = tmp_path / "data" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+        params = {
+            "forecast": {
+                "lam": 10.0,
+                "mu": 1.0,
+                "w_vector_mode": "core",
+                "poll_blend_scale": 15.0,
+            },
+            "poll_weighting": {
+                "half_life_days": 30.0,
+                "pre_primary_discount": 0.5,
+                "use_pollster_rmse_weights": False,
+                "methodology_weights": {},
+            },
+            "fundamentals": {"enabled": False, "fundamentals_weight": 0.3},
+            "state_economics": {"enabled": False, "sensitivity": 0.5},
+        }
+        import json
+        (config_dir / "prediction_params.json").write_text(json.dumps(params))
+
         return {
             "tmp_path": tmp_path,
             "fips": fips,

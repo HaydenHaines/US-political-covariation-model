@@ -450,7 +450,7 @@ class TestPredictRaceTypePriorRouting:
         )
 
         with (
-            patch("src.prediction.predict_2026_types._load_type_data") as mock_load,
+            patch("src.prediction.predict_2026_types.load_type_data") as mock_load,
             patch(
                 "src.prediction.predict_2026_types.load_county_priors_with_ridge",
                 return_value=pres_priors,
@@ -459,9 +459,9 @@ class TestPredictRaceTypePriorRouting:
                 "src.prediction.predict_2026_types.load_county_priors_with_ridge_governor",
                 return_value=gov_priors,
             ),
-            patch("src.prediction.predict_2026_types._load_county_metadata") as mock_meta,
-            patch("src.prediction.predict_2026_types._load_county_votes") as mock_votes,
-            patch("src.prediction.predict_2026_types._load_polls") as mock_polls,
+            patch("src.prediction.predict_2026_types.load_county_metadata") as mock_meta,
+            patch("src.prediction.predict_2026_types.load_county_votes") as mock_votes,
+            patch("src.prediction.predict_2026_types.load_polls") as mock_polls,
             patch("src.prediction.predict_2026_types.compute_gb_shift") as mock_gb,
             patch("src.prediction.predict_2026_types.run_forecast") as mock_run_forecast,
         ):

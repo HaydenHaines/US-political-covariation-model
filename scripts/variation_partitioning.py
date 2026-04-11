@@ -337,11 +337,24 @@ def load_data(
 
     # ── Type scores ────────────────────────────────────────────────────────
     assignments_df = pd.read_parquet(assignments_path)
+    assignments_df["county_fips"] = (
+        assignments_df["county_fips"].astype(str).str.zfill(5)
+    )
     score_cols = sorted(
         [c for c in assignments_df.columns if c.startswith("type_") and c.endswith("_score")],
         key=lambda c: int(c.split("_")[1]),
     )
-    scores = assignments_df[score_cols].values.astype(float)
+
+    # Align shifts and type_assignments on their common counties.
+    # The two files may have different county sets (e.g., 3154 vs 3116)
+    # due to data availability differences across pipeline stages.
+    common_fips = sorted(set(county_fips) & set(assignments_df["county_fips"]))
+    shift_idx = [county_fips.index(f) for f in common_fips]
+    shift_matrix = shift_matrix[shift_idx]
+    county_fips = common_fips
+
+    assign_indexed = assignments_df.set_index("county_fips").loc[common_fips]
+    scores = assign_indexed[score_cols].values.astype(float)
 
     # ── Demographic features ───────────────────────────────────────────────
     if demo_paths is None:

@@ -2,9 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { SectionWeightSliders, SectionWeights } from "./SectionWeightSliders";
-import { BalanceBar } from "./BalanceBar";
 import { RaceCardGrid } from "./RaceCardGrid";
-import { SeatBalanceTimeline } from "./SeatBalanceTimeline";
 import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import type { SenateRaceData } from "@/lib/api";
 
@@ -55,14 +53,12 @@ interface OverviewBlendControlsProps {
  * overview page.
  *
  * Renders in order:
- *   1. BalanceBar -- live seat counts + 100-segment bar
- *   2. "Adjust Forecast Blend" collapsible panel (default collapsed)
- *   3. Race card grids (Key Races / Leaning / Likely / Safe)
+ *   1. "Adjust Forecast Blend" collapsible panel (default collapsed)
+ *   2. Race card grids (Key Races / Leaning / Likely / Safe)
  *
  * When the user adjusts the sliders, a debounced POST /forecast/overview/blend
- * call recalculates all 33 races simultaneously and updates:
- *   - BalanceBar projected seat totals
- *   - Every race card's margin and rating badge
+ * call recalculates all 33 races simultaneously and updates every race card's
+ * margin and rating badge.
  *
  * Loading state: subtle opacity fade on the entire section while a call is
  * in-flight.  On error, the previous good values are retained silently.
@@ -179,19 +175,6 @@ export function OverviewBlendControls({
 
   return (
     <>
-      {/* Balance bar -- fades slightly during recalculation */}
-      <div
-        style={{ transition: "opacity 150ms ease", opacity: isLoading ? 0.5 : 1 }}
-        aria-busy={isLoading}
-      >
-        <BalanceBar races={races} demSeats={demSeats} gopSeats={gopSeats} />
-      </div>
-
-      {/* Seat balance timeline -- shows projected seat counts changing over time */}
-      <div className="mb-6">
-        <SeatBalanceTimeline />
-      </div>
-
       {/* Collapsible blend controls */}
       <div className="mb-6">
         <button

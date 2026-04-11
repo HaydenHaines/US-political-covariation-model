@@ -3,6 +3,8 @@
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { ChamberProbabilityBanner } from "@/components/forecast/ChamberProbabilityBanner";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
+import { PollingCard } from "@/components/forecast/PollingCard";
+import { NationalScenarioSliders } from "@/components/forecast/NationalScenarioSliders";
 import { OverviewBlendControls } from "@/components/forecast/OverviewBlendControls";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,10 +49,16 @@ export default function SenatePage() {
       {/* National Environment — fundamentals model: approval + economy → structural shift */}
       <FundamentalsCard />
 
+      {/* Polling coverage summary — total polls, races polled, coverage quality */}
+      <PollingCard />
+
+      {/* Scenario explorer — what-if sliders for national environment + turnout */}
+      <NationalScenarioSliders />
+
       {/*
-       * OverviewBlendControls owns the BalanceBar, blend sliders, and race
-       * card grids.  It starts with SSR/SWR data and updates all sections
-       * simultaneously when the user adjusts the blend sliders.
+       * OverviewBlendControls owns the blend sliders and race card grids.
+       * It starts with SSR/SWR data and updates all sections simultaneously
+       * when the user adjusts the blend sliders.
        */}
       <OverviewBlendControls
         initialRaces={data.races}

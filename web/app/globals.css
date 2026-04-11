@@ -211,3 +211,47 @@ a:hover {
     @apply bg-background text-foreground; }
   html {
     @apply font-sans; } }
+
+/* ── Scenario slider ─────────────────────────────────────────── */
+
+.scenario-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.scenario-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 100ms ease;
+}
+
+.scenario-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.scenario-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-text);
+  border: 2px solid var(--color-surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: transform 100ms ease;
+}
+
+.scenario-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}

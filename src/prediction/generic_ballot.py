@@ -287,6 +287,7 @@ def compute_gb_shift(
     polls_path: Path | str | None = None,
     manual_shift: float | None = None,
     yougov_json_path: Path | str | None = None,
+    extra_gb_polls: list[tuple[float, int]] | None = None,
 ) -> GenericBallotInfo:
     """Compute the national environment shift relative to the 2024 presidential baseline.
 
@@ -307,6 +308,15 @@ def compute_gb_shift(
         Path to the YouGov weekly GB crosstab JSON.  Defaults to
         ``data/polls/yougov_generic_ballot_2026.json``.  Pass an explicit path
         in tests to avoid depending on the real data file.
+        Ignored when ``manual_shift`` is provided.
+    extra_gb_polls:
+        Additional (dem_share, n_sample) tuples injected directly into the
+        weighted average.  Used by the early results pathway to incorporate
+        off-year election results (e.g., VA/NJ 2025 governor) as Generic
+        Ballot signal without putting them in the main polls CSV.
+        These are appended after CSV and YouGov polls; no deduplication is
+        applied because early results come from a separate file with
+        different pollster labels.
         Ignored when ``manual_shift`` is provided.
 
     Returns
@@ -337,18 +347,24 @@ def compute_gb_shift(
     # Deduplicate: drop YouGov entries whose date window overlaps a CSV entry.
     yougov_polls = _deduplicate_yougov_polls(resolved_polls_path, yougov_raw)
 
-    all_polls = csv_polls + yougov_polls
+    # Append early-cycle election results (e.g., VA/NJ governor) as additional
+    # Generic Ballot signal.  These are pre-validated by load_early_results() and
+    # already have n_sample capped at max_effective_n, so no further adjustment needed.
+    injected_polls = extra_gb_polls or []
+
+    all_polls = csv_polls + yougov_polls + injected_polls
     gb_avg = compute_gb_average(all_polls)
     shift = gb_avg - PRES_DEM_SHARE_2024_NATIONAL
 
     log.info(
         "Generic ballot: avg=%.4f, pres_baseline=%.4f, shift=%.4f pp "
-        "(%d CSV polls + %d YouGov issues = %d total)",
+        "(%d CSV polls + %d YouGov issues + %d early results = %d total)",
         gb_avg,
         PRES_DEM_SHARE_2024_NATIONAL,
         shift * 100,
         len(csv_polls),
         len(yougov_polls),
+        len(injected_polls),
         len(all_polls),
     )
 

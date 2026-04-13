@@ -1,18 +1,18 @@
 {
   "_comment": "Hyperparameters for the type-primary forecast pipeline (predict_2026_types.py / forecast_engine.run_forecast).",
   "_tuning_notes": "Full parameter sweep S532: 7056-row grid sweep + 528-row focused blending sweep across 11 historic elections (2008-2022). See data/experiments/backtest_sweep_20260408_235337.csv and focused_blending_sweep_*.csv.",
-  "_lam_notes": "lam=10.0 optimal via full sweep (S532). Higher lam trusts priors more — with year-adaptive priors closely matching the target cycle, strong prior regularization improves calibration. lam matters less than pbs: within pbs=15, lam=10 vs lam=5 is only +0.001 r.",
-  "_mu_notes": "mu=1.0 retained. Confirmed irrelevant — identical results across all mu values in full sweep. delta_race underdetermined with sparse state-level polls.",
+  "_lam_notes": "lam=10.0 optimal via full sweep (S532). Higher lam trusts priors more \u2014 with year-adaptive priors closely matching the target cycle, strong prior regularization improves calibration. lam matters less than pbs: within pbs=15, lam=10 vs lam=5 is only +0.001 r.",
+  "_mu_notes": "mu=1.0 retained. Confirmed irrelevant \u2014 identical results across all mu values in full sweep. delta_race underdetermined with sparse state-level polls.",
   "_w_vector_mode_notes": "core vs full modes produce identical results until method_reach_profiles gains entries for phone_live, phone_ivr, and unknown methodologies. See Known Tech Debt in CLAUDE.md.",
   "forecast": {
     "lam": 10.0,
     "mu": 1.0,
     "w_vector_mode": "core",
     "poll_blend_scale": 15.0,
-    "_poll_blend_scale_notes": "k in alpha = 1/(1 + n_polls/k). Controls blend between county priors (few polls) and type-projected predictions (many polls). k=15 optimal — dominates k=10 across ALL lam/adaptive combinations (+0.5-1% r). Biggest single lever in the sweep."
+    "_poll_blend_scale_notes": "k in alpha = 1/(1 + n_polls/k). Controls blend between county priors (few polls) and type-projected predictions (many polls). k=15 optimal \u2014 dominates k=10 across ALL lam/adaptive combinations (+0.5-1% r). Biggest single lever in the sweep."
   },
   "poll_weighting": {
-    "_half_life_notes": "Exponential decay half-life in days. At 30 days a poll loses half its effective weight. Backtest sweep found half_life_days has zero differentiating effect on historic elections — likely due to sparse temporal poll coverage in backtests. Retained at 30 as a reasonable default for 2026 forward predictions where polls are dense.",
+    "_half_life_notes": "Exponential decay half-life in days. At 30 days a poll loses half its effective weight. Backtest sweep found half_life_days has zero differentiating effect on historic elections \u2014 likely due to sparse temporal poll coverage in backtests. Retained at 30 as a reasonable default for 2026 forward predictions where polls are dense.",
     "_pre_primary_discount_notes": "Multiplicative factor applied to n_sample for polls conducted before the primary. Pre-primary polls are less informative about general election matchups. Must be in (0, 1]. 0.5 = pre-primary polls count for half.",
     "_use_pollster_rmse_weights_notes": "When true, pollster quality is weighted by empirical RMSE from data/experiments/pollster_accuracy.json (backtest results) rather than Silver Bulletin grades. RMSE weights replace grade-based weights for any pollster found in the accuracy file; grade-based weights remain as fallback for unknown pollsters.",
     "_methodology_weights_notes": "Multiplicative n_sample adjustment by survey mode. Phone live-interview polls are empirically most accurate; IVR (robocall) polls have the worst track record. Applied multiplicatively on top of RMSE/Silver Bulletin/grade quality weights. unknown = neutral 1.0. Calibrate from pollster accuracy backtests by methodology group.",
@@ -22,9 +22,9 @@
     "methodology_weights": {
       "phone": 1.15,
       "mixed": 1.05,
-      "online": 0.90,
+      "online": 0.9,
       "IVR": 0.85,
-      "unknown": 1.00
+      "unknown": 1.0
     }
   },
   "fundamentals": {
@@ -32,6 +32,15 @@
     "_weight_notes": "fundamentals_weight controls the blend: 0.0 = use only generic ballot (current behavior), 1.0 = use only fundamentals, 0.3 = 30% fundamentals + 70% generic ballot. Start conservative (0.3) because the fundamentals model has only 13 training points and LOO RMSE ~3.9pp.",
     "enabled": true,
     "fundamentals_weight": 0.3
+  },
+  "early_results": {
+    "_notes": "Early-cycle election results injected as high-confidence poll-like observations. Special elections and off-year races provide real outcome data before the main cycle, with their impact fading over time via the standard poll time-decay machinery.",
+    "_enabled_notes": "Set to false to exclude early results without removing the CSV. Useful for backtesting the pre-early-results baseline.",
+    "_max_effective_n_notes": "Cap on n_sample for any single election result. Prevents one high-turnout race from dominating the weighted average. 5000 \u2248 5 high-quality polls.",
+    "_path_notes": "Path to early results CSV. Relative paths are resolved from the project root.",
+    "enabled": true,
+    "max_effective_n": 5000,
+    "path": "data/polls/early_cycle_results.csv"
   },
   "state_economics": {
     "_notes": "State-level economic adjustment from QCEW (BLS Quarterly Census of Employment and Wages). Modulates the national fundamentals shift by each state's relative employment growth: states with faster-than-national job growth get a smaller in-party penalty. Data source: data/raw/qcew_county.parquet (2020-2023, 3,192 counties).",

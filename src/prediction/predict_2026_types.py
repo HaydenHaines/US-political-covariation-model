@@ -48,6 +48,11 @@ from src.prediction.county_priors import (
     load_county_priors_with_ridge,
     load_county_priors_with_ridge_governor,
 )
+from src.prediction.early_results import (
+    extract_gb_observations,
+    load_early_results,
+    merge_early_results,
+)
 from src.prediction.forecast_engine import run_forecast
 from src.prediction.fundamentals import (
     compute_fundamentals_shift,
@@ -395,6 +400,26 @@ def run_forecast_pipeline(
     county_votes = load_county_votes(county_fips)
     polls_by_race, poll_lookup = load_polls(county_fips, polls_path=polls_path)
 
+    # Inject early-cycle election results (special elections, off-year races) as
+    # additional poll-like observations before the Bayesian update.
+    #
+    # State-level results (WI SC → WI Governor, GA-14 → GA Senate) are merged
+    # directly into polls_by_race; they'll flow through prepare_polls() and
+    # receive normal time-decay and quality weighting.
+    #
+    # Generic Ballot results (VA/NJ 2025 governor) cannot go through
+    # polls_by_race because compute_gb_shift() reads from a file, not from
+    # the in-memory dict.  We extract them as (dem_share, n_sample) tuples
+    # and pass them via the extra_gb_polls parameter added to compute_gb_shift().
+    early_by_race = load_early_results()
+    gb_early_polls = extract_gb_observations(early_by_race)
+    polls_by_race = merge_early_results(polls_by_race, early_by_race)
+    log.info(
+        "Early results merged: %d GB observations, %d state-level races affected",
+        len(gb_early_polls),
+        sum(1 for r in early_by_race if r != "2026 Generic Ballot"),
+    )
+
     # Behavior layer (τ/δ) is DISABLED pending a more sophisticated integration.
     # Backtest (governor-backtest-2022-S492.md) showed the flat δ adjustment REDUCES
     # correlation vs 2022 actuals (r 0.729 → 0.715). The mean δ = -0.011 (R shift)
@@ -444,7 +469,11 @@ def run_forecast_pipeline(
 
     # Compute generic ballot shift from national polls.  This adjusts county
     # priors toward the current national environment before the Bayesian update.
-    gb_info = compute_gb_shift()
+    # Early-cycle GB observations (VA/NJ governor) are passed directly here
+    # because compute_gb_shift() reads from a file path rather than the
+    # in-memory polls dict — passing extra_gb_polls is cleaner than appending
+    # to the CSV or duplicating the file-reading logic.
+    gb_info = compute_gb_shift(extra_gb_polls=gb_early_polls if gb_early_polls else None)
     gb_shift = gb_info.shift
     log.info(
         "Generic ballot shift: %+.1f pp (%d polls, source=%s)",

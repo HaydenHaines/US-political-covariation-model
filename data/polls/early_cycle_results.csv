@@ -1,0 +1,5 @@
+race,geography,geo_level,dem_share,n_sample,date,pollster,notes
+2026 Generic Ballot,US,national,0.572,5000,2025-11-04,VA Governor Result,VA 2025 Governor actual result (Spanberger D+15.4 in 2-party); no VA 2026 race so feeds national signal
+2026 Generic Ballot,US,national,0.56,5000,2025-11-04,NJ Governor Result,NJ 2025 Governor actual result (Sherrill ~D+14.4 in 2-party); no NJ 2026 race so feeds national signal
+2026 WI Governor,WI,state,0.55,5000,2026-04-07,WI Supreme Court Result,WI 2026 SC election (Taylor 60% raw); SC races overperform partisan by ~5-8pp so adjusted partisan_dem_share=0.55
+2026 GA Senate,GA,state,0.545,5000,2026-04-08,GA-14 Special Result,GA-14 Special (D got 44.1% raw but GA-14 is R+25 district); D overperformed 2024 pres baseline by ~12.5pp; state-adjusted partisan_dem_share=0.545 (49.2% GA pres + half overperformance dampened for district-to-state noise)

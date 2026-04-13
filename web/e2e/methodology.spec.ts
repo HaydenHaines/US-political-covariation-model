@@ -81,7 +81,7 @@ test.describe("Methodology pages", () => {
       await page.goto("/methodology/accuracy");
       await expect(page.locator("article#main-content")).toBeVisible({ timeout: 10_000 });
       // MetricCard renders the LOO r value as a heading metric — use first() to avoid strict mode
-      await expect(page.getByText(/0\.711/).first()).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText(/0\.731/).first()).toBeVisible({ timeout: 10_000 });
     });
 
     test("Overall Performance section is present", async ({ page }) => {

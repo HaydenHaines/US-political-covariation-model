@@ -32,9 +32,9 @@ test.describe("Landing page", () => {
     await expect(methodologyLink.first()).toBeVisible();
   });
 
-  test("competitive races stat line is present", async ({ page }) => {
-    // Subheadline shows competitive race count
-    await expect(page.getByText(/competitive races/)).toBeVisible({ timeout: 10_000 });
+  test("senate control summary is present", async ({ page }) => {
+    // Homepage shows senate seat balance (e.g., "33D not up" / "34R not up")
+    await expect(page.getByText(/not up/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
   test("footer renders with navigation links", async ({ page }) => {

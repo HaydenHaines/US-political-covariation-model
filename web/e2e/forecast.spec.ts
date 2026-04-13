@@ -23,11 +23,12 @@ test.describe("Forecast flow", () => {
       await expect(chamberSection).toBeVisible({ timeout: 10_000 });
     });
 
-    test("balance bar renders once data loads", async ({ page }) => {
+    test("rating categories render in map legend", async ({ page }) => {
       await page.goto("/forecast/senate");
       const h1 = page.locator("h1");
       await expect(h1).toBeVisible({ timeout: 30_000 });
-      await expect(page.getByText("needed for control")).toBeVisible({ timeout: 10_000 });
+      // Rating categories (Safe D, Likely D, etc.) appear in the map legend
+      await expect(page.getByText("Safe D").first()).toBeVisible({ timeout: 10_000 });
     });
 
     test("race cards exist in the DOM after data loads", async ({ page }) => {

@@ -25,10 +25,13 @@ SENATE_DELEGATION = {
 }
 
 SENATE_2026_STATES = {
+    # Class II regular elections
     "AL", "AK", "AR", "CO", "DE", "GA", "IA", "ID", "IL", "KS",
     "KY", "LA", "MA", "ME", "MI", "MN", "MS", "MT", "NC", "NE",
     "NH", "NJ", "NM", "OK", "OR", "RI", "SC", "SD", "TN", "TX",
     "VA", "WV", "WY",
+    # Special elections (Rubio → Moody in FL, Vance → Husted in OH)
+    "FL", "OH",
 }
 
 # Which party currently holds each Class II Senate seat (up in 2026).
@@ -67,6 +70,9 @@ _CLASS_II_INCUMBENT: dict[str, str] = {
     "VA": "D",  # Mark Warner
     "WV": "R",  # Shelley Moore Capito (flipped R after Manchin retirement)
     "WY": "R",  # John Barrasso
+    # Special elections
+    "FL": "R",  # Marco Rubio seat → Ashley Moody (appointed)
+    "OH": "R",  # JD Vance seat → Jon Husted (appointed)
 }
 
 # Default margin magnitude for seats with no model prediction.

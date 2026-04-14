@@ -83,16 +83,16 @@ class TestBuildHeadline:
 
     def test_gop_favored(self):
         """GOP-favored headline requires holdover+wins gap to exceed 2 seats."""
-        # _GOP_HOLDOVER_SEATS(34) - _DEM_HOLDOVER_SEATS(33) = 1 -> within knife-edge range.
-        # Add 2 lean_r races to push GOP to 36, Dem stays 33 -> diff = -3.
-        races = [{"rating": "lean_r", "margin": -0.05}] * 2
+        # _GOP_HOLDOVER_SEATS(32) - _DEM_HOLDOVER_SEATS(33) = -1 -> within knife-edge range.
+        # Add 4 lean_r races to push GOP to 36, Dem stays 33 -> diff = -3.
+        races = [{"rating": "lean_r", "margin": -0.05}] * 4
         headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Republican" in headline
 
     def test_dem_favored(self):
         """Enough Dem-favored races to overcome the holdover deficit."""
-        # _DEM_HOLDOVER_SEATS=33, _GOP_HOLDOVER_SEATS=34.
-        # 4 lean_d -> dem=37 vs gop=34, diff=+3 -> Democrats Favored.
+        # _DEM_HOLDOVER_SEATS=33, _GOP_HOLDOVER_SEATS=32.
+        # 4 lean_d -> dem=37 vs gop=32, diff=+5 -> Democrats Favored.
         races = [{"rating": "lean_d", "margin": 0.05}] * 4
         headline, subtitle, dem_proj, gop_proj = _build_headline(races)
         assert "Democrat" in headline

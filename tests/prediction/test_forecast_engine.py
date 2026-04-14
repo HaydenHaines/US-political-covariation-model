@@ -276,3 +276,196 @@ class TestPreparePolls:
     def test_empty_input(self):
         result = prepare_polls({}, reference_date="2026-03-29")
         assert result == {}
+
+
+class TestRaceAdjustments:
+    """Tests for per-race prior overrides (e.g., RCV states like Alaska)."""
+
+    def _make_fixture(self):
+        """Shared test fixture: 2 states (AK, GA), 3 types, 6 counties."""
+        J = 3
+        n = 6
+        rng = np.random.RandomState(99)
+        type_scores = rng.rand(n, J)
+        type_scores = type_scores / type_scores.sum(axis=1, keepdims=True)
+        # AK counties lean R (~0.42), GA counties lean D (~0.55)
+        county_priors = np.array([0.40, 0.42, 0.44, 0.54, 0.56, 0.55])
+        states = ["AK", "AK", "AK", "GA", "GA", "GA"]
+        county_votes = np.array([100.0, 200.0, 150.0, 300.0, 250.0, 200.0])
+        return type_scores, county_priors, states, county_votes
+
+    def test_race_adjustment_shifts_priors(self):
+        """A prior_dem_share_override should shift the state mean to the target."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+
+        # Without adjustment
+        result_baseline = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+        )
+
+        # With adjustment: override AK prior to 0.48 (from ~0.42)
+        result_adjusted = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+            race_adjustments={
+                "2026 AK Senate": {"prior_dem_share_override": 0.48},
+            },
+        )
+
+        # AK counties should be shifted toward D
+        ak_mask = np.array([s == "AK" for s in states])
+        baseline_ak = result_baseline["2026 AK Senate"].county_preds_national[ak_mask]
+        adjusted_ak = result_adjusted["2026 AK Senate"].county_preds_national[ak_mask]
+        assert np.all(adjusted_ak > baseline_ak), (
+            "Adjusted AK predictions should be more D-leaning than baseline"
+        )
+
+    def test_adjustment_does_not_affect_other_states(self):
+        """An AK adjustment should not change GA county predictions."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+        races = ["2026 AK Senate", "2026 GA Senate"]
+
+        result_baseline = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=races,
+        )
+
+        result_adjusted = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=races,
+            race_adjustments={
+                "2026 AK Senate": {"prior_dem_share_override": 0.48},
+            },
+        )
+
+        # GA Senate predictions should be identical
+        ga_mask = np.array([s == "GA" for s in states])
+        np.testing.assert_allclose(
+            result_baseline["2026 GA Senate"].county_preds_national[ga_mask],
+            result_adjusted["2026 GA Senate"].county_preds_national[ga_mask],
+        )
+
+    def test_adjustment_preserves_relative_county_structure(self):
+        """Counties within a state should maintain their relative ordering."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+
+        result = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+            race_adjustments={
+                "2026 AK Senate": {"prior_dem_share_override": 0.48},
+            },
+        )
+
+        ak_mask = np.array([s == "AK" for s in states])
+        ak_preds = result["2026 AK Senate"].county_preds_national[ak_mask]
+        # Original ordering: county 0 < county 1 < county 2 (0.40, 0.42, 0.44)
+        # After uniform shift, ordering should be preserved
+        assert ak_preds[0] < ak_preds[1] < ak_preds[2]
+
+    def test_no_adjustment_when_race_not_in_config(self):
+        """Races without adjustments should use unmodified priors."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+
+        result_no_adj = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 GA Senate"],
+        )
+
+        result_with_ak_adj = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 GA Senate"],
+            race_adjustments={
+                "2026 AK Senate": {"prior_dem_share_override": 0.48},
+            },
+        )
+
+        np.testing.assert_allclose(
+            result_no_adj["2026 GA Senate"].county_preds_national,
+            result_with_ak_adj["2026 GA Senate"].county_preds_national,
+        )
+
+    def test_none_race_adjustments_is_noop(self):
+        """race_adjustments=None should produce same results as no adjustments."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+
+        result_default = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+        )
+
+        result_none = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+            race_adjustments=None,
+        )
+
+        np.testing.assert_allclose(
+            result_default["2026 AK Senate"].county_preds_national,
+            result_none["2026 AK Senate"].county_preds_national,
+        )
+
+    def test_empty_race_adjustments_is_noop(self):
+        """race_adjustments={} should produce same results as no adjustments."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+
+        result_default = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+        )
+
+        result_empty = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={},
+            races=["2026 AK Senate"],
+            race_adjustments={},
+        )
+
+        np.testing.assert_allclose(
+            result_default["2026 AK Senate"].county_preds_national,
+            result_empty["2026 AK Senate"].county_preds_national,
+        )

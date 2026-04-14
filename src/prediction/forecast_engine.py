@@ -370,6 +370,11 @@ def run_forecast(
     # ^^ The k parameter in alpha = 1/(1 + n_polls/k).  Controls how quickly
     # the model transitions from trusting county priors (few polls) to trusting
     # type-projected predictions (many polls).  k=5: at 5 polls, 50/50 blend.
+    race_adjustments: dict[str, dict] | None = None,
+    # ^^ Per-race prior overrides.  Maps race_id -> {"prior_dem_share_override": float}.
+    # When set, the state-mean of county priors is shifted to the target value
+    # before the Bayesian update.  Used for structural factors the model can't
+    # capture (RCV dynamics, unusual candidate effects).
 ) -> dict[str, ForecastResult]:
     """Run the full hierarchical forecast for all races.
 
@@ -458,6 +463,34 @@ def run_forecast(
         race_polls = working_polls.get(race_id, [])
         n_polls = len(race_polls)
 
+        # Apply per-race prior override if configured (e.g., RCV states).
+        # Shifts all county priors in the race's state so the vote-weighted
+        # state mean matches the target.  Preserves relative county structure.
+        race_priors = adjusted_priors
+        if race_adjustments:
+            adj = race_adjustments.get(race_id)
+            if adj and "prior_dem_share_override" in adj:
+                target = adj["prior_dem_share_override"]
+                # Extract the state from the race_id (e.g., "2026 AK Senate" -> "AK")
+                race_parts = race_id.split()
+                state_abbr = race_parts[1] if len(race_parts) >= 3 else None
+                if state_abbr:
+                    state_mask = np.array([s == state_abbr for s in states])
+                    if state_mask.any():
+                        # Vote-weighted state mean of current priors
+                        state_votes_masked = county_votes[state_mask]
+                        vote_total = state_votes_masked.sum()
+                        if vote_total > 0:
+                            current_mean = (
+                                adjusted_priors[state_mask] * state_votes_masked
+                            ).sum() / vote_total
+                        else:
+                            current_mean = adjusted_priors[state_mask].mean()
+                        shift = target - current_mean
+                        # Apply uniform shift to this state's counties only
+                        race_priors = adjusted_priors.copy()
+                        race_priors[state_mask] += shift
+
         if n_polls > 0:
             race_W, race_y, race_sigma, _ = _build_poll_arrays(
                 {race_id: race_polls}, type_scores, states, county_votes,
@@ -486,8 +519,8 @@ def run_forecast(
         alpha = 1.0 / (1.0 + n_polls / poll_blend_scale)
         type_proj_national = type_scores @ theta_national
         type_proj_local = type_scores @ (theta_national + delta)
-        county_preds_national = alpha * adjusted_priors + (1 - alpha) * type_proj_national
-        county_preds_local = alpha * adjusted_priors + (1 - alpha) * type_proj_local
+        county_preds_national = alpha * race_priors + (1 - alpha) * type_proj_national
+        county_preds_local = alpha * race_priors + (1 - alpha) * type_proj_local
 
         results[race_id] = ForecastResult(
             theta_prior=theta_prior,

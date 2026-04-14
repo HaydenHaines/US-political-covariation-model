@@ -103,6 +103,10 @@ class ForecastParams:
     state_econ_enabled: bool = False
     state_econ_sensitivity: float = 0.5
 
+    # Per-race prior overrides (e.g., RCV states, unusual candidate dynamics).
+    # Maps race_id -> {"prior_dem_share_override": float, "notes": str}.
+    race_adjustments: dict[str, dict] = field(default_factory=dict)
+
 
 def load_forecast_params(
     params_path: Path | None = None,
@@ -149,6 +153,12 @@ def load_forecast_params(
 
     state_econ_section: dict = all_params.get("state_economics", {})
 
+    # Race-level prior overrides.  Strip keys starting with "_" (comments).
+    raw_adjustments: dict = all_params.get("race_adjustments", {})
+    race_adjustments: dict[str, dict] = {
+        k: v for k, v in raw_adjustments.items() if not k.startswith("_")
+    }
+
     return ForecastParams(
         lam=float(forecast_section["lam"]),
         mu=float(forecast_section["mu"]),
@@ -162,6 +172,7 @@ def load_forecast_params(
         fundamentals_weight=float(fund_section.get("fundamentals_weight", 0.3)),
         state_econ_enabled=bool(state_econ_section.get("enabled", False)),
         state_econ_sensitivity=float(state_econ_section.get("sensitivity", 0.5)),
+        race_adjustments=race_adjustments,
     )
 
 
@@ -562,6 +573,7 @@ def run_forecast_pipeline(
         methodology_weights=params.methodology_weights,
         state_population_vectors=state_population_vectors,
         poll_blend_scale=params.poll_blend_scale,
+        race_adjustments=params.race_adjustments,
     )
 
     forecast_results: dict = {}

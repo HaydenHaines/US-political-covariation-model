@@ -21,9 +21,11 @@
       "incumbent": {"name": "Dan Sullivan", "party": "R"},
       "status": "incumbent_running",
       "rating": "Lean R",
+      "election_system": "rcv_top4",
       "candidates": {
         "R": ["Dan Sullivan"],
-        "D": ["Mary Peltola"]
+        "D": ["Mary Peltola"],
+        "I": ["Dustin Darden", "Richard Grayson"]
       }
     },
     "2026 AR Senate": {

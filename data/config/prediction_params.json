@@ -47,5 +47,16 @@
     "_sensitivity_notes": "sensitivity controls how much state economic conditions modulate the national shift. At 0.5, a state with +3% relative employment growth gets +1.5pp shift adjustment. Higher values amplify state variation. Start conservative at 0.5.",
     "enabled": true,
     "sensitivity": 0.5
+  },
+  "race_adjustments": {
+    "_notes": "Per-race overrides to the model prior. Applied BEFORE poll updates. Use for structural factors the model can't capture: RCV dynamics, unusual candidate appeal, etc. Each key is a race_id matching the race registry. prior_dem_share_override replaces the state-level prior mean (a uniform shift is applied to all county priors in that state to hit the target).",
+    "2026 AK Senate": {
+      "prior_dem_share_override": 0.48,
+      "notes": "Alaska top-4 RCV + Peltola crossover appeal. Calibrated from: 2022 AK-AL RCV results (Peltola won D+10 in Trump+10 state), Cook Lean R rating (~47-49% D implied), Polymarket 62% Peltola. Replaces presidential baseline (~0.45) with RCV-adjusted prior."
+    },
+    "2026 AK Governor": {
+      "prior_dem_share_override": 0.44,
+      "notes": "Alaska top-4 RCV + open seat. Conservative adjustment from ~0.42 governor baseline. No strong D candidate identified yet; RCV provides modest structural competitiveness boost."
+    }
   }
 }

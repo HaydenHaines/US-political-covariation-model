@@ -389,3 +389,45 @@ class TestFallbackDefaults:
 
         assert half_life == pytest.approx(30.0)
         assert discount == pytest.approx(0.5)
+
+
+# ---------------------------------------------------------------------------
+# Race adjustments config
+# ---------------------------------------------------------------------------
+
+
+class TestRaceAdjustmentsConfig:
+    """Verify race_adjustments section in prediction_params.json."""
+
+    def test_race_adjustments_section_present(self):
+        params = json.loads(PARAMS_PATH.read_text())
+        assert "race_adjustments" in params, (
+            "prediction_params.json should have 'race_adjustments' section"
+        )
+
+    def test_ak_senate_override_present(self):
+        params = json.loads(PARAMS_PATH.read_text())
+        adj = params["race_adjustments"]
+        assert "2026 AK Senate" in adj
+
+    def test_ak_senate_override_value_valid(self):
+        params = json.loads(PARAMS_PATH.read_text())
+        ak = params["race_adjustments"]["2026 AK Senate"]
+        override = float(ak["prior_dem_share_override"])
+        assert 0.0 < override < 1.0, f"Override must be valid Dem share, got {override}"
+
+    def test_load_forecast_params_includes_race_adjustments(self):
+        """load_forecast_params should populate ForecastParams.race_adjustments."""
+        from src.prediction.predict_2026_types import load_forecast_params
+
+        fp = load_forecast_params()
+        assert isinstance(fp.race_adjustments, dict)
+        assert "2026 AK Senate" in fp.race_adjustments
+
+    def test_comment_keys_excluded(self):
+        """Keys starting with '_' should be stripped from race_adjustments."""
+        from src.prediction.predict_2026_types import load_forecast_params
+
+        fp = load_forecast_params()
+        for key in fp.race_adjustments:
+            assert not key.startswith("_"), f"Comment key {key!r} should be excluded"

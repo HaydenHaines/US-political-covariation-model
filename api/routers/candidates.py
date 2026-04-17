@@ -92,26 +92,27 @@ def _resolve_bioguide(candidate_name: str) -> str | None:
 
 # ── Super-type display names (cached) ───────────────────────────────────────
 
-_SUPER_TYPE_NAMES: dict[int, str] | None = None
+_TYPE_DISPLAY_NAMES: dict[int, str] | None = None
 
 
-def _get_super_type_names(db: duckdb.DuckDBPyConnection) -> dict[int, str]:
-    """Fetch super_type display names from DuckDB, cached after first call.
+def _get_type_display_names(db: duckdb.DuckDBPyConnection) -> dict[int, str]:
+    """Fetch per-type display names from DuckDB ``types`` table, cached after first call.
 
-    The cache persists for the process lifetime since super-type names only
-    change on retrain (at which point the server is restarted).
+    Uses the individual type display names (J=100 types), not super-type names.
+    The cache persists for the process lifetime since type names only change on
+    retrain (at which point the server is restarted).
     """
-    global _SUPER_TYPE_NAMES  # noqa: PLW0603
-    if _SUPER_TYPE_NAMES is not None:
-        return _SUPER_TYPE_NAMES
+    global _TYPE_DISPLAY_NAMES  # noqa: PLW0603
+    if _TYPE_DISPLAY_NAMES is not None:
+        return _TYPE_DISPLAY_NAMES
 
     try:
-        rows = db.execute("SELECT super_type_id, display_name FROM super_types").fetchall()
-        _SUPER_TYPE_NAMES = {int(r[0]): str(r[1]) for r in rows}
+        rows = db.execute("SELECT type_id, display_name FROM types").fetchall()
+        _TYPE_DISPLAY_NAMES = {int(r[0]): str(r[1]) for r in rows}
     except Exception:
-        log.warning("Could not load super_type display names from DuckDB")
-        _SUPER_TYPE_NAMES = {}
-    return _SUPER_TYPE_NAMES
+        log.warning("Could not load type display names from DuckDB")
+        _TYPE_DISPLAY_NAMES = {}
+    return _TYPE_DISPLAY_NAMES
 
 
 def _build_badges(badge_data: dict) -> list[CandidateBadge]:
@@ -198,7 +199,7 @@ def get_candidate_ctov(
     sorted_types = sorted(ctov_values.items(), key=lambda x: abs(x[1]), reverse=True)[:10]
 
     # Resolve display names from DuckDB super_types table
-    type_names = _get_super_type_names(db)
+    type_names = _get_type_display_names(db)
 
     entries = [
         CTOVEntry(

@@ -142,7 +142,7 @@ def candidates_client():
              "Test Senator": "T000001",
              "Test Governor": "T000002",
          }), \
-         patch("api.routers.candidates._SUPER_TYPE_NAMES", None):
+         patch("api.routers.candidates._TYPE_DISPLAY_NAMES", None):
 
         test_app = create_app(lifespan_override=_noop_lifespan)
         test_app.state.db = test_db

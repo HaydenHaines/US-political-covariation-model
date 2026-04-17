@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from api.routers.governor._helpers import GOVERNOR_2026_STATES, _GOVERNOR_INCUMBENT
-from api.routers.senate._helpers import SENATE_2026_STATES, _CLASS_II_INCUMBENT
+from api.routers.governor._helpers import _GOVERNOR_INCUMBENT, GOVERNOR_2026_STATES
+from api.routers.senate._helpers import _CLASS_II_INCUMBENT, SENATE_2026_STATES
 
 _CANDIDATES_PATH = Path("data/config/candidates_2026.json")
 

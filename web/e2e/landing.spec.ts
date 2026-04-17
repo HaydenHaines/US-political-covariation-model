@@ -37,6 +37,13 @@ test.describe("Landing page", () => {
     await expect(page.getByText(/not up/i).first()).toBeVisible({ timeout: 10_000 });
   });
 
+  test("projection explainer renders below headline", async ({ page }) => {
+    // ProjectionExplainer shows "Democrats favored in X seats, Republicans in Y."
+    await expect(
+      page.getByText(/Democrats favored in \d+ seats/i),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("footer renders with navigation links", async ({ page }) => {
     const footer = page.locator("footer");
     await expect(footer).toBeVisible({ timeout: 10_000 });

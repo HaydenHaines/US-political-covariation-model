@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useRaceCandidates } from "@/lib/hooks/use-race-candidates";
 import type { CandidateBadge, RaceCandidateSummary } from "@/lib/api";
+import { CTOVRadarChart } from "./CTOVRadarChart";
 
 interface CandidateBadgesProps {
   /** Race key in the format used by candidates_2026.json, e.g. "2026 GA Senate". */
@@ -186,61 +187,75 @@ function CandidateRow({ candidate }: { candidate: RaceCandidateSummary }) {
   const partyColor = PARTY_LABEL_COLORS[candidate.party] ?? "var(--color-text-muted)";
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex items-center gap-2">
-        <span
-          className="text-sm font-semibold"
-          style={{ color: partyColor }}
-        >
-          {candidate.name}
-          <span
-            className="ml-1 text-xs font-normal"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            ({candidate.party})
-          </span>
-        </span>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    padding: "0px 5px",
-                    borderRadius: "4px",
-                    fontSize: "0.6rem",
-                    fontWeight: 600,
-                    letterSpacing: "0.04em",
-                    cursor: "default",
-                    userSelect: "none",
-                    background: "rgba(148, 163, 184, 0.08)",
-                    color: "var(--color-text-muted)",
-                    border: "1px solid rgba(148, 163, 184, 0.20)",
-                  }}
-                >
-                  CEC {formatCEC(candidate.cec)}
-                </span>
-              }
-            />
-            <TooltipContent side="top">
-              <span style={{ fontSize: "0.75rem" }}>
-                Candidate Effect Consistency: {formatCEC(candidate.cec)} --
-                how stable this candidate&apos;s performance pattern is across races.
-                Higher = more predictable.
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-      {candidate.badges.length > 0 && (
-        <div className="flex flex-wrap gap-1">
-          {candidate.badges.map((badge) => (
-            <BadgePill key={badge.name} badge={badge} />
-          ))}
+    <div style={{ display: "flex", gap: "12px", alignItems: "flex-start" }}>
+      {/* Radar chart — only renders when there are ≥3 meaningful badge dimensions */}
+      {candidate.badge_scores && Object.keys(candidate.badge_scores).length > 0 && (
+        <div style={{ flexShrink: 0, paddingTop: "2px" }}>
+          <CTOVRadarChart
+            badgeScores={candidate.badge_scores}
+            party={candidate.party}
+            size={120}
+          />
         </div>
       )}
+
+      {/* Name, CEC indicator, and badge pills */}
+      <div className="flex flex-col gap-1.5" style={{ flex: 1, minWidth: 0 }}>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-sm font-semibold"
+            style={{ color: partyColor }}
+          >
+            {candidate.name}
+            <span
+              className="ml-1 text-xs font-normal"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              ({candidate.party})
+            </span>
+          </span>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      padding: "0px 5px",
+                      borderRadius: "4px",
+                      fontSize: "0.6rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      cursor: "default",
+                      userSelect: "none",
+                      background: "rgba(148, 163, 184, 0.08)",
+                      color: "var(--color-text-muted)",
+                      border: "1px solid rgba(148, 163, 184, 0.20)",
+                    }}
+                  >
+                    CEC {formatCEC(candidate.cec)}
+                  </span>
+                }
+              />
+              <TooltipContent side="top">
+                <span style={{ fontSize: "0.75rem" }}>
+                  Candidate Effect Consistency: {formatCEC(candidate.cec)} --
+                  how stable this candidate&apos;s performance pattern is across races.
+                  Higher = more predictable.
+                </span>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+        {candidate.badges.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {candidate.badges.map((badge) => (
+              <BadgePill key={badge.name} badge={badge} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

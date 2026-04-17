@@ -561,6 +561,7 @@ export interface RaceCandidateSummary {
   party: string;
   badges: CandidateBadge[];
   cec: number;
+  badge_scores: Record<string, number>;
 }
 
 export interface RaceCandidatesResponse {

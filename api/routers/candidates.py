@@ -304,6 +304,7 @@ def get_race_candidates(race_key: str):
                     party=badge_data["party"],
                     badges=_build_badges(badge_data),
                     cec=badge_data.get("cec", 0.0),
+                    badge_scores=badge_data.get("badge_scores", {}),
                 )
             )
 

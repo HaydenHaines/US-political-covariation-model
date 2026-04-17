@@ -772,6 +772,7 @@ class RaceCandidateSummary(BaseModel):
     party: str
     badges: list[CandidateBadge]
     cec: float
+    badge_scores: dict[str, float]
 
 
 class RaceCandidatesResponse(BaseModel):

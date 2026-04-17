@@ -358,8 +358,7 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
 
     if J != len(type_profiles):
         log.warning(
-            "CTOV dimension J=%d does not match type_profiles rows=%d; "
-            "badge scores may be truncated",
+            "CTOV dimension J=%d does not match type_profiles rows=%d; badge scores may be truncated",
             J,
             len(type_profiles),
         )
@@ -385,9 +384,7 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
     party_by_person: dict[str, str] = {}
 
     # Also compute Turnout Monster raw scores (mean |MVD| per candidate)
-    mvd_by_person: dict[str, float] = (
-        mvd_df.groupby("person_id")["mvd"].mean().to_dict()
-    )
+    mvd_by_person: dict[str, float] = mvd_df.groupby("person_id")["mvd"].mean().to_dict()
 
     for person_id in person_ids:
         person_rows = ctov_df[ctov_df["person_id"] == person_id]
@@ -464,8 +461,9 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
             # Turnout Monster is intentionally global — absolute magnitude, not party-relative.
             # Coalition badges use within-party thresholds so D and R outliers are measured
             # against their own party peers, not each other's coalition structure.
-            use_global = is_small_pool or badge_name == _TURNOUT_MONSTER_BADGE["badge"]
-            fallback_reason: str | None = "small_pool" if (is_small_pool and badge_name != _TURNOUT_MONSTER_BADGE["badge"]) else None
+            is_turnout_monster = badge_name == _TURNOUT_MONSTER_BADGE["badge"]
+            use_global = is_small_pool or is_turnout_monster
+            fallback_reason: str | None = "small_pool" if (is_small_pool and not is_turnout_monster) else None
 
             if use_global or (p, badge_name) not in party_mean:
                 mean = global_mean.get(badge_name, 0.0)
@@ -479,23 +477,27 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
 
             if raw_score > mean + _BADGE_THRESHOLD_STD * std:
                 awarded.append(badge_name)
-                details.append({
-                    "name": badge_name,
-                    "score": raw_score,
-                    "provisional": provisional,
-                    "kind": "catalog",
-                    "fallback_reason": fallback_reason,
-                })
+                details.append(
+                    {
+                        "name": badge_name,
+                        "score": raw_score,
+                        "provisional": provisional,
+                        "kind": "catalog",
+                        "fallback_reason": fallback_reason,
+                    }
+                )
             elif raw_score < mean - _BADGE_THRESHOLD_STD * std:
                 low_name = f"Low {badge_name}"
                 awarded.append(low_name)
-                details.append({
-                    "name": low_name,
-                    "score": raw_score,
-                    "provisional": provisional,
-                    "kind": "catalog",
-                    "fallback_reason": fallback_reason,
-                })
+                details.append(
+                    {
+                        "name": low_name,
+                        "score": raw_score,
+                        "provisional": provisional,
+                        "kind": "catalog",
+                        "fallback_reason": fallback_reason,
+                    }
+                )
 
         result[person_id] = {
             "name": person_rows["name"].iloc[0],
@@ -588,9 +590,7 @@ def derive_signature_badges(
     # Compute within-party std per type (used for z-scores)
     # Fall back to global std for small parties.
     party_type_std: dict[str, np.ndarray] = {}
-    global_type_std = np.std(
-        np.array(list(residual_by_person.values())), axis=0
-    ).clip(min=1e-9)
+    global_type_std = np.std(np.array(list(residual_by_person.values())), axis=0).clip(min=1e-9)
 
     for p in ctov_df["party"].unique():
         pids = [pid for pid in person_ids if party_by_person[pid] == p]
@@ -629,8 +629,7 @@ def derive_signature_badges(
             col_vec = residual_matrix[:, type_id] / col_norms[type_id]
             # Check cosine similarity against already-selected types
             too_similar = any(
-                float(np.dot(col_vec, prev_vec)) > _COSINE_DEDUP_THRESHOLD
-                for prev_vec in selected_col_vecs
+                float(np.dot(col_vec, prev_vec)) > _COSINE_DEDUP_THRESHOLD for prev_vec in selected_col_vecs
             )
             if not too_similar:
                 selected_type_ids.append(type_id)
@@ -642,13 +641,15 @@ def derive_signature_badges(
             z = float(z_scores[type_id])
             type_name = super_type_names.get(type_id, f"Type {type_id}")
             prefix = "Signature" if z >= 0 else "Low Signature"
-            badges.append({
-                "name": f"{prefix}: {type_name}",
-                "score": z,
-                "type_id": type_id,
-                "kind": "signature",
-                "provisional": provisional,
-            })
+            badges.append(
+                {
+                    "name": f"{prefix}: {type_name}",
+                    "score": z,
+                    "type_id": type_id,
+                    "kind": "signature",
+                    "provisional": provisional,
+                }
+            )
 
         result[pid] = {"signature_badges": badges}
 

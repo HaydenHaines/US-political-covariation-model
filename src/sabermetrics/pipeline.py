@@ -149,18 +149,31 @@ def run_sabermetrics_pipeline(
 
     # --- Step 5: Derive badges ---
     log.info("Deriving badges from CTOV + demographics...")
-    from src.sabermetrics.badges import derive_badges
+    from src.sabermetrics.badges import derive_badges, derive_signature_badges
 
     badges = derive_badges(ctov_df, mvd_df)
     n_badges_total = sum(len(v["badges"]) for v in badges.values())
     log.info("  Badges: %d total awarded across %d candidates", n_badges_total, len(badges))
 
-    # Attach CEC scores to badge output for convenience
+    # --- Step 5b: Derive signature (auto-discovered) badges ---
+    log.info("Deriving signature badges from residual CTOV...")
+    sig_badges = derive_signature_badges(ctov_df)
+    n_sig_total = sum(len(v["signature_badges"]) for v in sig_badges.values())
+    log.info("  Signature badges: %d total across %d candidates", n_sig_total, len(sig_badges))
+
+    # Merge signature badges into the main badge output and attach CEC scores
     cec_by_person = dict(zip(cec_df["person_id"], cec_df["cec"]))
     n_races_by_person = dict(zip(cec_df["person_id"], cec_df["n_races"]))
     for person_id, badge_entry in badges.items():
         badge_entry["cec"] = cec_by_person.get(person_id, None)
         badge_entry["n_races"] = n_races_by_person.get(person_id, badge_entry.get("n_races", 1))
+        # Append signature badge details into badge_details list
+        sig_entry = sig_badges.get(person_id, {})
+        sig_list = sig_entry.get("signature_badges", [])
+        badge_entry.setdefault("badge_details", [])
+        badge_entry["badge_details"].extend(sig_list)
+        # Keep "badges" list in sync for backward compat
+        badge_entry["badges"].extend(d["name"] for d in sig_list)
 
     with open(badges_path, "w") as f:
         json.dump(badges, f, indent=2)

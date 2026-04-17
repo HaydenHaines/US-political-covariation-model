@@ -206,10 +206,26 @@ _TURNOUT_MONSTER_BADGE = {
     "description": "Unusually large overperformance relative to structural prediction",
 }
 
-# Badges are awarded at 1 std dev threshold above cross-candidate mean.
+# Badges are awarded at 1 std dev threshold above the within-party mean.
 # This is intentionally permissive: ~16% of candidates get each badge,
 # which is enough to be meaningful but not so rare it's useless.
 _BADGE_THRESHOLD_STD = 1.0
+
+# Minimum party pool size for within-party thresholding.
+# Below this, fall back to global thresholding to avoid std estimates that
+# are too noisy to be meaningful (< 20 candidates → std error > ~22% of true std).
+_MIN_PARTY_POOL_SIZE = 20
+
+# Threshold for auto-discovered signature badges (within-party z-score).
+_SIGNATURE_Z_THRESHOLD = 2.0
+
+# Maximum signature badges per candidate (greedy cosine dedup reduces further).
+_MAX_SIGNATURES = 3
+
+# Cosine similarity threshold for signature badge deduplication.
+# Types with column-cosine > this are considered redundant and the lower-ranked
+# one is skipped so all 3 signatures represent orthogonal skill axes.
+_COSINE_DEDUP_THRESHOLD = 0.6
 
 
 # ---------------------------------------------------------------------------
@@ -365,6 +381,8 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
     # --- Step 1: Compute career CTOV and raw badge scores for all candidates ---
     person_ids = ctov_df["person_id"].unique()
     raw_scores: dict[str, dict[str, float]] = {}
+    # Track party per person for within-party thresholding in Step 2
+    party_by_person: dict[str, str] = {}
 
     # Also compute Turnout Monster raw scores (mean |MVD| per candidate)
     mvd_by_person: dict[str, float] = (
@@ -374,6 +392,7 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
     for person_id in person_ids:
         person_rows = ctov_df[ctov_df["person_id"] == person_id]
         party = person_rows["party"].iloc[0]
+        party_by_person[person_id] = party
         career_vec = _career_ctov(person_id, ctov_df)[:J]
         # Subtract party mean to get the RESIDUAL — what makes this candidate
         # different from an average member of their party
@@ -396,44 +415,95 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
 
         raw_scores[person_id] = scores
 
-    # --- Step 2: Compute cross-candidate mean and std for threshold ---
-    # One mean/std per badge, computed across all candidates who have that badge.
+    # --- Step 2: Compute thresholds: within-party where pool >= _MIN_PARTY_POOL_SIZE,
+    #             global fallback otherwise. Turnout Monster stays global always. ---
     all_badge_names = list(next(iter(raw_scores.values())).keys()) if raw_scores else []
-    badge_mean: dict[str, float] = {}
-    badge_std: dict[str, float] = {}
 
+    # Global fallback thresholds (used for small parties and Turnout Monster)
+    global_mean: dict[str, float] = {}
+    global_std: dict[str, float] = {}
     for badge_name in all_badge_names:
         vals = np.array([raw_scores[pid][badge_name] for pid in raw_scores if badge_name in raw_scores[pid]])
-        badge_mean[badge_name] = float(np.mean(vals))
-        badge_std[badge_name] = float(np.std(vals))
+        global_mean[badge_name] = float(np.mean(vals))
+        global_std[badge_name] = float(np.std(vals))
 
-    # --- Step 3: Award badges when |score| > mean + threshold × std ---
+    # Within-party thresholds for parties meeting the pool size floor
+    party_mean: dict[tuple[str, str], float] = {}
+    party_std: dict[tuple[str, str], float] = {}
+    all_parties = ctov_df["party"].unique()
+    small_parties: set[str] = set()
+    for p in all_parties:
+        pids = [pid for pid in raw_scores if party_by_person.get(pid) == p]
+        if len(pids) < _MIN_PARTY_POOL_SIZE:
+            small_parties.add(p)
+            continue
+        for badge_name in all_badge_names:
+            vals = np.array([raw_scores[pid][badge_name] for pid in pids if badge_name in raw_scores[pid]])
+            party_mean[(p, badge_name)] = float(np.mean(vals))
+            party_std[(p, badge_name)] = float(np.std(vals))
+
+    if small_parties:
+        log.info(
+            "derive_badges: parties %s have pool < %d — using global threshold fallback",
+            sorted(small_parties),
+            _MIN_PARTY_POOL_SIZE,
+        )
+
+    # --- Step 3: Award badges using within-party threshold (or global fallback) ---
     result: dict[str, dict] = {}
     for person_id, scores in raw_scores.items():
         person_rows = ctov_df[ctov_df["person_id"] == person_id]
+        n_races = len(person_rows)
+        p = party_by_person.get(person_id, "")
+        is_small_pool = p in small_parties
+        provisional = n_races < 2
         awarded: list[str] = []
+        details: list[dict] = []
 
         for badge_name, raw_score in scores.items():
-            mean = badge_mean.get(badge_name, 0.0)
-            std = badge_std.get(badge_name, 1.0)
+            # Turnout Monster is intentionally global — absolute magnitude, not party-relative.
+            # Coalition badges use within-party thresholds so D and R outliers are measured
+            # against their own party peers, not each other's coalition structure.
+            use_global = is_small_pool or badge_name == _TURNOUT_MONSTER_BADGE["badge"]
+            fallback_reason: str | None = "small_pool" if (is_small_pool and badge_name != _TURNOUT_MONSTER_BADGE["badge"]) else None
+
+            if use_global or (p, badge_name) not in party_mean:
+                mean = global_mean.get(badge_name, 0.0)
+                std = global_std.get(badge_name, 1.0)
+            else:
+                mean = party_mean[(p, badge_name)]
+                std = party_std[(p, badge_name)]
+
             if std < 1e-9:
-                # All candidates have the same score — badge is uninformative
                 continue
-            # Positive badge: score > mean + threshold*std
-            # Negative badge: score < mean - threshold*std (exceptionally low)
-            # We award the positive version (candidate genuinely skilled in that dimension)
-            # and a negative version (candidate notably weak)
+
             if raw_score > mean + _BADGE_THRESHOLD_STD * std:
                 awarded.append(badge_name)
+                details.append({
+                    "name": badge_name,
+                    "score": raw_score,
+                    "provisional": provisional,
+                    "kind": "catalog",
+                    "fallback_reason": fallback_reason,
+                })
             elif raw_score < mean - _BADGE_THRESHOLD_STD * std:
-                awarded.append(f"Low {badge_name}")
+                low_name = f"Low {badge_name}"
+                awarded.append(low_name)
+                details.append({
+                    "name": low_name,
+                    "score": raw_score,
+                    "provisional": provisional,
+                    "kind": "catalog",
+                    "fallback_reason": fallback_reason,
+                })
 
         result[person_id] = {
             "name": person_rows["name"].iloc[0],
-            "party": person_rows["party"].iloc[0],
-            "n_races": len(person_rows),
+            "party": p,
+            "n_races": n_races,
             "badges": awarded,
             "badge_scores": scores,
+            "badge_details": details,
         }
 
     n_with_badges = sum(1 for v in result.values() if v["badges"])
@@ -443,3 +513,173 @@ def derive_badges(ctov_df: pd.DataFrame, mvd_df: pd.DataFrame) -> dict:
         n_with_badges,
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Signature badge derivation (auto-discovered)
+# ---------------------------------------------------------------------------
+
+
+def derive_signature_badges(
+    ctov_df: pd.DataFrame,
+    super_type_names: dict[int, str] | None = None,
+) -> dict:
+    """Derive auto-discovered signature badges for all candidates.
+
+    Signature badges capture a candidate's most distinctive type-level fingerprint
+    — where their residual CTOV is far from party peers.  Unlike catalog badges
+    (which project onto preset demographic axes), signature badges are labeled
+    directly by community type.
+
+    Algorithm:
+    1. Compute party-mean CTOV and per-candidate residual (same as derive_badges).
+    2. For each type j, compute within-party std of residuals.
+    3. For each candidate, compute z-score = residual[j] / party_std[j].
+    4. Candidate types where |z| > _SIGNATURE_Z_THRESHOLD qualify.
+    5. Greedy cosine dedup: skip type if cosine(col_j, already_selected) > _COSINE_DEDUP_THRESHOLD.
+    6. Cap at _MAX_SIGNATURES per candidate.
+
+    Parameters
+    ----------
+    ctov_df : pd.DataFrame
+        Output of compute_ctov() — one row per candidate-race.
+    super_type_names : dict[int, str] | None
+        Mapping from type_id → display name.  If None, loads from DuckDB.
+
+    Returns
+    -------
+    dict
+        Mapping: person_id → {
+            "signature_badges": list[{
+                "name": str,
+                "score": float (z-score),
+                "type_id": int,
+                "kind": "signature",
+                "provisional": bool,
+            }]
+        }
+    """
+    ctov_cols = [c for c in ctov_df.columns if c.startswith("ctov_type_")]
+    J = len(ctov_cols)
+
+    if super_type_names is None:
+        super_type_names = _load_super_type_names()
+
+    # Compute party-mean CTOV (same approach as derive_badges Step 0)
+    party_mean_ctov: dict[str, np.ndarray] = {}
+    for party_code in ctov_df["party"].unique():
+        party_rows = ctov_df[ctov_df["party"] == party_code]
+        party_mean_ctov[party_code] = party_rows[ctov_cols].values.mean(axis=0)
+
+    # Compute career CTOV and residual per candidate
+    person_ids = ctov_df["person_id"].unique()
+    residual_by_person: dict[str, np.ndarray] = {}
+    party_by_person: dict[str, str] = {}
+    n_races_by_person: dict[str, int] = {}
+    for pid in person_ids:
+        rows = ctov_df[ctov_df["person_id"] == pid]
+        p = rows["party"].iloc[0]
+        career_vec = rows[ctov_cols].values.mean(axis=0)
+        pm = party_mean_ctov.get(p, np.zeros(J))
+        residual_by_person[pid] = career_vec - pm
+        party_by_person[pid] = p
+        n_races_by_person[pid] = len(rows)
+
+    # Compute within-party std per type (used for z-scores)
+    # Fall back to global std for small parties.
+    party_type_std: dict[str, np.ndarray] = {}
+    global_type_std = np.std(
+        np.array(list(residual_by_person.values())), axis=0
+    ).clip(min=1e-9)
+
+    for p in ctov_df["party"].unique():
+        pids = [pid for pid in person_ids if party_by_person[pid] == p]
+        if len(pids) < _MIN_PARTY_POOL_SIZE:
+            party_type_std[p] = global_type_std
+        else:
+            mat = np.array([residual_by_person[pid] for pid in pids])
+            party_type_std[p] = np.std(mat, axis=0).clip(min=1e-9)
+
+    # Residual matrix for cosine dedup: shape (n_candidates, J)
+    # We use this to measure how correlated two type columns are across the candidate pool.
+    residual_matrix = np.array(list(residual_by_person.values()))  # (N, J)
+    col_norms = np.linalg.norm(residual_matrix, axis=0).clip(min=1e-9)
+
+    result: dict[str, dict] = {}
+    for pid in person_ids:
+        residual = residual_by_person[pid]
+        p = party_by_person[pid]
+        type_std = party_type_std[p]
+        provisional = n_races_by_person[pid] < 2
+
+        z_scores = residual / type_std  # shape (J,)
+
+        # Candidate types exceeding the z-score threshold
+        qualifying = [(j, float(z_scores[j])) for j in range(J) if abs(z_scores[j]) >= _SIGNATURE_Z_THRESHOLD]
+        # Sort by |z| descending
+        qualifying.sort(key=lambda x: -abs(x[1]))
+
+        # Greedy cosine dedup: keep type if it's not too similar to any already selected
+        selected_type_ids: list[int] = []
+        selected_col_vecs: list[np.ndarray] = []
+
+        for type_id, z in qualifying:
+            if len(selected_type_ids) >= _MAX_SIGNATURES:
+                break
+            col_vec = residual_matrix[:, type_id] / col_norms[type_id]
+            # Check cosine similarity against already-selected types
+            too_similar = any(
+                float(np.dot(col_vec, prev_vec)) > _COSINE_DEDUP_THRESHOLD
+                for prev_vec in selected_col_vecs
+            )
+            if not too_similar:
+                selected_type_ids.append(type_id)
+                selected_col_vecs.append(col_vec)
+
+        # Build badge list for this candidate
+        badges = []
+        for type_id in selected_type_ids:
+            z = float(z_scores[type_id])
+            type_name = super_type_names.get(type_id, f"Type {type_id}")
+            prefix = "Signature" if z >= 0 else "Low Signature"
+            badges.append({
+                "name": f"{prefix}: {type_name}",
+                "score": z,
+                "type_id": type_id,
+                "kind": "signature",
+                "provisional": provisional,
+            })
+
+        result[pid] = {"signature_badges": badges}
+
+    n_with_signatures = sum(1 for v in result.values() if v["signature_badges"])
+    log.info(
+        "derive_signature_badges: %d candidates, %d with at least one signature",
+        len(result),
+        n_with_signatures,
+    )
+    return result
+
+
+def _load_super_type_names() -> dict[int, str]:
+    """Load type display names from DuckDB (authoritative source).
+
+    Falls back to empty dict on failure so signature badges degrade to
+    "Type N" labels rather than crashing the pipeline.
+    """
+    try:
+        import duckdb
+
+        db_path = PROJECT_ROOT / "data" / "wethervane.duckdb"
+        if not db_path.exists():
+            log.warning("DuckDB not found at %s; signature badge labels will be 'Type N'", db_path)
+            return {}
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            rows = con.execute("SELECT type_id, display_name FROM types").fetchall()
+            return {int(r[0]): str(r[1]) for r in rows}
+        finally:
+            con.close()
+    except Exception as exc:
+        log.warning("Could not load type display names: %s; using 'Type N' fallback", exc)
+        return {}

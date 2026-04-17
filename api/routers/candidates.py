@@ -116,12 +116,31 @@ def _get_type_display_names(db: duckdb.DuckDBPyConnection) -> dict[int, str]:
 
 
 def _build_badges(badge_data: dict) -> list[CandidateBadge]:
-    """Convert raw badge data into a list of CandidateBadge models."""
+    """Convert raw badge data into a list of CandidateBadge models.
+
+    Reads from badge_details when available (includes provisional, kind, type_id,
+    fallback_reason).  Falls back to the legacy badges list + badge_scores for
+    artifacts produced before those fields existed.
+    """
+    details = badge_data.get("badge_details")
+    if details:
+        scores = badge_data.get("badge_scores", {})
+        return [
+            CandidateBadge(
+                name=d["name"],
+                score=d.get("score", scores.get(d["name"], 0.0)),
+                provisional=d.get("provisional", False),
+                kind=d.get("kind", "catalog"),
+                type_id=d.get("type_id"),
+                fallback_reason=d.get("fallback_reason"),
+            )
+            for d in details
+        ]
+    # Legacy fallback: artifact pre-dates badge_details
     badge_names = badge_data.get("badges", [])
     scores = badge_data.get("badge_scores", {})
     result = []
     for name in badge_names:
-        # "Low X" badges store their score under the base name "X"
         score = scores.get(name, None)
         if score is None and name.startswith("Low "):
             score = scores.get(name[4:], 0.0)

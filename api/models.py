@@ -715,6 +715,18 @@ class CandidateBadge(BaseModel):
     score: float
     """Signed magnitude of the badge dimension (positive = strength, negative = weakness)."""
 
+    provisional: bool = False
+    """True when the candidate ran in only 1 race — consistency could not be measured."""
+
+    kind: str = "catalog"
+    """'catalog' for preset demographic badges, 'signature' for auto-discovered type fingerprints."""
+
+    type_id: int | None = None
+    """Set for signature badges — the community type ID driving the signal."""
+
+    fallback_reason: str | None = None
+    """'small_pool' if the party pool was too small for within-party thresholding."""
+
 
 class CandidateBadgesResponse(BaseModel):
     """Full badge profile for a single candidate (by bioguide ID)."""

@@ -127,9 +127,22 @@ const PARTY_LABEL_COLORS: Record<string, string> = {
 };
 
 function BadgePill({ badge }: { badge: CandidateBadge }) {
-  const color = getBadgeColor(badge.name);
+  const isSignature = badge.kind === "signature";
   const isLow = badge.name.startsWith("Low ");
-  const scoreFormatted = badge.score > 0 ? `+${(badge.score * 100).toFixed(1)}pp` : `${(badge.score * 100).toFixed(1)}pp`;
+  const color = isSignature ? DEFAULT_BADGE_COLOR : getBadgeColor(badge.name);
+
+  const displayName = isSignature
+    ? badge.name  // already contains "Signature: ..." or "Low Signature: ..."
+    : badge.name;
+
+  // Signature scores are z-scores; catalog scores are dot-product values.
+  const scoreFormatted = isSignature
+    ? `${badge.score >= 0 ? "+" : ""}${badge.score.toFixed(2)}σ vs party peers`
+    : badge.score > 0
+    ? `+${(badge.score * 100).toFixed(1)}pp vs expected`
+    : `${(badge.score * 100).toFixed(1)}pp vs expected`;
+
+  const tooltipSuffix = badge.provisional ? " (1 race — provisional)" : "";
 
   return (
     <TooltipProvider>
@@ -150,18 +163,18 @@ function BadgePill({ badge }: { badge: CandidateBadge }) {
                 userSelect: "none",
                 background: color.bg,
                 color: color.text,
-                border: `1px solid ${color.border}`,
+                border: `${badge.provisional ? "1px dashed" : "1px solid"} ${color.border}`,
                 opacity: isLow ? 0.8 : 1,
               }}
             >
-              {isLow && <span aria-hidden="true" style={{ fontSize: "0.55rem" }}>&#9661;</span>}
-              {badge.name}
+              {isLow && !isSignature && <span aria-hidden="true" style={{ fontSize: "0.55rem" }}>&#9661;</span>}
+              {displayName}
             </span>
           }
         />
         <TooltipContent side="top">
           <span style={{ fontSize: "0.75rem" }}>
-            {badge.name}: {scoreFormatted} vs expected
+            {badge.name}: {scoreFormatted}{tooltipSuffix}
           </span>
         </TooltipContent>
       </Tooltip>

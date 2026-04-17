@@ -40,6 +40,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 #
 # Column names must match what's actually in type_profiles.parquet.
 _BADGE_CATALOG: list[dict] = [
+    # --- Race & ethnicity ---
     {
         "badge": "Hispanic Appeal",
         "column": "pct_hispanic",
@@ -53,11 +54,25 @@ _BADGE_CATALOG: list[dict] = [
         "description": "Overperforms in Black-dominated communities",
     },
     {
+        "badge": "White Working Class",
+        "column": "pct_white_nh",
+        "direction": 1,
+        "description": "Overperforms in white non-Hispanic communities",
+    },
+    {
+        "badge": "Asian Community Appeal",
+        "column": "pct_asian",
+        "direction": 1,
+        "description": "Overperforms in Asian-dominated communities",
+    },
+    # --- Age ---
+    {
         "badge": "Senior Whisperer",
         "column": "median_age",
         "direction": 1,
         "description": "Overperforms in older communities",
     },
+    # --- Education & class ---
     {
         "badge": "Suburban Professional",
         "column": "pct_bachelors_plus",
@@ -65,16 +80,111 @@ _BADGE_CATALOG: list[dict] = [
         "description": "Overperforms in college-educated suburban communities",
     },
     {
+        "badge": "Graduate Elite",
+        "column": "pct_graduate",
+        "direction": 1,
+        "description": "Overperforms in highly-educated graduate-degree communities",
+    },
+    {
+        "badge": "Professional Class",
+        "column": "pct_management",
+        "direction": 1,
+        "description": "Overperforms in management/professional-heavy communities",
+    },
+    # --- Geography & density ---
+    {
         "badge": "Rural Populist",
         "column": "log_pop_density",
         "direction": -1,  # Negative: high density = urban; -1 = rural overperformance
         "description": "Overperforms in low-density rural communities",
     },
     {
+        "badge": "Urban Core",
+        "column": "pct_transit",
+        "direction": 1,
+        "description": "Overperforms in transit-heavy urban cores",
+    },
+    # --- Housing & economics ---
+    {
+        "badge": "Homeowner Base",
+        "column": "pct_owner_occupied",
+        "direction": 1,
+        "description": "Overperforms in homeowner-heavy communities",
+    },
+    {
+        "badge": "Wealthy Suburb",
+        "column": "log_median_hh_income",
+        "direction": 1,
+        "description": "Overperforms in high-income communities",
+    },
+    {
+        "badge": "Knowledge Economy",
+        "column": "pct_wfh",
+        "direction": 1,
+        "description": "Overperforms in remote-work-heavy knowledge-economy communities",
+    },
+    # --- Religion ---
+    {
         "badge": "Faith Coalition",
         "column": "evangelical_share",
         "direction": 1,
         "description": "Overperforms in evangelical-heavy communities",
+    },
+    {
+        "badge": "Mainline Protestant",
+        "column": "mainline_share",
+        "direction": 1,
+        "description": "Overperforms in mainline Protestant communities",
+    },
+    {
+        "badge": "Catholic Appeal",
+        "column": "catholic_share",
+        "direction": 1,
+        "description": "Overperforms in Catholic-heavy communities",
+    },
+    {
+        "badge": "Black Church Alliance",
+        "column": "black_protestant_share",
+        "direction": 1,
+        "description": "Overperforms in Black Protestant church communities",
+    },
+    {
+        "badge": "Devout Community",
+        "column": "religious_adherence_rate",
+        "direction": 1,
+        "description": "Overperforms in highly religious communities",
+    },
+    # --- Income composition ---
+    {
+        "badge": "Wage Earner Base",
+        "column": "earnings_share",
+        "direction": 1,
+        "description": "Overperforms in communities where wages dominate income",
+    },
+    {
+        "badge": "Transfer Community",
+        "column": "transfers_share",
+        "direction": 1,
+        "description": "Overperforms in transfer-payment-dependent communities (retirement, disability)",
+    },
+    {
+        "badge": "Investor Class",
+        "column": "investment_share",
+        "direction": 1,
+        "description": "Overperforms in investment-income-heavy communities",
+    },
+    # --- Migration ---
+    {
+        "badge": "Boomtown Appeal",
+        "column": "net_migration_rate",
+        "direction": 1,
+        "description": "Overperforms in fast-growing communities with net in-migration",
+    },
+    {
+        "badge": "Affluent Transplant",
+        "column": "avg_inflow_income",
+        "direction": 1,
+        "description": "Overperforms in communities attracting high-income movers",
     },
 ]
 

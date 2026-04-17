@@ -331,6 +331,66 @@ def _compute_dem_share_2party(row_d: dict | None, row_r: dict | None) -> float |
     return dem / total
 
 
+def _load_medsl_state_actuals_cache() -> dict[tuple[int, str, str], float]:
+    """Build a cache of state-level Dem two-party share from MEDSL county parquets.
+
+    Fallback for years where 538 actual_voteshare is null (e.g. 2018).
+    Returns dict mapping (year, state_abbr, office) → dem_share (vote-weighted).
+    """
+    import pandas as pd
+
+    project_root = Path(__file__).resolve().parents[2]
+    assembled_dir = project_root / "data" / "assembled"
+    cache: dict[tuple[int, str, str], float] = {}
+
+    # Senate actuals — use vote-weighted aggregation (sum D / (sum D + sum R))
+    # because simple mean of county dem_share is badly biased by rural county count.
+    for year in range(2008, 2025, 2):
+        path = assembled_dir / f"medsl_county_senate_{year}.parquet"
+        if not path.exists():
+            continue
+        df = pd.read_parquet(path)
+        if "state_abbr" not in df.columns:
+            continue
+        # Column naming: senate_dem_{year}, senate_rep_{year}
+        dem_col = f"senate_dem_{year}"
+        rep_col = f"senate_rep_{year}"
+        if dem_col in df.columns and rep_col in df.columns:
+            for state, grp in df.groupby("state_abbr"):
+                d = grp[dem_col].sum()
+                r = grp[rep_col].sum()
+                if (d + r) > 0:
+                    cache[(year, state, "senate")] = d / (d + r)
+
+    # Governor actuals — same vote-weighted approach
+    for year in [2010, 2014, 2018, 2022]:
+        if year == 2022:
+            path = assembled_dir / "medsl_county_2022_governor.parquet"
+            prefix = "gov"
+        else:
+            path = assembled_dir / f"algara_county_governor_{year}.parquet"
+            prefix = "gov"
+        if not path.exists():
+            continue
+        df = pd.read_parquet(path)
+        if "state_abbr" not in df.columns:
+            continue
+        dem_col = f"{prefix}_dem_{year}"
+        rep_col = f"{prefix}_rep_{year}"
+        # Some parquets use different column naming; try both patterns
+        if dem_col not in df.columns:
+            dem_col = f"gov_dem_votes_{year}"
+            rep_col = f"gov_rep_votes_{year}"
+        if dem_col in df.columns and rep_col in df.columns:
+            for state, grp in df.groupby("state_abbr"):
+                d = grp[dem_col].sum()
+                r = grp[rep_col].sum()
+                if (d + r) > 0:
+                    cache[(year, state, "governor")] = d / (d + r)
+
+    return cache
+
+
 def _parse_538_csv(
     csv_path: Path,
     office: str,
@@ -489,7 +549,11 @@ def build_candidate_registry(
     # --- Step 3: Group into races and compute two-party vote share ---
     all_races = _group_races(all_records)
 
-    # Build a list of per-candidate-per-race dicts enriched with 2-party Dem share
+    # Build a list of per-candidate-per-race dicts enriched with 2-party Dem share.
+    # MEDSL fallback: 538 checking-our-work has null actual_voteshare for 2018.
+    # Load MEDSL assembled parquets as a fallback for state-level actuals.
+    medsl_cache = _load_medsl_state_actuals_cache()
+
     enriched_candidates: list[dict] = []
     for (year, state, office, special), candidates in all_races.items():
         # Find the D and R candidates in this race for 2-party calc
@@ -501,6 +565,11 @@ def build_candidate_registry(
                 by_party[party] = cand
 
         dem_2party = _compute_dem_share_2party(by_party.get("D"), by_party.get("R"))
+
+        # Fallback to MEDSL when 538 actual is null (e.g. 2018 data)
+        if dem_2party is None:
+            medsl_key = (year, state, office.lower())
+            dem_2party = medsl_cache.get(medsl_key)
 
         for cand in candidates:
             # Determine result from winner's perspective

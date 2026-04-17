@@ -95,9 +95,7 @@
     "name": "John Fetterman",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.011773938938937516,
       "Black Community Strength": -0.003429933474434356,
@@ -207,8 +205,7 @@
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Black Community Strength",
-      "Faith Coalition"
+      "Black Community Strength"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.0030586759204116773,
@@ -317,9 +314,7 @@
     "name": "Eric Schmitt",
     "party": "R",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.01287407625482961,
       "Black Community Strength": -0.0024776546223160487,
@@ -370,9 +365,7 @@
     "name": "Rand Paul",
     "party": "R",
     "n_races": 2,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.019395171340396537,
       "Black Community Strength": 0.01244108284441603,
@@ -427,7 +420,6 @@
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Senior Whisperer",
       "Turnout Monster"
     ],
     "badge_scores": {
@@ -461,10 +453,7 @@
     "name": "Chuck Grassley",
     "party": "R",
     "n_races": 2,
-    "badges": [
-      "Low Rural Populist",
-      "Low Faith Coalition"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.02509969481607005,
       "Black Community Strength": -0.008294453828814434,
@@ -497,8 +486,7 @@
     "party": "D",
     "n_races": 2,
     "badges": [
-      "Low Black Community Strength",
-      "Turnout Monster"
+      "Low Black Community Strength"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.0055937417247512965,
@@ -515,9 +503,7 @@
     "name": "Val Butler Demings",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Senior Whisperer"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.017004327173087103,
       "Black Community Strength": -0.0030843060574272914,
@@ -568,8 +554,7 @@
     "party": "D",
     "n_races": 2,
     "badges": [
-      "Rural Populist",
-      "Turnout Monster"
+      "Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.02623913976362176,
@@ -586,9 +571,7 @@
     "name": "Alex Padilla",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Low Rural Populist"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.02392433625357398,
       "Black Community Strength": 0.0012093627488359404,
@@ -661,7 +644,6 @@
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Hispanic Appeal",
       "Low Senior Whisperer"
     ],
     "badge_scores": {
@@ -698,10 +680,7 @@
     "name": "Mark R. Warner",
     "party": "D",
     "n_races": 2,
-    "badges": [
-      "Low Suburban Professional",
-      "Faith Coalition"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.03496899815415265,
       "Black Community Strength": -0.005686282316539684,
@@ -908,9 +887,7 @@
     "name": "Ben Sasse",
     "party": "R",
     "n_races": 2,
-    "badges": [
-      "Low Faith Coalition"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.006380168755670738,
       "Black Community Strength": -0.012784741311350493,
@@ -963,22 +940,42 @@
   "H001079": {
     "name": "Cindy Hyde-Smith",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
-      "Black Community Strength",
       "Low Suburban Professional",
       "Rural Populist",
-      "Faith Coalition",
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.016174887030228083,
-      "Black Community Strength": 0.016236541364990375,
-      "Senior Whisperer": 0.43160328482240584,
-      "Suburban Professional": -0.022651695765741428,
-      "Rural Populist": 0.24591099610385722,
-      "Faith Coalition": 0.06205197716923632,
-      "Turnout Monster": 0.031928137267762446
+      "Hispanic Appeal": 0.023548304044527794,
+      "Black Community Strength": 0.005408134033189084,
+      "Senior Whisperer": 0.05500643076235525,
+      "Suburban Professional": -0.01687663961478754,
+      "Rural Populist": 0.14915457079786673,
+      "Faith Coalition": 0.025441098847041484,
+      "Turnout Monster": 0.01678247737739888
+    },
+    "cec": 0.45592731748904786
+  },
+  "S001203": {
+    "name": "Tina Smith",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Senior Whisperer",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.058242152605803676,
+      "Black Community Strength": -0.002394147412466901,
+      "Senior Whisperer": -1.6514168056742549,
+      "Suburban Professional": 0.011241495333619683,
+      "Rural Populist": -0.28540222653160846,
+      "Faith Coalition": -0.040973409339744374,
+      "Turnout Monster": 0.1929668252235991
     },
     "cec": 1.0
   },
@@ -1004,21 +1001,21 @@
   "J000307": {
     "name": "John James",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Suburban Professional",
       "Low Faith Coalition"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.01227929650647346,
-      "Black Community Strength": 0.003561501324892159,
-      "Senior Whisperer": -0.32619941054943435,
-      "Suburban Professional": 0.025831729689886077,
-      "Rural Populist": -0.09673262568826406,
-      "Faith Coalition": -0.04068809511245613,
-      "Turnout Monster": 0.1146526773772481
+      "Hispanic Appeal": 0.031162960680936373,
+      "Black Community Strength": -0.001165803166799752,
+      "Senior Whisperer": -0.24445418787197468,
+      "Suburban Professional": 0.0252609446588723,
+      "Rural Populist": -0.021498450073875665,
+      "Faith Coalition": -0.063136389124737,
+      "Turnout Monster": 0.14332621922814728
     },
-    "cec": 1.0
+    "cec": 0.6192345272039825
   },
   "C001035": {
     "name": "Susan M. Collins",
@@ -1083,11 +1080,9 @@
     "badges": [
       "Hispanic Appeal",
       "Black Community Strength",
-      "Low Senior Whisperer",
       "Suburban Professional",
       "Low Rural Populist",
-      "Low Faith Coalition",
-      "Turnout Monster"
+      "Low Faith Coalition"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.09000395638384799,
@@ -1243,7 +1238,6 @@
     "n_races": 2,
     "badges": [
       "Hispanic Appeal",
-      "Low Senior Whisperer",
       "Low Suburban Professional"
     ],
     "badge_scores": {
@@ -1279,8 +1273,7 @@
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
-      "Senior Whisperer",
-      "Faith Coalition"
+      "Senior Whisperer"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.06331893513278584,
@@ -1312,6 +1305,22 @@
       "Turnout Monster": 0.1554274994630253
     },
     "cec": 0.7354537779066729
+  },
+  "M001197": {
+    "name": "Martha McSally",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.002412331128853755,
+      "Black Community Strength": 0.013016925334942229,
+      "Senior Whisperer": 0.5540523170998924,
+      "Suburban Professional": -0.005055724461033956,
+      "Rural Populist": 0.08195021345556178,
+      "Faith Coalition": 0.007252102868824783,
+      "Turnout Monster": 0.11399406706825332
+    },
+    "cec": 1.0
   },
   "C001095": {
     "name": "Tom Cotton",
@@ -1365,24 +1374,774 @@
     },
     "cec": 1.0
   },
-  "O000170": {
-    "name": "Beto O\u2019Rourke",
+  "B001261": {
+    "name": "John Barrasso",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.006114246056933685,
+      "Black Community Strength": -0.0010225455859967177,
+      "Senior Whisperer": 0.37086844709379607,
+      "Suburban Professional": -0.00959324168724993,
+      "Rural Populist": 0.07526199520692815,
+      "Faith Coalition": 0.0044168672030649595,
+      "Turnout Monster": 0.1016221075466229
+    },
+    "cec": 1.0
+  },
+  "M001183": {
+    "name": "Joe Manchin, III",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Senior Whisperer",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.1499556496371404,
+      "Black Community Strength": -0.044450121834536914,
+      "Senior Whisperer": 0.8764214914151094,
+      "Suburban Professional": 0.0004246288789847898,
+      "Rural Populist": 0.10944600173490299,
+      "Faith Coalition": -0.11071694588178135,
+      "Turnout Monster": 0.2388296268981014
+    },
+    "cec": 1.0
+  },
+  "B001230": {
+    "name": "Tammy Baldwin",
     "party": "D",
     "n_races": 1,
     "badges": [
+      "Black Community Strength",
+      "Low Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0001106156632437661,
+      "Black Community Strength": 0.029902987411965728,
+      "Senior Whisperer": 0.38545753422056483,
+      "Suburban Professional": -0.022810020193830702,
+      "Rural Populist": -0.04327979478005889,
+      "Faith Coalition": 0.03348132382403887,
+      "Turnout Monster": 0.1214449492641369
+    },
+    "cec": 1.0
+  },
+  "C000127": {
+    "name": "Maria Cantwell",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0016336472467854328,
+      "Black Community Strength": 0.006948361470749357,
+      "Senior Whisperer": -0.3885124781625644,
+      "Suburban Professional": -0.006979420373967839,
+      "Rural Populist": 0.04437401893513197,
+      "Faith Coalition": -0.01996512158978217,
+      "Turnout Monster": 0.10678426985186851
+    },
+    "cec": 1.0
+  },
+  "K000384": {
+    "name": "Tim Kaine",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.055151032528966276,
+      "Black Community Strength": -0.005131581420805398,
+      "Senior Whisperer": -0.02512961068282871,
+      "Suburban Professional": -0.0030647346768951414,
+      "Rural Populist": -0.1939533754174907,
+      "Faith Coalition": 0.034004235940262514,
+      "Turnout Monster": 0.1416896908962299
+    },
+    "cec": 1.0
+  },
+  "R000615": {
+    "name": "Mitt Romney",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.015364258643924251,
+      "Black Community Strength": -0.00032212533502678467,
+      "Senior Whisperer": 0.13900416259434475,
+      "Suburban Professional": 0.0030225857162328265,
+      "Rural Populist": -0.14283383300103542,
+      "Faith Coalition": -0.016713181735447183,
+      "Turnout Monster": 0.07007342126317512
+    },
+    "cec": 1.0
+  },
+  "O000170": {
+    "name": "Beto O\u2019Rourke",
+    "party": "D",
+    "n_races": 2,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.09480503052862248,
+      "Black Community Strength": 0.0003215028658717476,
+      "Senior Whisperer": 0.06426019878117616,
+      "Suburban Professional": 0.0004447564890970446,
+      "Rural Populist": 0.021434037284088756,
+      "Faith Coalition": 0.014880982888637493,
+      "Turnout Monster": 0.21430287033575313
+    },
+    "cec": 0.04081494066115535
+  },
+  "C001098": {
+    "name": "Ted Cruz",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
       "Senior Whisperer",
       "Low Suburban Professional",
       "Rural Populist",
       "Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.05273478728053244,
-      "Black Community Strength": 0.003576120328075203,
-      "Senior Whisperer": 0.9008656112074543,
-      "Suburban Professional": -0.01703012283087002,
-      "Rural Populist": 0.2839673370021324,
-      "Faith Coalition": 0.033143574411914775,
-      "Turnout Monster": 0.1944263155109443
+      "Hispanic Appeal": 0.13687527377671255,
+      "Black Community Strength": 0.0029331145963317137,
+      "Senior Whisperer": 0.7723452136451019,
+      "Suburban Professional": -0.017919635809064107,
+      "Rural Populist": 0.24109926243395488,
+      "Faith Coalition": 0.003381608634639793,
+      "Turnout Monster": 0.23417942516056195
+    },
+    "cec": 1.0
+  },
+  "B001243": {
+    "name": "Marsha Blackburn",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Suburban Professional",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.026319739265342004,
+      "Black Community Strength": 0.01553829375703978,
+      "Senior Whisperer": -0.20668833834135622,
+      "Suburban Professional": 0.029986144500186787,
+      "Rural Populist": 0.012006931056222261,
+      "Faith Coalition": -0.03950513055765731,
+      "Turnout Monster": 0.2074355807573169
+    },
+    "cec": 1.0
+  },
+  "W000802": {
+    "name": "Sheldon Whitehouse",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.011045227450200158,
+      "Black Community Strength": -0.0026179367324923085,
+      "Senior Whisperer": -0.23479293757102554,
+      "Suburban Professional": 0.0016121299309451909,
+      "Rural Populist": -0.02488095852607238,
+      "Faith Coalition": -0.008118039085413396,
+      "Turnout Monster": 0.037464038541408784
+    },
+    "cec": 1.0
+  },
+  "C001070": {
+    "name": "Robert P. Casey, Jr.",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.02944291229972143,
+      "Black Community Strength": 0.009221975769238146,
+      "Senior Whisperer": -0.18932065872917736,
+      "Suburban Professional": -0.004335395153481582,
+      "Rural Populist": -0.10033128788758601,
+      "Faith Coalition": 0.05052373509041077,
+      "Turnout Monster": 0.19185283974813755
+    },
+    "cec": 1.0
+  },
+  "B001269": {
+    "name": "Lou Barletta",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.02944291229972143,
+      "Black Community Strength": -0.009221975769238146,
+      "Senior Whisperer": 0.18932065872917736,
+      "Suburban Professional": 0.004335395153481582,
+      "Rural Populist": 0.10033128788758601,
+      "Faith Coalition": -0.05052373509041077,
+      "Turnout Monster": 0.19185283974813755
+    },
+    "cec": 1.0
+  },
+  "B000944": {
+    "name": "Sherrod Brown",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Suburban Professional",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.052318886382641004,
+      "Black Community Strength": 0.07231667195853611,
+      "Senior Whisperer": 0.19250575496613842,
+      "Suburban Professional": -0.024549312819046272,
+      "Rural Populist": -0.11129623264371459,
+      "Faith Coalition": 0.08279727820573665,
+      "Turnout Monster": 0.2188926071593787
+    },
+    "cec": 1.0
+  },
+  "R000586": {
+    "name": "James B. Renacci",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Suburban Professional",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.052318886382641004,
+      "Black Community Strength": -0.07231667195853611,
+      "Senior Whisperer": -0.19250575496613842,
+      "Suburban Professional": 0.024549312819046272,
+      "Rural Populist": 0.11129623264371459,
+      "Faith Coalition": -0.08279727820573665,
+      "Turnout Monster": 0.2188926071593787
+    },
+    "cec": 1.0
+  },
+  "G000555": {
+    "name": "Kirsten E. Gillibrand",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.025440107368558625,
+      "Black Community Strength": 0.020412130655913754,
+      "Senior Whisperer": 0.5433336344058574,
+      "Suburban Professional": 0.01458835991415127,
+      "Rural Populist": 0.11372152058063086,
+      "Faith Coalition": -0.00436386702780362,
+      "Turnout Monster": 0.22904340269289813
+    },
+    "cec": 1.0
+  },
+  "R000608": {
+    "name": "Jacky Rosen",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0011845292619792472,
+      "Black Community Strength": -0.0028093240128460226,
+      "Senior Whisperer": -0.02958154081825112,
+      "Suburban Professional": -0.022673398086762366,
+      "Rural Populist": 0.12226916487020796,
+      "Faith Coalition": 0.030431844353257423,
+      "Turnout Monster": 0.22665530174765164
+    },
+    "cec": 1.0
+  },
+  "H001041": {
+    "name": "Dean Heller",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0011845292619792472,
+      "Black Community Strength": 0.0028093240128460226,
+      "Senior Whisperer": 0.02958154081825112,
+      "Suburban Professional": 0.022673398086762366,
+      "Rural Populist": -0.12226916487020796,
+      "Faith Coalition": -0.030431844353257423,
+      "Turnout Monster": 0.22665530174765164
+    },
+    "cec": 1.0
+  },
+  "H001046": {
+    "name": "Martin Heinrich",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.10752985474855663,
+      "Black Community Strength": -0.015500307168978244,
+      "Senior Whisperer": 0.9273631080596725,
+      "Suburban Professional": -0.02128779216323914,
+      "Rural Populist": -0.09320760824230602,
+      "Faith Coalition": 0.06166068149336512,
+      "Turnout Monster": 0.20232194093710676
+    },
+    "cec": 1.0
+  },
+  "M001226": {
+    "name": "Robert Menendez",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.01145374353524724,
+      "Black Community Strength": -0.004113152981802277,
+      "Senior Whisperer": -0.16959961688198955,
+      "Suburban Professional": -0.003517300170039694,
+      "Rural Populist": -0.0022037396709795585,
+      "Faith Coalition": 0.005416230071999655,
+      "Turnout Monster": 0.04869568145376402
+    },
+    "cec": 1.0
+  },
+  "F000463": {
+    "name": "Deb Fischer",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0017324411613952497,
+      "Black Community Strength": -0.004791601533418526,
+      "Senior Whisperer": 0.4222073135587857,
+      "Suburban Professional": 0.0036680386127667234,
+      "Rural Populist": -0.0210116903719047,
+      "Faith Coalition": -0.023351147982633286,
+      "Turnout Monster": 0.2015019776231578
+    },
+    "cec": 1.0
+  },
+  "H001069": {
+    "name": "Heidi Heitkamp",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer",
+      "Low Suburban Professional",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.04276212714598615,
+      "Black Community Strength": 0.006602319230758681,
+      "Senior Whisperer": -0.8714078139303293,
+      "Suburban Professional": -0.013945201712275538,
+      "Rural Populist": -0.13922046652049083,
+      "Faith Coalition": -0.08535250520682185,
+      "Turnout Monster": 0.19387529151558786
+    },
+    "cec": 1.0
+  },
+  "C001096": {
+    "name": "Kevin Cramer",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer",
+      "Suburban Professional",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.04276212714598615,
+      "Black Community Strength": -0.006602319230758681,
+      "Senior Whisperer": 0.8714078139303293,
+      "Suburban Professional": 0.013945201712275538,
+      "Rural Populist": 0.13922046652049083,
+      "Faith Coalition": 0.08535250520682185,
+      "Turnout Monster": 0.19387529151558786
+    },
+    "cec": 1.0
+  },
+  "T000464": {
+    "name": "Jon Tester",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.03326815058153667,
+      "Black Community Strength": -0.009590864137173333,
+      "Senior Whisperer": -0.42443351875536445,
+      "Suburban Professional": 0.018653448939889416,
+      "Rural Populist": -0.22977834079574838,
+      "Faith Coalition": -0.03488691662364079,
+      "Turnout Monster": 0.18906070101842964
+    },
+    "cec": 1.0
+  },
+  "R000103": {
+    "name": "Matthew M. Rosendale, Sr.",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.03326815058153667,
+      "Black Community Strength": 0.009590864137173333,
+      "Senior Whisperer": 0.42443351875536445,
+      "Suburban Professional": -0.018653448939889416,
+      "Rural Populist": 0.22977834079574838,
+      "Faith Coalition": 0.03488691662364079,
+      "Turnout Monster": 0.18906070101842964
+    },
+    "cec": 1.0
+  },
+  "W000437": {
+    "name": "Roger F. Wicker",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.06327149511928365,
+      "Black Community Strength": -0.005420273298612205,
+      "Senior Whisperer": -0.3215904232976954,
+      "Suburban Professional": -0.011101583463833649,
+      "Rural Populist": 0.05239814549187616,
+      "Faith Coalition": -0.011169779475153362,
+      "Turnout Monster": 0.0016368174870353136
+    },
+    "cec": 1.0
+  },
+  "M001170": {
+    "name": "Claire McCaskill",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Suburban Professional",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.003237589314605137,
+      "Black Community Strength": 0.026605491467408357,
+      "Senior Whisperer": -0.48055071484807843,
+      "Suburban Professional": -0.025695147147415047,
+      "Rural Populist": 0.13011571354717064,
+      "Faith Coalition": 0.04574493367782201,
+      "Turnout Monster": 0.18588327162975105
+    },
+    "cec": 1.0
+  },
+  "H001089": {
+    "name": "Josh Hawley",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Suburban Professional",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.003237589314605137,
+      "Black Community Strength": -0.026605491467408357,
+      "Senior Whisperer": 0.48055071484807843,
+      "Suburban Professional": 0.025695147147415047,
+      "Rural Populist": -0.13011571354717064,
+      "Faith Coalition": -0.04574493367782201,
+      "Turnout Monster": 0.18588327162975105
+    },
+    "cec": 1.0
+  },
+  "K000367": {
+    "name": "Amy Klobuchar",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Senior Whisperer",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.058242152605803676,
+      "Black Community Strength": -0.002394147412466901,
+      "Senior Whisperer": -1.6514168056742549,
+      "Suburban Professional": 0.011241495333619683,
+      "Rural Populist": -0.28540222653160846,
+      "Faith Coalition": -0.040973409339744374,
+      "Turnout Monster": 0.1929668252235991
+    },
+    "cec": 1.0
+  },
+  "S000770": {
+    "name": "Debbie Stabenow",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.05004662485539927,
+      "Black Community Strength": 0.005893107658491662,
+      "Senior Whisperer": 0.162708965194515,
+      "Suburban Professional": -0.02469015962785853,
+      "Rural Populist": -0.053735725540512695,
+      "Faith Coalition": 0.08558468313701788,
+      "Turnout Monster": 0.17199976107904646
+    },
+    "cec": 1.0
+  },
+  "K000383": {
+    "name": "Angus S. King, Jr.",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.026120990353844645,
+      "Black Community Strength": 0.0203862550979239,
+      "Senior Whisperer": 2.780582218765775,
+      "Suburban Professional": -0.03713596405454651,
+      "Rural Populist": 0.5658695931416087,
+      "Faith Coalition": 0.0437432885211547,
+      "Turnout Monster": 0.1940652292237792
+    },
+    "cec": 1.0
+  },
+  "C000141": {
+    "name": "Benjamin L. Cardin",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.03565671947326084,
+      "Black Community Strength": 0.012039005984472089,
+      "Senior Whisperer": 0.20996713419262283,
+      "Suburban Professional": 0.013759184141561492,
+      "Rural Populist": -0.1568696367182592,
+      "Faith Coalition": 0.017055533361961733,
+      "Turnout Monster": 0.17702946179892642
+    },
+    "cec": 1.0
+  },
+  "W000817": {
+    "name": "Elizabeth Warren",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.009547267296714432,
+      "Black Community Strength": 0.0061709227870528904,
+      "Senior Whisperer": -0.011890253423667842,
+      "Suburban Professional": -0.0069274914303801075,
+      "Rural Populist": -0.026319338503366863,
+      "Faith Coalition": 0.01888075604492941,
+      "Turnout Monster": 0.0073960338523541
+    },
+    "cec": 1.0
+  },
+  "D000607": {
+    "name": "Joe Donnelly",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0029355601675853074,
+      "Black Community Strength": 0.023217848703342023,
+      "Senior Whisperer": -0.7813529743514043,
+      "Suburban Professional": -0.027592882066618335,
+      "Rural Populist": 0.08181995493253169,
+      "Faith Coalition": 0.031430154479455366,
+      "Turnout Monster": 0.13289459354195715
+    },
+    "cec": 1.0
+  },
+  "B001310": {
+    "name": "Mike Braun",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Senior Whisperer",
+      "Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0029355601675853074,
+      "Black Community Strength": -0.023217848703342023,
+      "Senior Whisperer": 0.7813529743514043,
+      "Suburban Professional": 0.027592882066618335,
+      "Rural Populist": -0.08181995493253169,
+      "Faith Coalition": -0.031430154479455366,
+      "Turnout Monster": 0.13289459354195715
+    },
+    "cec": 1.0
+  },
+  "H001042": {
+    "name": "Mazie K. Hirono",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.006178571606928771,
+      "Black Community Strength": 0.007925537086767302,
+      "Senior Whisperer": -0.13846070115501236,
+      "Suburban Professional": -0.004199249061385298,
+      "Rural Populist": -0.008736602712210583,
+      "Faith Coalition": 0.0038736258502081807,
+      "Turnout Monster": 0.047236690015473926
+    },
+    "cec": 1.0
+  },
+  "N000032": {
+    "name": "Bill Nelson",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.09741173369388838,
+      "Black Community Strength": 0.0063352518360977675,
+      "Senior Whisperer": 0.8341290014367098,
+      "Suburban Professional": -0.005669112001251289,
+      "Rural Populist": -0.09855264714375801,
+      "Faith Coalition": 0.02805906909071589,
+      "Turnout Monster": 0.1470299788925823
+    },
+    "cec": 1.0
+  },
+  "S001217": {
+    "name": "Rick Scott",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.09741173369388838,
+      "Black Community Strength": -0.0063352518360977675,
+      "Senior Whisperer": -0.8341290014367098,
+      "Suburban Professional": 0.005669112001251289,
+      "Rural Populist": 0.09855264714375801,
+      "Faith Coalition": -0.02805906909071589,
+      "Turnout Monster": 0.1470299788925823
+    },
+    "cec": 1.0
+  },
+  "C000174": {
+    "name": "Thomas R. Carper",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.002211751260378317,
+      "Black Community Strength": -0.0005050504789052842,
+      "Senior Whisperer": -0.031196113618180546,
+      "Suburban Professional": 5.9500134683309186e-05,
+      "Rural Populist": -0.0021262894093442126,
+      "Faith Coalition": -0.0030515482302368173,
+      "Turnout Monster": 0.07040998299228007
+    },
+    "cec": 1.0
+  },
+  "M001169": {
+    "name": "Christopher Murphy",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.013880509531761495,
+      "Black Community Strength": 0.00023538593280485854,
+      "Senior Whisperer": 0.18255773411260653,
+      "Suburban Professional": -0.0012303692045515925,
+      "Rural Populist": -0.010143656399346335,
+      "Faith Coalition": 0.008636907552153053,
+      "Turnout Monster": 0.06388205821611181
+    },
+    "cec": 1.0
+  },
+  "S001191": {
+    "name": "Kyrsten Sinema",
+    "party": "I",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.002412331128853755,
+      "Black Community Strength": -0.013016925334942229,
+      "Senior Whisperer": -0.5540523170998924,
+      "Suburban Professional": 0.005055724461033956,
+      "Rural Populist": -0.08195021345556178,
+      "Faith Coalition": -0.007252102868824783,
+      "Turnout Monster": 0.11399406706825332
     },
     "cec": 1.0
   },
@@ -1446,9 +2205,7 @@
     "name": "Patrick Murphy",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Senior Whisperer"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.034778083327758315,
       "Black Community Strength": -0.006024269005713105,
@@ -1704,7 +2461,6 @@
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Suburban Professional",
       "Faith Coalition"
     ],
     "badge_scores": {
@@ -1847,8 +2603,7 @@
     "n_races": 1,
     "badges": [
       "Low Black Community Strength",
-      "Rural Populist",
-      "Faith Coalition"
+      "Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.039224950260498395,
@@ -1864,32 +2619,30 @@
   "N000184": {
     "name": "Kristi L. Noem",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Low Hispanic Appeal",
+      "Black Community Strength",
       "Senior Whisperer",
       "Suburban Professional",
-      "Low Rural Populist",
-      "Faith Coalition",
-      "Low Turnout Monster"
+      "Faith Coalition"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.1296705416760873,
-      "Black Community Strength": 0.008003251955415768,
-      "Senior Whisperer": 0.8803913633973813,
-      "Suburban Professional": 0.029167915907198732,
-      "Rural Populist": -0.13735578526926345,
-      "Faith Coalition": 0.038757788772206904,
-      "Turnout Monster": 0.03001145836301017
+      "Hispanic Appeal": -0.16357369136590708,
+      "Black Community Strength": 0.01650718665685762,
+      "Senior Whisperer": 1.3673486728324673,
+      "Suburban Professional": 0.026174193459876573,
+      "Rural Populist": -0.11334199423259114,
+      "Faith Coalition": 0.05495608024337982,
+      "Turnout Monster": 0.08367184809703138
     },
-    "cec": 1.0
+    "cec": 0.40787675386764044
   },
   "C001122": {
     "name": "Joe Cunningham",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Hispanic Appeal",
       "Low Turnout Monster"
     ],
     "badge_scores": {
@@ -1919,21 +2672,41 @@
     },
     "cec": 1.0
   },
+  "L000580": {
+    "name": "Michelle Lujan Grisham",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.03850723994936579,
+      "Black Community Strength": -0.006964714494161334,
+      "Senior Whisperer": -0.9283644524504281,
+      "Suburban Professional": -0.008707639787214238,
+      "Rural Populist": -0.007213777903838951,
+      "Faith Coalition": 0.03183193748487599,
+      "Turnout Monster": 0.12974187809781879
+    },
+    "cec": 1.0
+  },
   "W000799": {
     "name": "Timothy J. Walz",
     "party": "D",
-    "n_races": 1,
-    "badges": [],
+    "n_races": 2,
+    "badges": [
+      "Suburban Professional"
+    ],
     "badge_scores": {
-      "Hispanic Appeal": -0.0016636242294827523,
-      "Black Community Strength": 0.00300217969460459,
-      "Senior Whisperer": -0.2732638376615956,
-      "Suburban Professional": 0.004098218563556358,
-      "Rural Populist": 0.060058685668692505,
-      "Faith Coalition": -0.00134514157558525,
-      "Turnout Monster": 0.16159854899386378
+      "Hispanic Appeal": 0.000558654332744028,
+      "Black Community Strength": 0.010216155889022265,
+      "Senior Whisperer": -0.5115392632561382,
+      "Suburban Professional": 0.013579678606449338,
+      "Rural Populist": -0.041576889029442225,
+      "Faith Coalition": -0.00799504412731091,
+      "Turnout Monster": 0.16474775228214295
     },
-    "cec": 1.0
+    "cec": 0.5552595513644158
   },
   "S001228": {
     "name": "Derek Schmidt",
@@ -1972,46 +2745,101 @@
   "D000621": {
     "name": "Ron DeSantis",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": 0.0010008502812958583,
-      "Black Community Strength": 0.005497489610215618,
-      "Senior Whisperer": -0.16513988831006313,
-      "Suburban Professional": -0.008484709069334859,
-      "Rural Populist": -0.07035960541147719,
-      "Faith Coalition": 0.01203936969760687,
-      "Turnout Monster": 0.07627069803721409
+      "Hispanic Appeal": 0.009819694547510187,
+      "Black Community Strength": 0.0002001223769869424,
+      "Senior Whisperer": 0.1204591729682002,
+      "Suburban Professional": -0.0040132636962848,
+      "Rural Populist": 0.020963568706110325,
+      "Faith Coalition": 0.003178440144245288,
+      "Turnout Monster": 0.11447262901403893
     },
-    "cec": 1.0
+    "cec": 0.3698519974281236
   },
   "P000598": {
     "name": "Jared Polis",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Hispanic Appeal",
-      "Low Senior Whisperer",
-      "Low Suburban Professional"
+      "Low Senior Whisperer"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.1268093304938098,
-      "Black Community Strength": -0.0059966485804783375,
-      "Senior Whisperer": -1.4822675796821905,
-      "Suburban Professional": -0.017360752893712052,
-      "Rural Populist": -0.004319445687693285,
-      "Faith Coalition": -0.013408969592199671,
-      "Turnout Monster": 0.15963689951251947
+      "Hispanic Appeal": 0.08412631958373806,
+      "Black Community Strength": 0.003995010780114723,
+      "Senior Whisperer": -1.2575789657286451,
+      "Suburban Professional": -0.00708741401064387,
+      "Rural Populist": -0.037629564982507774,
+      "Faith Coalition": 0.004542595038971858,
+      "Turnout Monster": 0.12777163628665006
+    },
+    "cec": 0.7039580946979339
+  },
+  "M001221": {
+    "name": "Marcus J. Molinaro",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.024701909362782704,
+      "Black Community Strength": 0.007054592132864048,
+      "Senior Whisperer": 0.8771650811221278,
+      "Suburban Professional": 0.00829812592738411,
+      "Rural Populist": -0.07691086863207511,
+      "Faith Coalition": 0.011106011050896402,
+      "Turnout Monster": 0.17136593371522407
     },
     "cec": 1.0
   },
-  "gen_cac4b7284d5d": {
+  "P000588": {
+    "name": "Stevan Pearce",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.03850723994936579,
+      "Black Community Strength": 0.006964714494161334,
+      "Senior Whisperer": 0.9283644524504281,
+      "Suburban Professional": 0.008707639787214238,
+      "Rural Populist": 0.007213777903838951,
+      "Faith Coalition": -0.03183193748487599,
+      "Turnout Monster": 0.12974187809781879
+    },
+    "cec": 1.0
+  },
+  "R000618": {
+    "name": "Pete Ricketts",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.013207859262297894,
+      "Black Community Strength": 0.030972256678978086,
+      "Senior Whisperer": -0.6619294443905982,
+      "Suburban Professional": -0.0064430510309339585,
+      "Rural Populist": -0.09545648259892844,
+      "Faith Coalition": 0.05664200830276411,
+      "Turnout Monster": 0.23211057565813095
+    },
+    "cec": 1.0
+  },
+  "gen_15d51a9a8a8a": {
     "name": "Mandela Barnes",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Low Black Community Strength",
-      "Low Senior Whisperer",
       "Low Faith Coalition"
     ],
     "badge_scores": {
@@ -2025,7 +2853,7 @@
     },
     "cec": 1.0
   },
-  "gen_13b438e62141": {
+  "gen_3f3142d8415b": {
     "name": "Tiffany Smiley",
     "party": "R",
     "n_races": 1,
@@ -2041,7 +2869,7 @@
     },
     "cec": 1.0
   },
-  "gen_595afd07eb3b": {
+  "gen_fdfc9067068c": {
     "name": "Brian L. Bengs",
     "party": "D",
     "n_races": 1,
@@ -2061,7 +2889,7 @@
     },
     "cec": 1.0
   },
-  "gen_307798a9e629": {
+  "gen_5edc9402e68e": {
     "name": "Tamara J. Lesnar",
     "party": "I",
     "n_races": 1,
@@ -2081,7 +2909,7 @@
     },
     "cec": 1.0
   },
-  "gen_b326790da6fb": {
+  "gen_1e2194c5af05": {
     "name": "Krystle Matthews",
     "party": "D",
     "n_races": 1,
@@ -2099,13 +2927,11 @@
     },
     "cec": 1.0
   },
-  "gen_4718330443b9": {
+  "gen_e6accd124a32": {
     "name": "Mehmet Oz",
     "party": "R",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.011773938938937516,
       "Black Community Strength": 0.003429933474434356,
@@ -2117,13 +2943,11 @@
     },
     "cec": 1.0
   },
-  "gen_6e47c35b4899": {
+  "gen_6a651f6b9287": {
     "name": "Jo Rae Perkins",
     "party": "R",
     "n_races": 2,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.001832742247078903,
       "Black Community Strength": -0.0038761354308893734,
@@ -2135,7 +2959,7 @@
     },
     "cec": 0.2326168654835465
   },
-  "gen_9ac875154049": {
+  "gen_1b5d4b8f9eec": {
     "name": "Joe Pinion",
     "party": "R",
     "n_races": 1,
@@ -2154,7 +2978,7 @@
     },
     "cec": 1.0
   },
-  "gen_4db658f97ddc": {
+  "gen_8509f0bc1c23": {
     "name": "Diane Sare",
     "party": "I",
     "n_races": 1,
@@ -2173,7 +2997,7 @@
     },
     "cec": 1.0
   },
-  "gen_89dbbab46710": {
+  "gen_6a55b9aae32b": {
     "name": "Adam Paul Laxalt",
     "party": "R",
     "n_races": 1,
@@ -2191,11 +3015,13 @@
     },
     "cec": 1.0
   },
-  "gen_0a0451bb6d4c": {
+  "gen_a7f07f38d018": {
     "name": "Donald C. Bolduc",
     "party": "R",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Low Turnout Monster"
+    ],
     "badge_scores": {
       "Hispanic Appeal": 0.002610624315576165,
       "Black Community Strength": -0.009468991534353861,
@@ -2207,11 +3033,13 @@
     },
     "cec": 1.0
   },
-  "gen_831e13bce65d": {
+  "gen_51c3f51c3b12": {
     "name": "Jeremy Kauffman",
     "party": "I",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Low Turnout Monster"
+    ],
     "badge_scores": {
       "Hispanic Appeal": -0.002610624315576165,
       "Black Community Strength": 0.009468991534353861,
@@ -2223,7 +3051,7 @@
     },
     "cec": 1.0
   },
-  "gen_2bdbb5f1a43d": {
+  "gen_65f76eab06b7": {
     "name": "Katrina Christiansen",
     "party": "D",
     "n_races": 1,
@@ -2243,7 +3071,7 @@
     },
     "cec": 1.0
   },
-  "gen_b50e999284cd": {
+  "gen_9565bc231225": {
     "name": "Rick Becker",
     "party": "I",
     "n_races": 1,
@@ -2263,7 +3091,7 @@
     },
     "cec": 1.0
   },
-  "gen_ebe00b629e45": {
+  "gen_5ef986d808c5": {
     "name": "Rick C. Becker",
     "party": "I",
     "n_races": 1,
@@ -2283,7 +3111,7 @@
     },
     "cec": 1.0
   },
-  "gen_329102d19fea": {
+  "gen_ba68c2db0e23": {
     "name": "Cheri Beasley",
     "party": "D",
     "n_races": 1,
@@ -2299,13 +3127,11 @@
     },
     "cec": 1.0
   },
-  "gen_b09722752f37": {
+  "gen_b344b5b0baa7": {
     "name": "Trudy Busch Valentine",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.01287407625482961,
       "Black Community Strength": 0.0024776546223160487,
@@ -2317,7 +3143,7 @@
     },
     "cec": 1.0
   },
-  "gen_23e79d9e5e8a": {
+  "gen_d70e9c2ff4ae": {
     "name": "Gary Chambers",
     "party": "D",
     "n_races": 1,
@@ -2333,7 +3159,7 @@
     },
     "cec": 1.0
   },
-  "gen_434bb811d905": {
+  "gen_10b9ff989ed9": {
     "name": "Luke Mixon",
     "party": "D",
     "n_races": 1,
@@ -2349,7 +3175,7 @@
     },
     "cec": 1.0
   },
-  "gen_646dffe06058": {
+  "gen_e6a61fe59cb0": {
     "name": "Syrita Steib",
     "party": "D",
     "n_races": 1,
@@ -2365,7 +3191,7 @@
     },
     "cec": 1.0
   },
-  "gen_abe7a6ae7a5a": {
+  "gen_d4b1291e58bf": {
     "name": "Salvador P. Rodriguez",
     "party": "D",
     "n_races": 1,
@@ -2381,7 +3207,7 @@
     },
     "cec": 1.0
   },
-  "gen_3ed5f08ce7af": {
+  "gen_46024c7c76a6": {
     "name": "Devin Lance Graham",
     "party": "R",
     "n_races": 1,
@@ -2397,7 +3223,7 @@
     },
     "cec": 1.0
   },
-  "gen_79bb4ecdaaa9": {
+  "gen_faff2d6481f9": {
     "name": "Charles Booker",
     "party": "D",
     "n_races": 1,
@@ -2413,11 +3239,13 @@
     },
     "cec": 1.0
   },
-  "gen_4b803053c669": {
+  "gen_5f3c23b841df": {
     "name": "Mark R. Holland",
     "party": "D",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Black Community Strength"
+    ],
     "badge_scores": {
       "Hispanic Appeal": -0.04042840429280694,
       "Black Community Strength": 0.015402825280133934,
@@ -2429,11 +3257,13 @@
     },
     "cec": 1.0
   },
-  "gen_55e0baa3f131": {
+  "gen_a07229706bf6": {
     "name": "David C. Graham",
     "party": "I",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Black Community Strength"
+    ],
     "badge_scores": {
       "Hispanic Appeal": -0.04042840429280694,
       "Black Community Strength": 0.015402825280133934,
@@ -2445,7 +3275,7 @@
     },
     "cec": 1.0
   },
-  "gen_e52eee4c92d9": {
+  "gen_5be4d6230e5d": {
     "name": "Thomas McDermott",
     "party": "D",
     "n_races": 1,
@@ -2463,7 +3293,7 @@
     },
     "cec": 1.0
   },
-  "gen_83094380120d": {
+  "gen_5872f5ff06e1": {
     "name": "James Sceniak",
     "party": "I",
     "n_races": 1,
@@ -2481,7 +3311,7 @@
     },
     "cec": 1.0
   },
-  "gen_5210c72c8ed7": {
+  "gen_b1e666542081": {
     "name": "David Roth",
     "party": "D",
     "n_races": 1,
@@ -2497,7 +3327,7 @@
     },
     "cec": 1.0
   },
-  "gen_3c9a31610e80": {
+  "gen_d9562cde39b6": {
     "name": "Michael Franken",
     "party": "D",
     "n_races": 1,
@@ -2513,7 +3343,7 @@
     },
     "cec": 1.0
   },
-  "gen_f2e5f4644d33": {
+  "gen_d3574077d82a": {
     "name": "Bob McDermott",
     "party": "R",
     "n_races": 1,
@@ -2529,7 +3359,7 @@
     },
     "cec": 1.0
   },
-  "gen_7098bb9522e7": {
+  "gen_93c7930afa9f": {
     "name": "Herschel Junior Walker",
     "party": "R",
     "n_races": 1,
@@ -2547,7 +3377,7 @@
     },
     "cec": 1.0
   },
-  "gen_503a166e81ed": {
+  "gen_dc3d1c51a65b": {
     "name": "Chase Oliver",
     "party": "I",
     "n_races": 1,
@@ -2565,13 +3395,11 @@
     },
     "cec": 1.0
   },
-  "gen_e83f7000d1b4": {
+  "gen_73cd68c8d03d": {
     "name": "Joe O'Dea",
     "party": "R",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": -0.05206343423665806,
       "Black Community Strength": 0.013549158234760003,
@@ -2583,7 +3411,7 @@
     },
     "cec": 1.0
   },
-  "gen_efe6b944ce05": {
+  "gen_505685581362": {
     "name": "Mark P. Meuser",
     "party": "R",
     "n_races": 1,
@@ -2599,7 +3427,7 @@
     },
     "cec": 1.0
   },
-  "gen_04af80079048": {
+  "gen_cb49d24355ed": {
     "name": "Blake Masters",
     "party": "R",
     "n_races": 1,
@@ -2619,7 +3447,7 @@
     },
     "cec": 1.0
   },
-  "gen_90119f95e456": {
+  "gen_bf529549c805": {
     "name": "Marc Victor",
     "party": "I",
     "n_races": 1,
@@ -2639,11 +3467,13 @@
     },
     "cec": 1.0
   },
-  "gen_f614e8fdfa69": {
+  "gen_52721c1af620": {
     "name": "Natalie James",
     "party": "D",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Low Turnout Monster"
+    ],
     "badge_scores": {
       "Hispanic Appeal": -0.015541237995081988,
       "Black Community Strength": 0.001725532119101404,
@@ -2655,11 +3485,13 @@
     },
     "cec": 1.0
   },
-  "gen_a0f8f977e518": {
+  "gen_b21cacba5de8": {
     "name": "Kenneth Cates",
     "party": "I",
     "n_races": 1,
-    "badges": [],
+    "badges": [
+      "Low Turnout Monster"
+    ],
     "badge_scores": {
       "Hispanic Appeal": -0.015541237995081988,
       "Black Community Strength": 0.001725532119101404,
@@ -2671,7 +3503,7 @@
     },
     "cec": 1.0
   },
-  "gen_153cfad8c0d3": {
+  "gen_bebb8bc4ce38": {
     "name": "Will Boyd",
     "party": "D",
     "n_races": 1,
@@ -2689,7 +3521,7 @@
     },
     "cec": 1.0
   },
-  "gen_05bef5f310b4": {
+  "gen_b7253f21a908": {
     "name": "John Sophocleus",
     "party": "I",
     "n_races": 1,
@@ -2707,7 +3539,7 @@
     },
     "cec": 1.0
   },
-  "gen_13c5f5565187": {
+  "gen_b8e1040edff1": {
     "name": "Merav Ben-David",
     "party": "D",
     "n_races": 1,
@@ -2725,7 +3557,7 @@
     },
     "cec": 1.0
   },
-  "gen_9ea34aa3ed3a": {
+  "gen_6fface834693": {
     "name": "Paula Jean Swearengin",
     "party": "D",
     "n_races": 1,
@@ -2744,7 +3576,7 @@
     },
     "cec": 1.0
   },
-  "gen_471ea789832c": {
+  "gen_9d01093d4b9c": {
     "name": "Daniel Gade",
     "party": "R",
     "n_races": 1,
@@ -2760,14 +3592,12 @@
     },
     "cec": 1.0
   },
-  "gen_20d05cd2a361": {
+  "gen_5d158c3cf0ed": {
     "name": "M.J. Hegar",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Hispanic Appeal",
-      "Low Suburban Professional",
-      "Turnout Monster"
+      "Low Hispanic Appeal"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.08450365021089985,
@@ -2780,7 +3610,7 @@
     },
     "cec": 1.0
   },
-  "gen_baa569a2f07c": {
+  "gen_c273842a76b8": {
     "name": "Marquita Bradshaw",
     "party": "D",
     "n_races": 1,
@@ -2800,7 +3630,7 @@
     },
     "cec": 1.0
   },
-  "gen_a050f3619285": {
+  "gen_8144f945a4d8": {
     "name": "Dan Ahlers",
     "party": "D",
     "n_races": 1,
@@ -2822,7 +3652,7 @@
     },
     "cec": 1.0
   },
-  "gen_53d17c92b10c": {
+  "gen_28fc8de42976": {
     "name": "Jaime Harrison",
     "party": "D",
     "n_races": 1,
@@ -2840,7 +3670,7 @@
     },
     "cec": 1.0
   },
-  "gen_761721ea6e51": {
+  "gen_528b453ccfd7": {
     "name": "Bill Bledsoe",
     "party": "I",
     "n_races": 1,
@@ -2858,7 +3688,7 @@
     },
     "cec": 1.0
   },
-  "gen_ccc9844a85da": {
+  "gen_1a0e434da040": {
     "name": "Allen Waters",
     "party": "R",
     "n_races": 1,
@@ -2874,13 +3704,11 @@
     },
     "cec": 1.0
   },
-  "gen_b9fc72e4bf55": {
+  "gen_ac6351c0246b": {
     "name": "Ibrahim Taher",
     "party": "I",
     "n_races": 1,
-    "badges": [
-      "Turnout Monster"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.0012026228510555275,
       "Black Community Strength": -0.0033053656909014925,
@@ -2892,7 +3720,7 @@
     },
     "cec": 1.0
   },
-  "gen_452506580694": {
+  "gen_3b741a06743a": {
     "name": "Abby Broyles",
     "party": "D",
     "n_races": 1,
@@ -2912,7 +3740,7 @@
     },
     "cec": 1.0
   },
-  "gen_065217c69887": {
+  "gen_6644cdf5d0d2": {
     "name": "Mark Ronchetti",
     "party": "R",
     "n_races": 1,
@@ -2932,7 +3760,7 @@
     },
     "cec": 1.0
   },
-  "gen_7d99c0790de5": {
+  "gen_0f976a0ed987": {
     "name": "Bob Walsh",
     "party": "I",
     "n_races": 1,
@@ -2952,7 +3780,7 @@
     },
     "cec": 1.0
   },
-  "gen_29c3df28c7b0": {
+  "gen_5883df6794d9": {
     "name": "Rikin Mehta",
     "party": "R",
     "n_races": 1,
@@ -2968,7 +3796,7 @@
     },
     "cec": 1.0
   },
-  "gen_ef6fe91e5fca": {
+  "gen_04dede7cb58b": {
     "name": "Corky Messner",
     "party": "R",
     "n_races": 1,
@@ -2984,7 +3812,7 @@
     },
     "cec": 1.0
   },
-  "gen_2d1bdf584d68": {
+  "gen_1f429416156d": {
     "name": "Justin O'Donnell",
     "party": "I",
     "n_races": 1,
@@ -3000,7 +3828,7 @@
     },
     "cec": 1.0
   },
-  "gen_73c2e9589094": {
+  "gen_b3ea72fce92b": {
     "name": "Chris Janicek",
     "party": "D",
     "n_races": 1,
@@ -3018,7 +3846,7 @@
     },
     "cec": 1.0
   },
-  "gen_26d6d4e5e4a1": {
+  "gen_1e1a1f6b110f": {
     "name": "Gene Siadek",
     "party": "I",
     "n_races": 1,
@@ -3036,7 +3864,7 @@
     },
     "cec": 1.0
   },
-  "gen_2222003e9afb": {
+  "gen_7e575d658c73": {
     "name": "Cal Cunningham",
     "party": "D",
     "n_races": 1,
@@ -3052,7 +3880,7 @@
     },
     "cec": 1.0
   },
-  "gen_7af567a26a0a": {
+  "gen_0c65da27d49a": {
     "name": "Steve Bullock",
     "party": "D",
     "n_races": 1,
@@ -3071,32 +3899,32 @@
     },
     "cec": 1.0
   },
-  "gen_a8241e1df45d": {
+  "gen_89ae88fa1722": {
     "name": "Mike Espy",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Suburban Professional",
       "Low Rural Populist",
-      "Low Faith Coalition",
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.016174887030228083,
-      "Black Community Strength": -0.016236541364990375,
-      "Senior Whisperer": -0.43160328482240584,
-      "Suburban Professional": 0.022651695765741428,
-      "Rural Populist": -0.24591099610385722,
-      "Faith Coalition": -0.06205197716923632,
-      "Turnout Monster": 0.031928137267762446
+      "Hispanic Appeal": -0.023548304044527794,
+      "Black Community Strength": -0.005408134033189084,
+      "Senior Whisperer": -0.05500643076235525,
+      "Suburban Professional": 0.01687663961478754,
+      "Rural Populist": -0.14915457079786673,
+      "Faith Coalition": -0.025441098847041484,
+      "Turnout Monster": 0.01678247737739888
     },
-    "cec": 1.0
+    "cec": 0.45592731748904786
   },
-  "gen_04ecdc04e808": {
+  "gen_084fa7357170": {
     "name": "Jimmy Edwards",
     "party": "I",
     "n_races": 1,
     "badges": [
+      "Low Black Community Strength",
       "Suburban Professional",
       "Low Rural Populist",
       "Low Faith Coalition",
@@ -3113,13 +3941,12 @@
     },
     "cec": 1.0
   },
-  "gen_66206c7fb1ff": {
+  "gen_d742fb7c2230": {
     "name": "Sara Gideon",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Senior Whisperer",
-      "Low Suburban Professional",
       "Rural Populist",
       "Low Turnout Monster"
     ],
@@ -3134,7 +3961,7 @@
     },
     "cec": 1.0
   },
-  "gen_f4bb72358ef6": {
+  "gen_4d10cfebb232": {
     "name": "Kevin O'Connor",
     "party": "R",
     "n_races": 1,
@@ -3152,12 +3979,11 @@
     },
     "cec": 1.0
   },
-  "gen_85c5bdcbb4c0": {
+  "gen_087757b7af85": {
     "name": "Adrian Perkins",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Senior Whisperer",
       "Low Rural Populist"
     ],
     "badge_scores": {
@@ -3171,12 +3997,11 @@
     },
     "cec": 1.0
   },
-  "gen_f7576936910c": {
+  "gen_2f8a3130fe06": {
     "name": "Antoine Pierce",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Senior Whisperer",
       "Low Rural Populist"
     ],
     "badge_scores": {
@@ -3190,12 +4015,11 @@
     },
     "cec": 1.0
   },
-  "gen_5ca891158334": {
+  "gen_87b658926a5d": {
     "name": "Peter Wenstrup",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Senior Whisperer",
       "Low Rural Populist"
     ],
     "badge_scores": {
@@ -3209,12 +4033,11 @@
     },
     "cec": 1.0
   },
-  "gen_aa2ed0b79e69": {
+  "gen_36fd4edd7309": {
     "name": "Derrick \u201cChamp\u201d Edwards",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Senior Whisperer",
       "Low Rural Populist"
     ],
     "badge_scores": {
@@ -3228,7 +4051,7 @@
     },
     "cec": 1.0
   },
-  "gen_4502d39d5d11": {
+  "gen_3116fe7a8b45": {
     "name": "Dustin Murphy",
     "party": "R",
     "n_races": 1,
@@ -3247,7 +4070,7 @@
     },
     "cec": 1.0
   },
-  "gen_cc17efd40f32": {
+  "gen_b6c5fe2c36c4": {
     "name": "Amy McGrath",
     "party": "D",
     "n_races": 1,
@@ -3268,7 +4091,7 @@
     },
     "cec": 1.0
   },
-  "gen_a351604bdffe": {
+  "gen_a8f4f52c5181": {
     "name": "Brad Barron",
     "party": "I",
     "n_races": 1,
@@ -3289,14 +4112,13 @@
     },
     "cec": 1.0
   },
-  "gen_22b2b6bc9eea": {
+  "gen_8e75dde47b35": {
     "name": "Barbara Bollier",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
       "Senior Whisperer",
-      "Faith Coalition",
       "Turnout Monster"
     ],
     "badge_scores": {
@@ -3310,14 +4132,13 @@
     },
     "cec": 1.0
   },
-  "gen_0fd75dec58e8": {
+  "gen_7a105264b78a": {
     "name": "Jason Buckley",
     "party": "I",
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
       "Senior Whisperer",
-      "Faith Coalition",
       "Turnout Monster"
     ],
     "badge_scores": {
@@ -3331,7 +4152,7 @@
     },
     "cec": 1.0
   },
-  "gen_eb164e44f097": {
+  "gen_2d9800b81df7": {
     "name": "Mark C. Curran Jr.",
     "party": "R",
     "n_races": 1,
@@ -3351,31 +4172,28 @@
     },
     "cec": 1.0
   },
-  "gen_025949fcc6a9": {
+  "gen_16cc0d920be2": {
     "name": "Paulette Jordan",
     "party": "D",
-    "n_races": 1,
-    "badges": [
-      "Low Suburban Professional"
-    ],
+    "n_races": 2,
+    "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": -0.006208998778029693,
-      "Black Community Strength": -0.00926115840163882,
-      "Senior Whisperer": 0.30904038189354016,
-      "Suburban Professional": -0.020043078547160722,
-      "Rural Populist": 0.13086802710514914,
-      "Faith Coalition": 0.024860697132531563,
-      "Turnout Monster": 0.11079286932271037
+      "Hispanic Appeal": 0.0295451073603283,
+      "Black Community Strength": -0.0067837761008037725,
+      "Senior Whisperer": 0.009777240497166596,
+      "Suburban Professional": -0.005769278896033103,
+      "Rural Populist": 0.014395464646494318,
+      "Faith Coalition": 0.014347154515205863,
+      "Turnout Monster": 0.13037417203622514
     },
-    "cec": 1.0
+    "cec": -0.24887280248638555
   },
-  "gen_3535f924efc9": {
+  "gen_b933bcdc09d0": {
     "name": "Theresa Greenfield",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Suburban Professional",
-      "Faith Coalition"
+      "Low Suburban Professional"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.022390568059998128,
@@ -3388,7 +4206,7 @@
     },
     "cec": 1.0
   },
-  "gen_264eb941a05e": {
+  "gen_eb703c6a685d": {
     "name": "Matt Lieberman",
     "party": "D",
     "n_races": 1,
@@ -3407,7 +4225,7 @@
     },
     "cec": 1.0
   },
-  "gen_d024577d5be2": {
+  "gen_cfe48345b009": {
     "name": "Ed Tarver",
     "party": "D",
     "n_races": 1,
@@ -3426,7 +4244,7 @@
     },
     "cec": 1.0
   },
-  "gen_53c9598b2eb9": {
+  "gen_1f67a03b0fcd": {
     "name": "Shane Hazel",
     "party": "I",
     "n_races": 2,
@@ -3444,7 +4262,7 @@
     },
     "cec": 0.1024459223769964
   },
-  "gen_58193f8e46ef": {
+  "gen_d8f106a49284": {
     "name": "Lauren Witzke",
     "party": "R",
     "n_races": 1,
@@ -3460,7 +4278,7 @@
     },
     "cec": 1.0
   },
-  "gen_d89527b66556": {
+  "gen_81b21bd5b9e6": {
     "name": "Ricky Dale Harrington Jr.",
     "party": "I",
     "n_races": 1,
@@ -3479,25 +4297,668 @@
     },
     "cec": 1.0
   },
-  "gen_5140d2fe755e": {
-    "name": "Geoff Diehl",
+  "gen_5028e5238866": {
+    "name": "Gary Trauner",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.006114246056933685,
+      "Black Community Strength": 0.0010225455859967177,
+      "Senior Whisperer": -0.37086844709379607,
+      "Suburban Professional": 0.00959324168724993,
+      "Rural Populist": -0.07526199520692815,
+      "Faith Coalition": -0.0044168672030649595,
+      "Turnout Monster": 0.1016221075466229
+    },
+    "cec": 1.0
+  },
+  "gen_a4e35f440b49": {
+    "name": "Joseph Porambo",
+    "party": "I",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.006114246056933685,
+      "Black Community Strength": 0.0010225455859967177,
+      "Senior Whisperer": -0.37086844709379607,
+      "Suburban Professional": 0.00959324168724993,
+      "Rural Populist": -0.07526199520692815,
+      "Faith Coalition": -0.0044168672030649595,
+      "Turnout Monster": 0.1016221075466229
+    },
+    "cec": 1.0
+  },
+  "gen_c23ba0b63c32": {
+    "name": "Rusty Hollen",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Senior Whisperer",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.1499556496371404,
+      "Black Community Strength": -0.044450121834536914,
+      "Senior Whisperer": 0.8764214914151094,
+      "Suburban Professional": 0.0004246288789847898,
+      "Rural Populist": 0.10944600173490299,
+      "Faith Coalition": -0.11071694588178135,
+      "Turnout Monster": 0.2388296268981014
+    },
+    "cec": 1.0
+  },
+  "gen_959a075451b4": {
+    "name": "Patrick Morrisey",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.1499556496371404,
+      "Black Community Strength": 0.044450121834536914,
+      "Senior Whisperer": -0.8764214914151094,
+      "Suburban Professional": -0.0004246288789847898,
+      "Rural Populist": -0.10944600173490299,
+      "Faith Coalition": 0.11071694588178135,
+      "Turnout Monster": 0.2388296268981014
+    },
+    "cec": 1.0
+  },
+  "gen_f3c102f7cf9b": {
+    "name": "Leah Vukmir",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0001106156632437661,
+      "Black Community Strength": -0.029902987411965728,
+      "Senior Whisperer": -0.38545753422056483,
+      "Suburban Professional": 0.022810020193830702,
+      "Rural Populist": 0.04327979478005889,
+      "Faith Coalition": -0.03348132382403887,
+      "Turnout Monster": 0.1214449492641369
+    },
+    "cec": 1.0
+  },
+  "gen_16130c0d874b": {
+    "name": "Susan Hutchison",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0016336472467854328,
+      "Black Community Strength": -0.006948361470749357,
+      "Senior Whisperer": 0.3885124781625644,
+      "Suburban Professional": 0.006979420373967839,
+      "Rural Populist": -0.04437401893513197,
+      "Faith Coalition": 0.01996512158978217,
+      "Turnout Monster": 0.10678426985186851
+    },
+    "cec": 1.0
+  },
+  "gen_8bd2344eec14": {
+    "name": "Matt Waters",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.055151032528966276,
+      "Black Community Strength": -0.005131581420805398,
+      "Senior Whisperer": -0.02512961068282871,
+      "Suburban Professional": -0.0030647346768951414,
+      "Rural Populist": -0.1939533754174907,
+      "Faith Coalition": 0.034004235940262514,
+      "Turnout Monster": 0.1416896908962299
+    },
+    "cec": 1.0
+  },
+  "gen_46191ee797ac": {
+    "name": "Corey Stewart",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.055151032528966276,
+      "Black Community Strength": 0.005131581420805398,
+      "Senior Whisperer": 0.02512961068282871,
+      "Suburban Professional": 0.0030647346768951414,
+      "Rural Populist": 0.1939533754174907,
+      "Faith Coalition": -0.034004235940262514,
+      "Turnout Monster": 0.1416896908962299
+    },
+    "cec": 1.0
+  },
+  "gen_544645f68593": {
+    "name": "Jenny Wilson",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.015364258643924251,
+      "Black Community Strength": 0.00032212533502678467,
+      "Senior Whisperer": -0.13900416259434475,
+      "Suburban Professional": -0.0030225857162328265,
+      "Rural Populist": 0.14283383300103542,
+      "Faith Coalition": 0.016713181735447183,
+      "Turnout Monster": 0.07007342126317512
+    },
+    "cec": 1.0
+  },
+  "gen_22ef0101db59": {
+    "name": "Neal M. Dikeman",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Low Senior Whisperer",
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.13687527377671255,
+      "Black Community Strength": -0.0029331145963317137,
+      "Senior Whisperer": -0.7723452136451019,
+      "Suburban Professional": 0.017919635809064107,
+      "Rural Populist": -0.24109926243395488,
+      "Faith Coalition": -0.003381608634639793,
+      "Turnout Monster": 0.23417942516056195
+    },
+    "cec": 1.0
+  },
+  "gen_d3f69229ce9c": {
+    "name": "Phil Bredesen",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.026319739265342004,
+      "Black Community Strength": -0.01553829375703978,
+      "Senior Whisperer": 0.20668833834135622,
+      "Suburban Professional": -0.029986144500186787,
+      "Rural Populist": -0.012006931056222261,
+      "Faith Coalition": 0.03950513055765731,
+      "Turnout Monster": 0.2074355807573169
+    },
+    "cec": 1.0
+  },
+  "gen_4415c2249d99": {
+    "name": "Bob Flanders",
     "party": "R",
     "n_races": 1,
     "badges": [
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.018265558159334196,
-      "Black Community Strength": -0.0031802208873397677,
-      "Senior Whisperer": 0.37984832126941437,
-      "Suburban Professional": -0.0017271399087727794,
-      "Rural Populist": 0.05442285598452877,
-      "Faith Coalition": 5.219578177687415e-05,
-      "Turnout Monster": 0.008251435441847699
+      "Hispanic Appeal": -0.011045227450200158,
+      "Black Community Strength": 0.0026179367324923085,
+      "Senior Whisperer": 0.23479293757102554,
+      "Suburban Professional": -0.0016121299309451909,
+      "Rural Populist": 0.02488095852607238,
+      "Faith Coalition": 0.008118039085413396,
+      "Turnout Monster": 0.037464038541408784
     },
     "cec": 1.0
   },
-  "gen_ba137f10136e": {
+  "gen_526dfc9b5ba7": {
+    "name": "Chele Farley",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Low Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.025440107368558625,
+      "Black Community Strength": -0.020412130655913754,
+      "Senior Whisperer": -0.5433336344058574,
+      "Suburban Professional": -0.01458835991415127,
+      "Rural Populist": -0.11372152058063086,
+      "Faith Coalition": 0.00436386702780362,
+      "Turnout Monster": 0.22904340269289813
+    },
+    "cec": 1.0
+  },
+  "gen_aba6bcf969d5": {
+    "name": "Gary Johnson",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.10752985474855663,
+      "Black Community Strength": -0.015500307168978244,
+      "Senior Whisperer": 0.9273631080596725,
+      "Suburban Professional": -0.02128779216323914,
+      "Rural Populist": -0.09320760824230602,
+      "Faith Coalition": 0.06166068149336512,
+      "Turnout Monster": 0.20232194093710676
+    },
+    "cec": 1.0
+  },
+  "gen_d186b9bfbaf7": {
+    "name": "Mick Rich",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Suburban Professional",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.10752985474855663,
+      "Black Community Strength": 0.015500307168978244,
+      "Senior Whisperer": -0.9273631080596725,
+      "Suburban Professional": 0.02128779216323914,
+      "Rural Populist": 0.09320760824230602,
+      "Faith Coalition": -0.06166068149336512,
+      "Turnout Monster": 0.20232194093710676
+    },
+    "cec": 1.0
+  },
+  "gen_9ae29ccecc6b": {
+    "name": "Bob Hugin",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.01145374353524724,
+      "Black Community Strength": 0.004113152981802277,
+      "Senior Whisperer": 0.16959961688198955,
+      "Suburban Professional": 0.003517300170039694,
+      "Rural Populist": 0.0022037396709795585,
+      "Faith Coalition": -0.005416230071999655,
+      "Turnout Monster": 0.04869568145376402
+    },
+    "cec": 1.0
+  },
+  "gen_81af7e486903": {
+    "name": "Jane Raybould",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0017324411613952497,
+      "Black Community Strength": 0.004791601533418526,
+      "Senior Whisperer": -0.4222073135587857,
+      "Suburban Professional": -0.0036680386127667234,
+      "Rural Populist": 0.0210116903719047,
+      "Faith Coalition": 0.023351147982633286,
+      "Turnout Monster": 0.2015019776231578
+    },
+    "cec": 1.0
+  },
+  "gen_7952cb58deb1": {
+    "name": "Jim Schultz",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0017324411613952497,
+      "Black Community Strength": 0.004791601533418526,
+      "Senior Whisperer": -0.4222073135587857,
+      "Suburban Professional": -0.0036680386127667234,
+      "Rural Populist": 0.0210116903719047,
+      "Faith Coalition": 0.023351147982633286,
+      "Turnout Monster": 0.2015019776231578
+    },
+    "cec": 1.0
+  },
+  "gen_0dbab3d9eec7": {
+    "name": "Rick Breckenridge",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.03326815058153667,
+      "Black Community Strength": -0.009590864137173333,
+      "Senior Whisperer": -0.42443351875536445,
+      "Suburban Professional": 0.018653448939889416,
+      "Rural Populist": -0.22977834079574838,
+      "Faith Coalition": -0.03488691662364079,
+      "Turnout Monster": 0.18906070101842964
+    },
+    "cec": 1.0
+  },
+  "gen_7c03d9ab082c": {
+    "name": "Tobey Bartee",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.06327149511928365,
+      "Black Community Strength": 0.005420273298612205,
+      "Senior Whisperer": 0.3215904232976954,
+      "Suburban Professional": 0.011101583463833649,
+      "Rural Populist": -0.05239814549187616,
+      "Faith Coalition": 0.011169779475153362,
+      "Turnout Monster": 0.0016368174870353136
+    },
+    "cec": 1.0
+  },
+  "gen_b76cc5cc8636": {
+    "name": "Chris McDaniel",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.06327149511928365,
+      "Black Community Strength": -0.005420273298612205,
+      "Senior Whisperer": -0.3215904232976954,
+      "Suburban Professional": -0.011101583463833649,
+      "Rural Populist": 0.05239814549187616,
+      "Faith Coalition": -0.011169779475153362,
+      "Turnout Monster": 0.0016368174870353136
+    },
+    "cec": 1.0
+  },
+  "gen_9e56e33307e0": {
+    "name": "David Baria",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.06327149511928365,
+      "Black Community Strength": 0.005420273298612205,
+      "Senior Whisperer": 0.3215904232976954,
+      "Suburban Professional": 0.011101583463833649,
+      "Rural Populist": -0.05239814549187616,
+      "Faith Coalition": 0.011169779475153362,
+      "Turnout Monster": 0.0016368174870353136
+    },
+    "cec": 1.0
+  },
+  "gen_d72b8e11d0fa": {
+    "name": "Karin Housley",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer",
+      "Rural Populist",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.058242152605803676,
+      "Black Community Strength": 0.002394147412466901,
+      "Senior Whisperer": 1.6514168056742549,
+      "Suburban Professional": -0.011241495333619683,
+      "Rural Populist": 0.28540222653160846,
+      "Faith Coalition": 0.040973409339744374,
+      "Turnout Monster": 0.1929668252235991
+    },
+    "cec": 1.0
+  },
+  "gen_0812b1a64364": {
+    "name": "Jim Newberger",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer",
+      "Rural Populist",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.058242152605803676,
+      "Black Community Strength": 0.002394147412466901,
+      "Senior Whisperer": 1.6514168056742549,
+      "Suburban Professional": -0.011241495333619683,
+      "Rural Populist": 0.28540222653160846,
+      "Faith Coalition": 0.040973409339744374,
+      "Turnout Monster": 0.1929668252235991
+    },
+    "cec": 1.0
+  },
+  "gen_80a16ec1959a": {
+    "name": "Zak Ringelstein",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.026120990353844645,
+      "Black Community Strength": 0.0203862550979239,
+      "Senior Whisperer": 2.780582218765775,
+      "Suburban Professional": -0.03713596405454651,
+      "Rural Populist": 0.5658695931416087,
+      "Faith Coalition": 0.0437432885211547,
+      "Turnout Monster": 0.1940652292237792
+    },
+    "cec": 1.0
+  },
+  "gen_7cd1ee169104": {
+    "name": "Eric L. Brakey",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Low Senior Whisperer",
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.026120990353844645,
+      "Black Community Strength": -0.0203862550979239,
+      "Senior Whisperer": -2.780582218765775,
+      "Suburban Professional": 0.03713596405454651,
+      "Rural Populist": -0.5658695931416087,
+      "Faith Coalition": -0.0437432885211547,
+      "Turnout Monster": 0.1940652292237792
+    },
+    "cec": 1.0
+  },
+  "gen_b181a239cdb1": {
+    "name": "Tony Campbell",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.03565671947326084,
+      "Black Community Strength": -0.012039005984472089,
+      "Senior Whisperer": -0.20996713419262283,
+      "Suburban Professional": -0.013759184141561492,
+      "Rural Populist": 0.1568696367182592,
+      "Faith Coalition": -0.017055533361961733,
+      "Turnout Monster": 0.17702946179892642
+    },
+    "cec": 1.0
+  },
+  "gen_3597a00c17f5": {
+    "name": "V. A. Shiva Ayyadurai",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.009547267296714432,
+      "Black Community Strength": 0.0061709227870528904,
+      "Senior Whisperer": -0.011890253423667842,
+      "Suburban Professional": -0.0069274914303801075,
+      "Rural Populist": -0.026319338503366863,
+      "Faith Coalition": 0.01888075604492941,
+      "Turnout Monster": 0.0073960338523541
+    },
+    "cec": 1.0
+  },
+  "gen_deeb97ed05f6": {
+    "name": "Geoff Diehl",
+    "party": "R",
+    "n_races": 2,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.013906412728024316,
+      "Black Community Strength": -0.00467557183719633,
+      "Senior Whisperer": 0.1958692873465411,
+      "Suburban Professional": 0.0026001757608036646,
+      "Rural Populist": 0.040371097243947815,
+      "Faith Coalition": -0.009414280131576268,
+      "Turnout Monster": 0.00042770079474679923
+    },
+    "cec": 0.5467941588596362
+  },
+  "gen_7b5494d85c36": {
+    "name": "Shiva Ayyadurai",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.009547267296714432,
+      "Black Community Strength": 0.0061709227870528904,
+      "Senior Whisperer": -0.011890253423667842,
+      "Suburban Professional": -0.0069274914303801075,
+      "Rural Populist": -0.026319338503366863,
+      "Faith Coalition": 0.01888075604492941,
+      "Turnout Monster": 0.0073960338523541
+    },
+    "cec": 1.0
+  },
+  "gen_7845ceacba20": {
+    "name": "Lucy M. Brenton",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0029355601675853074,
+      "Black Community Strength": 0.023217848703342023,
+      "Senior Whisperer": -0.7813529743514043,
+      "Suburban Professional": -0.027592882066618335,
+      "Rural Populist": 0.08181995493253169,
+      "Faith Coalition": 0.031430154479455366,
+      "Turnout Monster": 0.13289459354195715
+    },
+    "cec": 1.0
+  },
+  "gen_95058aa4d91f": {
+    "name": "Ron Curtis",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.006178571606928771,
+      "Black Community Strength": -0.007925537086767302,
+      "Senior Whisperer": 0.13846070115501236,
+      "Suburban Professional": 0.004199249061385298,
+      "Rural Populist": 0.008736602712210583,
+      "Faith Coalition": -0.0038736258502081807,
+      "Turnout Monster": 0.047236690015473926
+    },
+    "cec": 1.0
+  },
+  "gen_f506ed7f1de7": {
+    "name": "Rob Arlett",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.002211751260378317,
+      "Black Community Strength": 0.0005050504789052842,
+      "Senior Whisperer": 0.031196113618180546,
+      "Suburban Professional": -5.9500134683309186e-05,
+      "Rural Populist": 0.0021262894093442126,
+      "Faith Coalition": 0.0030515482302368173,
+      "Turnout Monster": 0.07040998299228007
+    },
+    "cec": 1.0
+  },
+  "gen_2ddd20e7ad27": {
+    "name": "Matthew Corey",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.013880509531761495,
+      "Black Community Strength": -0.00023538593280485854,
+      "Senior Whisperer": -0.18255773411260653,
+      "Suburban Professional": 0.0012303692045515925,
+      "Rural Populist": 0.010143656399346335,
+      "Faith Coalition": -0.008636907552153053,
+      "Turnout Monster": 0.06388205821611181
+    },
+    "cec": 1.0
+  },
+  "gen_aa83c3e94b98": {
+    "name": "Angela Green",
+    "party": "I",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.002412331128853755,
+      "Black Community Strength": -0.013016925334942229,
+      "Senior Whisperer": -0.5540523170998924,
+      "Suburban Professional": 0.005055724461033956,
+      "Rural Populist": -0.08195021345556178,
+      "Faith Coalition": -0.007252102868824783,
+      "Turnout Monster": 0.11399406706825332
+    },
+    "cec": 1.0
+  },
+  "gen_b7676ad985ab": {
     "name": "Ron Crumpton",
     "party": "D",
     "n_races": 1,
@@ -3516,15 +4977,14 @@
     },
     "cec": 1.0
   },
-  "gen_649d95419821": {
+  "gen_1e2909608cf4": {
     "name": "Conner Eldridge",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
       "Senior Whisperer",
-      "Rural Populist",
-      "Low Faith Coalition"
+      "Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.07477306947223626,
@@ -3537,13 +4997,12 @@
     },
     "cec": 1.0
   },
-  "gen_1d5c10e70566": {
+  "gen_983d797551c5": {
     "name": "Darryl Glenn",
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Low Rural Populist",
-      "Turnout Monster"
+      "Low Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.0004148452905854616,
@@ -3556,7 +5015,7 @@
     },
     "cec": 1.0
   },
-  "gen_4c5fb9ab96d8": {
+  "gen_1b85db3a54e8": {
     "name": "Dan Carter",
     "party": "R",
     "n_races": 1,
@@ -3572,7 +5031,7 @@
     },
     "cec": 1.0
   },
-  "gen_3324f60f66fa": {
+  "gen_0a21f829fdd8": {
     "name": "Jim Barksdale",
     "party": "D",
     "n_races": 1,
@@ -3590,7 +5049,7 @@
     },
     "cec": 1.0
   },
-  "gen_75f312b7dae2": {
+  "gen_97b657cc98e7": {
     "name": "John Carroll",
     "party": "R",
     "n_races": 1,
@@ -3606,11 +5065,12 @@
     },
     "cec": 1.0
   },
-  "gen_18e74a3cddeb": {
+  "gen_926025ad36ff": {
     "name": "Patty Judge",
     "party": "D",
     "n_races": 1,
     "badges": [
+      "Black Community Strength",
       "Rural Populist",
       "Faith Coalition"
     ],
@@ -3625,7 +5085,7 @@
     },
     "cec": 1.0
   },
-  "gen_18c4f42d1e52": {
+  "gen_4cffff38935b": {
     "name": "Jerry Sturgill",
     "party": "D",
     "n_races": 1,
@@ -3643,7 +5103,7 @@
     },
     "cec": 1.0
   },
-  "gen_31ab91c21e39": {
+  "gen_34b3fd42da5b": {
     "name": "Evan Bayh",
     "party": "D",
     "n_races": 1,
@@ -3664,7 +5124,7 @@
     },
     "cec": 1.0
   },
-  "gen_995af61594c6": {
+  "gen_18569d6cdfe2": {
     "name": "Patrick Wiesner",
     "party": "D",
     "n_races": 1,
@@ -3672,8 +5132,7 @@
       "Low Hispanic Appeal",
       "Black Community Strength",
       "Senior Whisperer",
-      "Suburban Professional",
-      "Rural Populist"
+      "Suburban Professional"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.11255060311040511,
@@ -3686,7 +5145,7 @@
     },
     "cec": 1.0
   },
-  "gen_9a7efdb1e69d": {
+  "gen_00bbd07b93f9": {
     "name": "Jim Gray",
     "party": "D",
     "n_races": 1,
@@ -3707,7 +5166,7 @@
     },
     "cec": 1.0
   },
-  "gen_f2e53621baea": {
+  "gen_649f36ab6088": {
     "name": "Kathy Szeliga",
     "party": "R",
     "n_races": 1,
@@ -3726,7 +5185,7 @@
     },
     "cec": 1.0
   },
-  "gen_79ce3b749d24": {
+  "gen_e4d59beb849d": {
     "name": "Jason Kander",
     "party": "D",
     "n_races": 1,
@@ -3745,7 +5204,7 @@
     },
     "cec": 1.0
   },
-  "gen_6d70f3fe34a7": {
+  "gen_4876e0c9e0d5": {
     "name": "Sean Haugh",
     "party": "L",
     "n_races": 1,
@@ -3761,7 +5220,7 @@
     },
     "cec": 1.0
   },
-  "gen_78a853723723": {
+  "gen_97add55092dc": {
     "name": "Wendy Long",
     "party": "R",
     "n_races": 1,
@@ -3780,7 +5239,7 @@
     },
     "cec": 1.0
   },
-  "gen_f6ca56c4325f": {
+  "gen_3f1fb32e75c9": {
     "name": "Ted Strickland",
     "party": "D",
     "n_races": 1,
@@ -3799,7 +5258,7 @@
     },
     "cec": 1.0
   },
-  "gen_b3cf9501624e": {
+  "gen_6260e9b14b04": {
     "name": "Mike Workman",
     "party": "D",
     "n_races": 1,
@@ -3819,7 +5278,7 @@
     },
     "cec": 1.0
   },
-  "gen_2f2f863184a1": {
+  "gen_6b5b7bbc5b83": {
     "name": "Mark Callahan",
     "party": "R",
     "n_races": 1,
@@ -3841,13 +5300,12 @@
     },
     "cec": 1.0
   },
-  "gen_89a5d83eaf91": {
+  "gen_65cab238a5f3": {
     "name": "Katie McGinty",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Suburban Professional",
-      "Faith Coalition"
+      "Suburban Professional"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.025469200224020692,
@@ -3860,7 +5318,7 @@
     },
     "cec": 1.0
   },
-  "gen_e941b531f361": {
+  "gen_e96e3b1b3c13": {
     "name": "Thomas Dixon",
     "party": "D",
     "n_races": 1,
@@ -3879,7 +5337,7 @@
     },
     "cec": 1.0
   },
-  "gen_b3353a13e076": {
+  "gen_dd73db93915e": {
     "name": "Jay Williams",
     "party": "D",
     "n_races": 1,
@@ -3899,7 +5357,7 @@
     },
     "cec": 1.0
   },
-  "gen_98128d61982d": {
+  "gen_50e0e0978930": {
     "name": "Misty Snow",
     "party": "D",
     "n_races": 1,
@@ -3917,7 +5375,7 @@
     },
     "cec": 1.0
   },
-  "gen_df047229194a": {
+  "gen_5c9a617258d5": {
     "name": "Scott Milne",
     "party": "R",
     "n_races": 1,
@@ -3933,7 +5391,7 @@
     },
     "cec": 1.0
   },
-  "gen_d6ac26c95546": {
+  "gen_8a65a8f805bb": {
     "name": "Chris Vance",
     "party": "R",
     "n_races": 1,
@@ -3949,7 +5407,7 @@
     },
     "cec": 1.0
   },
-  "gen_0c7ad663e1d5": {
+  "gen_c83961325511": {
     "name": "Russ Feingold",
     "party": "D",
     "n_races": 1,
@@ -3968,7 +5426,7 @@
     },
     "cec": 1.0
   },
-  "gen_66488f53e020": {
+  "gen_b1bf5bea435e": {
     "name": "Charlie Hardy",
     "party": "D",
     "n_races": 1,
@@ -3989,13 +5447,12 @@
     },
     "cec": 1.0
   },
-  "gen_398c99606031": {
+  "gen_bbb55b0c8ae9": {
     "name": "Natalie E. Tennant",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Hispanic Appeal",
-      "Senior Whisperer",
       "Low Suburban Professional"
     ],
     "badge_scores": {
@@ -4009,7 +5466,7 @@
     },
     "cec": 1.0
   },
-  "gen_e12342554396": {
+  "gen_a749cbec38b3": {
     "name": "Ed Gillespie",
     "party": "R",
     "n_races": 1,
@@ -4029,7 +5486,7 @@
     },
     "cec": 1.0
   },
-  "gen_f5a7ccd0d662": {
+  "gen_502645f2d19b": {
     "name": "Robert Sarvis",
     "party": "I",
     "n_races": 1,
@@ -4049,14 +5506,13 @@
     },
     "cec": 1.0
   },
-  "gen_a2e8daad4320": {
+  "gen_223787f63577": {
     "name": "David M. Alameel",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
       "Black Community Strength",
-      "Low Senior Whisperer",
       "Low Suburban Professional",
       "Low Rural Populist",
       "Faith Coalition"
@@ -4072,7 +5528,7 @@
     },
     "cec": 1.0
   },
-  "gen_ec09f32b12a9": {
+  "gen_c5e5de9ba55d": {
     "name": "William Gordon Ball",
     "party": "D",
     "n_races": 1,
@@ -4092,7 +5548,7 @@
     },
     "cec": 1.0
   },
-  "gen_35cf1afcbae3": {
+  "gen_a630e1d084ac": {
     "name": "Richard P. Weiland",
     "party": "D",
     "n_races": 1,
@@ -4114,7 +5570,7 @@
     },
     "cec": 1.0
   },
-  "gen_fef7c49a6957": {
+  "gen_2733a9b369e4": {
     "name": "Larry Pressler",
     "party": "I",
     "n_races": 1,
@@ -4136,7 +5592,7 @@
     },
     "cec": 1.0
   },
-  "gen_b4e03d87ec56": {
+  "gen_6d25c65ba252": {
     "name": "Joyce Dickerson",
     "party": "D",
     "n_races": 1,
@@ -4155,7 +5611,7 @@
     },
     "cec": 1.0
   },
-  "gen_d818413334b6": {
+  "gen_82f2dccea6e6": {
     "name": "Charles Bradley Hutto",
     "party": "D",
     "n_races": 1,
@@ -4174,7 +5630,7 @@
     },
     "cec": 1.0
   },
-  "gen_f88c95e9679d": {
+  "gen_38505c8db5a6": {
     "name": "Thomas Ravenel",
     "party": "I",
     "n_races": 1,
@@ -4193,7 +5649,7 @@
     },
     "cec": 1.0
   },
-  "gen_d9380411dbc9": {
+  "gen_88756e1e3d81": {
     "name": "Mark Zaccaria",
     "party": "R",
     "n_races": 1,
@@ -4209,7 +5665,7 @@
     },
     "cec": 1.0
   },
-  "gen_886ffbbfb9aa": {
+  "gen_19779165526e": {
     "name": "Monica Wehby",
     "party": "R",
     "n_races": 1,
@@ -4228,7 +5684,7 @@
     },
     "cec": 1.0
   },
-  "gen_cddb55435ff2": {
+  "gen_079733b6e224": {
     "name": "Constance N. Johnson",
     "party": "D",
     "n_races": 1,
@@ -4249,7 +5705,7 @@
     },
     "cec": 1.0
   },
-  "gen_3c2cde71cfc5": {
+  "gen_ecba274b872f": {
     "name": "Matt Silverstein",
     "party": "D",
     "n_races": 1,
@@ -4270,17 +5726,14 @@
     },
     "cec": 1.0
   },
-  "gen_640d3ed849cf": {
+  "gen_96e42ab6ce10": {
     "name": "Allen E. Weh",
     "party": "R",
     "n_races": 1,
     "badges": [
       "Hispanic Appeal",
       "Black Community Strength",
-      "Low Senior Whisperer",
-      "Suburban Professional",
-      "Rural Populist",
-      "Low Faith Coalition"
+      "Suburban Professional"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.06347990965834478,
@@ -4293,7 +5746,7 @@
     },
     "cec": 1.0
   },
-  "gen_448cbb1a807f": {
+  "gen_35a8dca45c75": {
     "name": "Jeff Bell",
     "party": "R",
     "n_races": 1,
@@ -4309,7 +5762,7 @@
     },
     "cec": 1.0
   },
-  "gen_c9d8dfd810c5": {
+  "gen_433d9278fddd": {
     "name": "Scott Brown",
     "party": "R",
     "n_races": 1,
@@ -4327,7 +5780,7 @@
     },
     "cec": 1.0
   },
-  "gen_6e37f07676fa": {
+  "gen_6c79ad41499f": {
     "name": "Dave Domina",
     "party": "D",
     "n_races": 1,
@@ -4343,12 +5796,11 @@
     },
     "cec": 1.0
   },
-  "gen_820fc6007e73": {
+  "gen_2eab58201f83": {
     "name": "Sean N. Haugh",
     "party": "I",
     "n_races": 1,
     "badges": [
-      "Low Suburban Professional",
       "Faith Coalition"
     ],
     "badge_scores": {
@@ -4362,7 +5814,7 @@
     },
     "cec": 1.0
   },
-  "gen_c99b140c249d": {
+  "gen_3fadcb551222": {
     "name": "Amanda G. Curtis",
     "party": "D",
     "n_races": 1,
@@ -4383,7 +5835,7 @@
     },
     "cec": 1.0
   },
-  "gen_e7bd9c14529e": {
+  "gen_6a816d803b77": {
     "name": "Mike McFadden",
     "party": "R",
     "n_races": 1,
@@ -4404,15 +5856,13 @@
     },
     "cec": 1.0
   },
-  "gen_7fb2290402c0": {
+  "gen_c11e94ef97b6": {
     "name": "Terri Lynn Land",
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Hispanic Appeal",
       "Suburban Professional",
-      "Low Faith Coalition",
-      "Turnout Monster"
+      "Low Faith Coalition"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.04899038408244853,
@@ -4425,7 +5875,7 @@
     },
     "cec": 1.0
   },
-  "gen_c5334abf7c9c": {
+  "gen_11ec21cb6750": {
     "name": "Shenna Bellows",
     "party": "D",
     "n_races": 1,
@@ -4445,7 +5895,7 @@
     },
     "cec": 1.0
   },
-  "gen_e3ed804e1da5": {
+  "gen_09375712602a": {
     "name": "Brian J. Herr",
     "party": "R",
     "n_races": 1,
@@ -4463,14 +5913,13 @@
     },
     "cec": 1.0
   },
-  "gen_6d5daaae78f2": {
+  "gen_1cbbc7df3128": {
     "name": "Alison Lundergan Grimes",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Low Hispanic Appeal",
       "Low Black Community Strength",
-      "Senior Whisperer",
       "Low Suburban Professional",
       "Rural Populist",
       "Faith Coalition",
@@ -4487,7 +5936,25 @@
     },
     "cec": 1.0
   },
-  "gen_477574107ed7": {
+  "gen_8bd20156cdea": {
+    "name": "Greg Orman",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.011266701223177208,
+      "Black Community Strength": 0.008567432994802728,
+      "Senior Whisperer": -0.4203136355199701,
+      "Suburban Professional": 0.010908679805503247,
+      "Rural Populist": -0.015880367377912173,
+      "Faith Coalition": -0.00038662951511613734,
+      "Turnout Monster": 0.2029719272889678
+    },
+    "cec": 1.0
+  },
+  "gen_aca84e579458": {
     "name": "Jim Oberweis",
     "party": "R",
     "n_races": 1,
@@ -4509,15 +5976,13 @@
     },
     "cec": 1.0
   },
-  "gen_b50bca319b72": {
+  "gen_a5659dcf5288": {
     "name": "Nels Mitchell",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Senior Whisperer",
       "Low Suburban Professional",
-      "Rural Populist",
-      "Faith Coalition"
+      "Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.035723150789596855,
@@ -4530,7 +5995,7 @@
     },
     "cec": 1.0
   },
-  "gen_dc3b177823c6": {
+  "gen_d1a5ab782bce": {
     "name": "Mary Michelle Nunn",
     "party": "D",
     "n_races": 1,
@@ -4553,7 +6018,7 @@
     },
     "cec": 1.0
   },
-  "gen_3a5ebacffd3d": {
+  "gen_0db1977be7cb": {
     "name": "Amanda Swafford",
     "party": "I",
     "n_races": 1,
@@ -4576,7 +6041,7 @@
     },
     "cec": 1.0
   },
-  "gen_9b54dd643d66": {
+  "gen_f7d7983cd0b3": {
     "name": "Kevin Wade",
     "party": "R",
     "n_races": 1,
@@ -4594,7 +6059,7 @@
     },
     "cec": 1.0
   },
-  "gen_a3c48266476c": {
+  "gen_3348591be299": {
     "name": "Theresa A. Livingston",
     "party": "D",
     "n_races": 1,
@@ -4617,30 +6082,25 @@
     },
     "cec": 1.0
   },
-  "gen_c02556d6dd34": {
+  "gen_f1c354743539": {
     "name": "Mark Gordon",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
-      "Hispanic Appeal",
-      "Low Senior Whisperer",
-      "Suburban Professional",
-      "Low Rural Populist",
-      "Low Faith Coalition",
-      "Low Turnout Monster"
+      "Suburban Professional"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.07796583662375135,
-      "Black Community Strength": -0.00796842415476572,
-      "Senior Whisperer": -1.8752698114290318,
-      "Suburban Professional": 0.01583504344497844,
-      "Rural Populist": -0.20333840466847852,
-      "Faith Coalition": -0.040492652658190596,
-      "Turnout Monster": 0.020764382638422868
+      "Hispanic Appeal": -0.04153771107487103,
+      "Black Community Strength": 0.0037268811881139533,
+      "Senior Whisperer": 0.10542324764712539,
+      "Suburban Professional": 0.014466754716416244,
+      "Rural Populist": -0.11117845553928858,
+      "Faith Coalition": 0.010950676721451726,
+      "Turnout Monster": 0.08446095108072782
     },
-    "cec": 1.0
+    "cec": -0.588681844816694
   },
-  "gen_8f11619c743d": {
+  "gen_d659267d2bff": {
     "name": "Jared J. Baldes",
     "party": "I",
     "n_races": 1,
@@ -4663,10 +6123,10 @@
     },
     "cec": 1.0
   },
-  "gen_fcceb875a2fe": {
+  "gen_9538e06685ca": {
     "name": "Tony Evers",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Hispanic Appeal",
       "Low Black Community Strength",
@@ -4675,17 +6135,17 @@
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.059580953530494425,
-      "Black Community Strength": -0.06529972841038627,
-      "Senior Whisperer": -1.4451263570451005,
-      "Suburban Professional": 0.007265265064009674,
-      "Rural Populist": -0.015696542873810226,
-      "Faith Coalition": -0.08567485881892158,
-      "Turnout Monster": 0.031152883584616653
+      "Hispanic Appeal": 0.053154356358662495,
+      "Black Community Strength": -0.04200156448164716,
+      "Senior Whisperer": -1.0354658199801234,
+      "Suburban Professional": 0.00879504945664903,
+      "Rural Populist": -0.03868987493618187,
+      "Faith Coalition": -0.05965250754227321,
+      "Turnout Monster": 0.03640012716685451
     },
-    "cec": 1.0
+    "cec": 0.681816371136602
   },
-  "gen_e7549d450438": {
+  "gen_00f8031bfaca": {
     "name": "Tim Michels",
     "party": "R",
     "n_races": 1,
@@ -4707,7 +6167,7 @@
     },
     "cec": 1.0
   },
-  "gen_89955e3ab775": {
+  "gen_2f396cb4e089": {
     "name": "Joan Ellis Beglinger",
     "party": "I",
     "n_races": 1,
@@ -4729,7 +6189,7 @@
     },
     "cec": 1.0
   },
-  "gen_3a8876e65b84": {
+  "gen_ae3eb919ddce": {
     "name": "Brenda Siegel",
     "party": "D",
     "n_races": 1,
@@ -4745,46 +6205,63 @@
     },
     "cec": 1.0
   },
-  "gen_f8546e1cc1d4": {
+  "gen_6eae1f26e105": {
     "name": "Phil Scott",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": 0.003441427323430186,
-      "Black Community Strength": 0.0027538146162640205,
-      "Senior Whisperer": -0.17936242070413613,
-      "Suburban Professional": 0.0081153513267933,
-      "Rural Populist": -0.08053977951438433,
-      "Faith Coalition": -0.0017213020547301857,
-      "Turnout Monster": 0.15885243035797297
+      "Hispanic Appeal": 0.0034687568501491216,
+      "Black Community Strength": 0.0009076683979054569,
+      "Senior Whisperer": -0.21459973987094938,
+      "Suburban Professional": 0.006131799768568604,
+      "Rural Populist": -0.05945460634814394,
+      "Faith Coalition": -0.0006305962748340417,
+      "Turnout Monster": 0.08131294172891931
     },
-    "cec": 1.0
+    "cec": 0.9052487479863146
   },
-  "gen_6cf515e58c74": {
+  "gen_3e5e883c1c49": {
     "name": "Greg Abbott",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Hispanic Appeal",
       "Low Senior Whisperer",
-      "Suburban Professional",
       "Low Rural Populist",
-      "Low Faith Coalition",
       "Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.05273478728053244,
-      "Black Community Strength": -0.003576120328075203,
-      "Senior Whisperer": -0.9008656112074543,
-      "Suburban Professional": 0.01703012283087002,
-      "Rural Populist": -0.2839673370021324,
-      "Faith Coalition": -0.033143574411914775,
-      "Turnout Monster": 0.1944263155109443
+      "Hispanic Appeal": 0.06985045068576774,
+      "Black Community Strength": -0.009325991555060835,
+      "Senior Whisperer": -0.7031981410587061,
+      "Suburban Professional": -0.002811691463774689,
+      "Rural Populist": -0.15678727786602423,
+      "Faith Coalition": -0.026176196072456803,
+      "Turnout Monster": 0.1981317778668324
+    },
+    "cec": 0.5711968069903371
+  },
+  "gen_e71952c42c26": {
+    "name": "Bill Lee",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.04038733956020035,
+      "Black Community Strength": 0.003704711914247578,
+      "Senior Whisperer": 0.5214100459942526,
+      "Suburban Professional": -0.026838592764979283,
+      "Rural Populist": -0.0085609239207082,
+      "Faith Coalition": 0.07468998319460243,
+      "Turnout Monster": 0.09941224055810666
     },
     "cec": 1.0
   },
-  "gen_9966ebc15845": {
+  "gen_4678ac0ea8f8": {
     "name": "Jamie Smith",
     "party": "D",
     "n_races": 1,
@@ -4792,7 +6269,6 @@
       "Hispanic Appeal",
       "Low Senior Whisperer",
       "Low Suburban Professional",
-      "Rural Populist",
       "Low Faith Coalition",
       "Low Turnout Monster"
     ],
@@ -4807,7 +6283,7 @@
     },
     "cec": 1.0
   },
-  "gen_c7474b815b79": {
+  "gen_a0b421a09830": {
     "name": "Tracey Quint",
     "party": "I",
     "n_races": 1,
@@ -4815,7 +6291,6 @@
       "Hispanic Appeal",
       "Low Senior Whisperer",
       "Low Suburban Professional",
-      "Rural Populist",
       "Low Faith Coalition",
       "Low Turnout Monster"
     ],
@@ -4830,30 +6305,31 @@
     },
     "cec": 1.0
   },
-  "gen_44d2fa32125d": {
+  "gen_7c2c405a8da6": {
     "name": "Henry McMaster",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
+      "Low Hispanic Appeal",
+      "Senior Whisperer",
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.049310695089858886,
-      "Black Community Strength": -0.002653528878291302,
-      "Senior Whisperer": 0.5099092262506566,
-      "Suburban Professional": 0.004293074407759243,
-      "Rural Populist": -0.0139925416092893,
-      "Faith Coalition": -0.006373749269317846,
-      "Turnout Monster": 0.011502267002828082
+      "Hispanic Appeal": -0.06848263948871747,
+      "Black Community Strength": 0.008800484989848737,
+      "Senior Whisperer": 0.8425229657765744,
+      "Suburban Professional": -4.93864875791915e-05,
+      "Rural Populist": -0.03902325985410164,
+      "Faith Coalition": 0.009215519102133373,
+      "Turnout Monster": 0.011220162527588368
     },
-    "cec": 1.0
+    "cec": 0.32518117342220126
   },
-  "gen_64b4533873ce": {
+  "gen_13fdccb8401f": {
     "name": "Bruce Reeves",
     "party": "I",
     "n_races": 1,
     "badges": [
-      "Hispanic Appeal",
       "Low Turnout Monster"
     ],
     "badge_scores": {
@@ -4867,7 +6343,7 @@
     },
     "cec": 1.0
   },
-  "gen_b5473c2e30b4": {
+  "gen_b645adb823fb": {
     "name": "Daniel J. McKee",
     "party": "D",
     "n_races": 1,
@@ -4883,7 +6359,7 @@
     },
     "cec": 1.0
   },
-  "gen_5552e0cabba1": {
+  "gen_cbfbde4ad8be": {
     "name": "Ashley Kalus",
     "party": "R",
     "n_races": 1,
@@ -4899,12 +6375,11 @@
     },
     "cec": 1.0
   },
-  "gen_be6e61ef0f5f": {
+  "gen_4a75db700114": {
     "name": "Josh Shapiro",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Senior Whisperer",
       "Turnout Monster"
     ],
     "badge_scores": {
@@ -4918,7 +6393,7 @@
     },
     "cec": 1.0
   },
-  "gen_a0476633d083": {
+  "gen_a023e531c2cc": {
     "name": "Douglas V. Mastriano",
     "party": "R",
     "n_races": 1,
@@ -4936,7 +6411,7 @@
     },
     "cec": 1.0
   },
-  "gen_bbf2a463840f": {
+  "gen_0026e4b70b14": {
     "name": "Tina Kotek",
     "party": "D",
     "n_races": 1,
@@ -4954,7 +6429,7 @@
     },
     "cec": 1.0
   },
-  "gen_57bde7cc8ffd": {
+  "gen_cf32f870f900": {
     "name": "Christine Drazan",
     "party": "R",
     "n_races": 1,
@@ -4972,7 +6447,7 @@
     },
     "cec": 1.0
   },
-  "gen_ef0ec9cd118c": {
+  "gen_36cbcb34a914": {
     "name": "Betsy Johnson",
     "party": "I",
     "n_races": 1,
@@ -4990,14 +6465,12 @@
     },
     "cec": 1.0
   },
-  "gen_f44cca632260": {
+  "gen_fe4a7fe03f79": {
     "name": "Joy Hofmeister",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Hispanic Appeal",
-      "Low Senior Whisperer",
-      "Low Suburban Professional"
+      "Hispanic Appeal"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.055665892627807294,
@@ -5010,25 +6483,25 @@
     },
     "cec": 1.0
   },
-  "gen_14861f66975f": {
+  "gen_ce5fa63d83f4": {
     "name": "Kevin Stitt",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
-      "Suburban Professional"
+      "Low Hispanic Appeal"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.055665892627807294,
-      "Black Community Strength": 0.0016699243273725745,
-      "Senior Whisperer": 0.6422570211715586,
-      "Suburban Professional": 0.013810897862649276,
-      "Rural Populist": -0.08806216146117866,
-      "Faith Coalition": -0.017134403010910095,
-      "Turnout Monster": 0.16189183195574625
+      "Hispanic Appeal": -0.06329700040211957,
+      "Black Community Strength": 0.006559613229950806,
+      "Senior Whisperer": 0.5719048007056435,
+      "Suburban Professional": 0.007625493217644153,
+      "Rural Populist": -0.06235637023043124,
+      "Faith Coalition": 0.0010803378513948834,
+      "Turnout Monster": 0.15660668403484096
     },
-    "cec": 1.0
+    "cec": 0.5367095070703194
   },
-  "gen_8b166a400593": {
+  "gen_a89bf36510f5": {
     "name": "Nan Whaley",
     "party": "D",
     "n_races": 1,
@@ -5049,10 +6522,10 @@
     },
     "cec": 1.0
   },
-  "gen_f8f36bfa9cfe": {
+  "gen_693585d3daf8": {
     "name": "Mike DeWine",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Black Community Strength",
       "Senior Whisperer",
@@ -5060,23 +6533,21 @@
       "Faith Coalition"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.0285469910074294,
-      "Black Community Strength": 0.07783606056279191,
-      "Senior Whisperer": 0.8022395580895348,
-      "Suburban Professional": -0.018675004383789547,
-      "Rural Populist": -0.06831488713006925,
-      "Faith Coalition": 0.04894405269433383,
-      "Turnout Monster": 0.052762765692498326
+      "Hispanic Appeal": -0.01740328366645819,
+      "Black Community Strength": 0.04034266211705235,
+      "Senior Whisperer": 0.7794107723172455,
+      "Suburban Professional": -0.016004317389085265,
+      "Rural Populist": -0.0017153204158754842,
+      "Faith Coalition": 0.044181234005741664,
+      "Turnout Monster": 0.10488965657571114
     },
-    "cec": 1.0
+    "cec": 0.33797575082756515
   },
-  "gen_242a6e3a44f4": {
+  "gen_e4b32c4be4b2": {
     "name": "Kathy C. Hochul",
     "party": "D",
     "n_races": 1,
-    "badges": [
-      "Low Senior Whisperer"
-    ],
+    "badges": [],
     "badge_scores": {
       "Hispanic Appeal": 0.002951469885651854,
       "Black Community Strength": -0.007538642688451707,
@@ -5088,25 +6559,25 @@
     },
     "cec": 1.0
   },
-  "gen_4f9c3f71f468": {
+  "gen_6ec4b002c019": {
     "name": "Steve Sisolak",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.002205721295404641,
-      "Black Community Strength": 0.0023372984384462435,
-      "Senior Whisperer": 0.12850646709591787,
-      "Suburban Professional": -0.0017184433578738725,
-      "Rural Populist": 0.00891538090506055,
-      "Faith Coalition": 0.011951233478488926,
-      "Turnout Monster": 0.22390475961567102
+      "Hispanic Appeal": 0.0034856711920785506,
+      "Black Community Strength": 0.003324267355403157,
+      "Senior Whisperer": 0.12231635694413796,
+      "Suburban Professional": 0.002178127597954776,
+      "Rural Populist": -0.020377446464675292,
+      "Faith Coalition": 0.008243764567933043,
+      "Turnout Monster": 0.24226824703679575
     },
-    "cec": 1.0
+    "cec": 0.05479152532007393
   },
-  "gen_afcb52282ac4": {
+  "gen_30c4567b1657": {
     "name": "Joe Lombardo",
     "party": "R",
     "n_races": 1,
@@ -5124,7 +6595,7 @@
     },
     "cec": 1.0
   },
-  "gen_e04a0e6db610": {
+  "gen_1a4b4581c85f": {
     "name": "Tom Sherman",
     "party": "D",
     "n_races": 1,
@@ -5142,33 +6613,32 @@
     },
     "cec": 1.0
   },
-  "gen_70e28a3ef94b": {
+  "gen_7ae3b389606f": {
     "name": "Chris Sununu",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Low Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.001924617195531849,
-      "Black Community Strength": 0.007491090071080024,
-      "Senior Whisperer": -0.07459726969959193,
-      "Suburban Professional": 0.0009075221640917886,
-      "Rural Populist": -0.06840081029095933,
-      "Faith Coalition": 0.005248151121478284,
-      "Turnout Monster": 0.023924115365496545
+      "Hispanic Appeal": 0.00253229968545555,
+      "Black Community Strength": 0.006215743637301549,
+      "Senior Whisperer": -0.06855261372018455,
+      "Suburban Professional": -0.00030333463476015177,
+      "Rural Populist": -0.04858499003728682,
+      "Faith Coalition": 0.003274102456137206,
+      "Turnout Monster": 0.007273546049677643
     },
-    "cec": 1.0
+    "cec": 0.01529847466439725
   },
-  "gen_ff0754f927a7": {
+  "gen_885faf5347a7": {
     "name": "Carol Blood",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Black Community Strength",
       "Suburban Professional",
-      "Low Rural Populist",
-      "Turnout Monster"
+      "Low Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.0019282070513968535,
@@ -5181,15 +6651,13 @@
     },
     "cec": 1.0
   },
-  "gen_449478a31c64": {
+  "gen_5f8451a6c6bf": {
     "name": "Jim Pillen",
     "party": "R",
     "n_races": 1,
     "badges": [
       "Low Black Community Strength",
-      "Low Suburban Professional",
-      "Rural Populist",
-      "Turnout Monster"
+      "Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.0019282070513968535,
@@ -5202,15 +6670,14 @@
     },
     "cec": 1.0
   },
-  "gen_4c3158c305cd": {
+  "gen_fbdff0a7347e": {
     "name": "Scott Zimmerman",
     "party": "I",
     "n_races": 1,
     "badges": [
       "Black Community Strength",
       "Suburban Professional",
-      "Low Rural Populist",
-      "Turnout Monster"
+      "Low Rural Populist"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.0019282070513968535,
@@ -5223,7 +6690,7 @@
     },
     "cec": 1.0
   },
-  "gen_31ec61ee84ad": {
+  "gen_58d7b46eedce": {
     "name": "Scott Jensen",
     "party": "R",
     "n_races": 1,
@@ -5239,23 +6706,25 @@
     },
     "cec": 1.0
   },
-  "gen_5e089dff3b62": {
+  "gen_eb2c51fef01a": {
     "name": "Gretchen Whitmer",
     "party": "D",
-    "n_races": 1,
-    "badges": [],
+    "n_races": 2,
+    "badges": [
+      "Suburban Professional"
+    ],
     "badge_scores": {
-      "Hispanic Appeal": 0.008321136993050654,
-      "Black Community Strength": 0.007743233014585408,
-      "Senior Whisperer": -0.05810648249038579,
-      "Suburban Professional": 0.0028680421821261014,
-      "Rural Populist": -0.03140591993051166,
-      "Faith Coalition": 0.01629724907474292,
-      "Turnout Monster": 0.13596731010043223
+      "Hispanic Appeal": 0.013502301648006107,
+      "Black Community Strength": 0.006989485547261474,
+      "Senior Whisperer": -0.2134545083582507,
+      "Suburban Professional": 0.015740761228187496,
+      "Rural Populist": -0.08556335138237531,
+      "Faith Coalition": -0.008787583135905207,
+      "Turnout Monster": 0.12968248914812755
     },
-    "cec": 1.0
+    "cec": 0.5011584159403787
   },
-  "gen_fe53f174f055": {
+  "gen_14a7df1abc30": {
     "name": "Tudor M. Dixon",
     "party": "R",
     "n_races": 1,
@@ -5271,7 +6740,7 @@
     },
     "cec": 1.0
   },
-  "gen_6431fa57e0c9": {
+  "gen_427b7473b85f": {
     "name": "Janet T. Mills",
     "party": "D",
     "n_races": 1,
@@ -5287,7 +6756,7 @@
     },
     "cec": 1.0
   },
-  "gen_ebed70082e4f": {
+  "gen_d359c07dadee": {
     "name": "Paul R. LePage",
     "party": "R",
     "n_races": 1,
@@ -5303,7 +6772,7 @@
     },
     "cec": 1.0
   },
-  "gen_f925cefbe0ba": {
+  "gen_530abe3c223f": {
     "name": "Sam Hunkler",
     "party": "I",
     "n_races": 1,
@@ -5319,14 +6788,13 @@
     },
     "cec": 1.0
   },
-  "gen_11f84c13c918": {
+  "gen_d5cd27debe4e": {
     "name": "Wes Moore",
     "party": "D",
     "n_races": 1,
     "badges": [
       "Hispanic Appeal",
-      "Low Senior Whisperer",
-      "Turnout Monster"
+      "Low Senior Whisperer"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.05914982406438934,
@@ -5339,14 +6807,12 @@
     },
     "cec": 1.0
   },
-  "gen_bb85342268ac": {
+  "gen_09ae03882ed4": {
     "name": "Dan Cox",
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Low Hispanic Appeal",
-      "Senior Whisperer",
-      "Turnout Monster"
+      "Low Hispanic Appeal"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.05914982406438934,
@@ -5359,7 +6825,7 @@
     },
     "cec": 1.0
   },
-  "gen_744b34a89aac": {
+  "gen_f9071b31d883": {
     "name": "Maura Healey",
     "party": "D",
     "n_races": 1,
@@ -5377,7 +6843,7 @@
     },
     "cec": 1.0
   },
-  "gen_840fcac67a8a": {
+  "gen_1f8a357c2314": {
     "name": "Kevin Reed",
     "party": "I",
     "n_races": 1,
@@ -5395,43 +6861,43 @@
     },
     "cec": 1.0
   },
-  "gen_05fabe7ecd0c": {
+  "gen_8eefc95c4472": {
     "name": "Laura Kelly",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.042674788862873014,
-      "Black Community Strength": -0.007179717456367944,
-      "Senior Whisperer": -0.36612433547015055,
-      "Suburban Professional": -0.007954073030981574,
-      "Rural Populist": 0.037583692600481715,
-      "Faith Coalition": 0.0004271580647665599,
-      "Turnout Monster": 0.2036387754481533
+      "Hispanic Appeal": 0.026970745043025105,
+      "Black Community Strength": 0.0006938577692173935,
+      "Senior Whisperer": -0.39321898549506024,
+      "Suburban Professional": 0.0014773033872608388,
+      "Rural Populist": 0.010851662611284755,
+      "Faith Coalition": 2.026427482521478e-05,
+      "Turnout Monster": 0.20330535136856054
     },
-    "cec": 1.0
+    "cec": 0.7378850438830288
   },
-  "gen_07fa7d133db3": {
+  "gen_562d14d1d13a": {
     "name": "J.B. Pritzker",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Turnout Monster"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.0011763627789442858,
-      "Black Community Strength": -0.016346170436648676,
-      "Senior Whisperer": -0.29671214790205713,
-      "Suburban Professional": 0.0015673816434374473,
-      "Rural Populist": -0.031004948155525312,
-      "Faith Coalition": 0.020821805826846968,
-      "Turnout Monster": 0.23834091794886336
+      "Hispanic Appeal": -0.0067080830650569825,
+      "Black Community Strength": -0.006622523030252454,
+      "Senior Whisperer": -0.5342940506048348,
+      "Suburban Professional": 0.010817196243960697,
+      "Rural Populist": -0.09427757235960049,
+      "Faith Coalition": 0.019618879502618997,
+      "Turnout Monster": 0.2546483134647549
     },
-    "cec": 1.0
+    "cec": 0.29998743868412614
   },
-  "gen_037dc72981bc": {
+  "gen_dd26589b8735": {
     "name": "Darren Bailey",
     "party": "R",
     "n_races": 1,
@@ -5450,11 +6916,12 @@
     },
     "cec": 1.0
   },
-  "gen_4fe7d55d1d2f": {
+  "gen_6c5805a57c32": {
     "name": "Scott Schluter",
     "party": "I",
     "n_races": 1,
     "badges": [
+      "Low Black Community Strength",
       "Turnout Monster"
     ],
     "badge_scores": {
@@ -5468,12 +6935,13 @@
     },
     "cec": 1.0
   },
-  "gen_973227c1e826": {
+  "gen_a35c7c75f26a": {
     "name": "Stephen Heidt",
     "party": "D",
     "n_races": 1,
     "badges": [
-      "Low Senior Whisperer"
+      "Low Senior Whisperer",
+      "Low Turnout Monster"
     ],
     "badge_scores": {
       "Hispanic Appeal": 0.015386989231005229,
@@ -5486,26 +6954,23 @@
     },
     "cec": 1.0
   },
-  "gen_8c5dbe5ecaa5": {
+  "gen_046b30641d46": {
     "name": "Brad Little",
     "party": "R",
-    "n_races": 1,
-    "badges": [
-      "Senior Whisperer",
-      "Low Faith Coalition"
-    ],
+    "n_races": 2,
+    "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": -0.015386989231005229,
-      "Black Community Strength": -0.01255931591025471,
-      "Senior Whisperer": 0.6649661242373648,
-      "Suburban Professional": 0.0015391218988274208,
-      "Rural Populist": 0.010189442373651113,
-      "Faith Coalition": -0.035159694472105894,
-      "Turnout Monster": 0.04137546884355936
+      "Hispanic Appeal": -0.04034310136484575,
+      "Black Community Strength": -0.004126461055142994,
+      "Senior Whisperer": 0.4772260125682858,
+      "Suburban Professional": -0.0034826994281335444,
+      "Rural Populist": 0.0561332700929058,
+      "Faith Coalition": -0.019496653184993024,
+      "Turnout Monster": 0.09566547179664965
     },
-    "cec": 1.0
+    "cec": 0.1670449773186545
   },
-  "gen_df738a694620": {
+  "gen_adaecdb24612": {
     "name": "Deidre DeJear",
     "party": "D",
     "n_races": 1,
@@ -5521,23 +6986,25 @@
     },
     "cec": 1.0
   },
-  "gen_4473ca1b651d": {
+  "gen_1bf20f62d652": {
     "name": "Kim Reynolds",
     "party": "R",
-    "n_races": 1,
-    "badges": [],
+    "n_races": 2,
+    "badges": [
+      "Low Suburban Professional"
+    ],
     "badge_scores": {
-      "Hispanic Appeal": -0.007500177537743557,
-      "Black Community Strength": -0.013670096296503448,
-      "Senior Whisperer": 0.5324011804494387,
-      "Suburban Professional": 7.078464286219594e-05,
-      "Rural Populist": 0.030213586509053637,
-      "Faith Coalition": -0.029134415705831,
-      "Turnout Monster": 0.13595549403153773
+      "Hispanic Appeal": -0.006293757749038416,
+      "Black Community Strength": -0.010832607702538171,
+      "Senior Whisperer": 0.40258476398603554,
+      "Suburban Professional": -0.016160573456245154,
+      "Rural Populist": 0.1318572457961681,
+      "Faith Coalition": -0.0016520466580442468,
+      "Turnout Monster": 0.16127284595550134
     },
-    "cec": 1.0
+    "cec": 0.27919365436567334
   },
-  "gen_078c1bcbe36e": {
+  "gen_a37d77d43f71": {
     "name": "Rick Stewart",
     "party": "I",
     "n_races": 1,
@@ -5553,7 +7020,7 @@
     },
     "cec": 1.0
   },
-  "gen_d47bce382d78": {
+  "gen_a974ec914db1": {
     "name": "Josh Green",
     "party": "D",
     "n_races": 1,
@@ -5571,7 +7038,7 @@
     },
     "cec": 1.0
   },
-  "gen_097220ec06b1": {
+  "gen_d094a45a2089": {
     "name": "Duke Aiona",
     "party": "R",
     "n_races": 1,
@@ -5589,45 +7056,45 @@
     },
     "cec": 1.0
   },
-  "gen_ba34d9d3bfbd": {
+  "gen_b9a60763f880": {
     "name": "Stacey Abrams",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Hispanic Appeal",
       "Low Black Community Strength"
     ],
     "badge_scores": {
-      "Hispanic Appeal": 0.07665556922010028,
-      "Black Community Strength": -0.03331782194903371,
-      "Senior Whisperer": -0.4509075755621211,
-      "Suburban Professional": -0.011566140376657177,
-      "Rural Populist": -0.00953815505686617,
-      "Faith Coalition": 0.015390927138738093,
-      "Turnout Monster": 0.12325318810308261
+      "Hispanic Appeal": 0.06643665482030171,
+      "Black Community Strength": -0.027544247033082104,
+      "Senior Whisperer": -0.462681407668697,
+      "Suburban Professional": -0.004420263129656767,
+      "Rural Populist": -0.04613709256977388,
+      "Faith Coalition": 0.013632735532277479,
+      "Turnout Monster": 0.13352925485963965
     },
-    "cec": 1.0
+    "cec": 0.8234481020158425
   },
-  "gen_55d740289915": {
+  "gen_6054f10ed487": {
     "name": "Brian Kemp",
     "party": "R",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [
       "Low Hispanic Appeal",
       "Black Community Strength"
     ],
     "badge_scores": {
-      "Hispanic Appeal": -0.07665556922010028,
-      "Black Community Strength": 0.03331782194903371,
-      "Senior Whisperer": 0.4509075755621211,
-      "Suburban Professional": 0.011566140376657177,
-      "Rural Populist": 0.00953815505686617,
-      "Faith Coalition": -0.015390927138738093,
-      "Turnout Monster": 0.12325318810308261
+      "Hispanic Appeal": -0.06643665482030171,
+      "Black Community Strength": 0.027544247033082104,
+      "Senior Whisperer": 0.462681407668697,
+      "Suburban Professional": 0.004420263129656767,
+      "Rural Populist": 0.04613709256977388,
+      "Faith Coalition": -0.013632735532277479,
+      "Turnout Monster": 0.13352925485963965
     },
-    "cec": 1.0
+    "cec": 0.8234481020158425
   },
-  "gen_fe8592fa863d": {
+  "gen_b9222ddeaa27": {
     "name": "Edward Lamont",
     "party": "D",
     "n_races": 1,
@@ -5645,7 +7112,7 @@
     },
     "cec": 1.0
   },
-  "gen_14ef8d8b2453": {
+  "gen_8ebc862eede4": {
     "name": "Robert Stefanowski",
     "party": "R",
     "n_races": 1,
@@ -5663,7 +7130,7 @@
     },
     "cec": 1.0
   },
-  "gen_8e015a4a9c25": {
+  "gen_21c08e1dff99": {
     "name": "Robert Hotaling",
     "party": "I",
     "n_races": 1,
@@ -5681,7 +7148,7 @@
     },
     "cec": 1.0
   },
-  "gen_3091d15a492d": {
+  "gen_8d757d0a3174": {
     "name": "Heidi Ganahl",
     "party": "R",
     "n_races": 1,
@@ -5701,23 +7168,23 @@
     },
     "cec": 1.0
   },
-  "gen_f902c7507519": {
+  "gen_feaa806fca1b": {
     "name": "Gavin Newsom",
     "party": "D",
-    "n_races": 1,
+    "n_races": 2,
     "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": 4.617337918424211e-05,
-      "Black Community Strength": -0.0012363329292524772,
-      "Senior Whisperer": 0.047972782063887616,
-      "Suburban Professional": -0.005955353558806419,
-      "Rural Populist": 0.060965488829520055,
-      "Faith Coalition": 0.013838657213431485,
-      "Turnout Monster": 0.1422327267551754
+      "Hispanic Appeal": 0.028173216795461312,
+      "Black Community Strength": 0.00025513046800557993,
+      "Senior Whisperer": -0.5716811158919093,
+      "Suburban Professional": 0.0007376461972831186,
+      "Rural Populist": -0.02502543357458972,
+      "Faith Coalition": -0.0039045662263728575,
+      "Turnout Monster": 0.13669286696798788
     },
-    "cec": 1.0
+    "cec": 0.3033630406522037
   },
-  "gen_2c75b813b51e": {
+  "gen_13abcc0c9dd9": {
     "name": "Brian Dahle",
     "party": "R",
     "n_races": 1,
@@ -5733,7 +7200,7 @@
     },
     "cec": 1.0
   },
-  "gen_4f53f3b16cf1": {
+  "gen_2deb24c35990": {
     "name": "Katie Hobbs",
     "party": "D",
     "n_races": 1,
@@ -5749,7 +7216,7 @@
     },
     "cec": 1.0
   },
-  "gen_6195b1b13df8": {
+  "gen_de58a31fcee2": {
     "name": "Kari Lake",
     "party": "R",
     "n_races": 1,
@@ -5765,7 +7232,7 @@
     },
     "cec": 1.0
   },
-  "gen_1a5ae4b042ae": {
+  "gen_866a8417b20a": {
     "name": "Chris Jones",
     "party": "D",
     "n_races": 1,
@@ -5784,13 +7251,12 @@
     },
     "cec": 1.0
   },
-  "gen_85ad407fa354": {
+  "gen_a6597a37a670": {
     "name": "Sarah Huckabee Sanders",
     "party": "R",
     "n_races": 1,
     "badges": [
-      "Low Hispanic Appeal",
-      "Senior Whisperer"
+      "Low Hispanic Appeal"
     ],
     "badge_scores": {
       "Hispanic Appeal": -0.06357359997403277,
@@ -5803,7 +7269,7 @@
     },
     "cec": 1.0
   },
-  "gen_d0a672c49ed6": {
+  "gen_568a4d76c15a": {
     "name": "Yolanda Rochelle Flowers",
     "party": "D",
     "n_races": 1,
@@ -5822,26 +7288,23 @@
     },
     "cec": 1.0
   },
-  "gen_1564c8d8c96e": {
+  "gen_e8603c785805": {
     "name": "Kay Ivey",
     "party": "R",
-    "n_races": 1,
-    "badges": [
-      "Low Senior Whisperer",
-      "Low Rural Populist"
-    ],
+    "n_races": 2,
+    "badges": [],
     "badge_scores": {
-      "Hispanic Appeal": 0.038679839910454115,
-      "Black Community Strength": 0.004098019818380753,
-      "Senior Whisperer": -0.8139404499543548,
-      "Suburban Professional": 0.006418258108921699,
-      "Rural Populist": -0.15785351246533214,
-      "Faith Coalition": 0.02679912804321624,
-      "Turnout Monster": 0.08338636477780267
+      "Hispanic Appeal": -0.024359601064816945,
+      "Black Community Strength": -0.009971796528130175,
+      "Senior Whisperer": 0.5688110929747179,
+      "Suburban Professional": -0.0016239520800927026,
+      "Rural Populist": 0.06030643439583884,
+      "Faith Coalition": -0.030995339997318298,
+      "Turnout Monster": 0.1293468528570734
     },
-    "cec": 1.0
+    "cec": -0.8615620795882536
   },
-  "gen_b21e41886ec9": {
+  "gen_75718936ab9d": {
     "name": "James \u201cJimmy\u201d Blake",
     "party": "I",
     "n_races": 1,
@@ -5857,6 +7320,935 @@
       "Rural Populist": 0.15785351246533214,
       "Faith Coalition": -0.02679912804321624,
       "Turnout Monster": 0.08338636477780267
+    },
+    "cec": 1.0
+  },
+  "gen_b5cf981f91e4": {
+    "name": "Mary Throne",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Senior Whisperer",
+      "Low Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.1610412587734934,
+      "Black Community Strength": -0.015422186530993627,
+      "Senior Whisperer": -2.086116306723282,
+      "Suburban Professional": -0.013098465987854045,
+      "Rural Populist": 0.019018506410098567,
+      "Faith Coalition": -0.06239400610109406,
+      "Turnout Monster": 0.14815751952303277
+    },
+    "cec": 1.0
+  },
+  "gen_c272459f51a6": {
+    "name": "Scott Walker",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.04672775918683058,
+      "Black Community Strength": 0.018703400552908023,
+      "Senior Whisperer": 0.6258052829151466,
+      "Suburban Professional": -0.010324833849288383,
+      "Rural Populist": 0.06168320699855349,
+      "Faith Coalition": 0.03363015626562481,
+      "Turnout Monster": 0.04164737074909236
+    },
+    "cec": 1.0
+  },
+  "gen_46724b5f5713": {
+    "name": "Christine Hallquist",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.0034960863768680565,
+      "Black Community Strength": 0.0009384778204531054,
+      "Senior Whisperer": 0.24983705903776274,
+      "Suburban Professional": -0.0041482482103439074,
+      "Rural Populist": 0.0383694331819035,
+      "Faith Coalition": -0.0004601095050620977,
+      "Turnout Monster": 0.0037734530998656535
+    },
+    "cec": 1.0
+  },
+  "gen_21dda2777849": {
+    "name": "Lupe Valdez",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.08696611409100301,
+      "Black Community Strength": 0.015075862782046461,
+      "Senior Whisperer": 0.5055306709099583,
+      "Suburban Professional": 0.022653505758419387,
+      "Rural Populist": 0.029607218729915997,
+      "Faith Coalition": 0.01920881773299884,
+      "Turnout Monster": 0.20183724022272045
+    },
+    "cec": 1.0
+  },
+  "gen_f9e4ae48e863": {
+    "name": "Mark Tippetts",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Suburban Professional",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.08696611409100301,
+      "Black Community Strength": 0.015075862782046461,
+      "Senior Whisperer": 0.5055306709099583,
+      "Suburban Professional": 0.022653505758419387,
+      "Rural Populist": 0.029607218729915997,
+      "Faith Coalition": 0.01920881773299884,
+      "Turnout Monster": 0.20183724022272045
+    },
+    "cec": 1.0
+  },
+  "gen_754edc237d97": {
+    "name": "Karl Dean",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.04038733956020035,
+      "Black Community Strength": -0.003704711914247578,
+      "Senior Whisperer": -0.5214100459942526,
+      "Suburban Professional": 0.026838592764979283,
+      "Rural Populist": 0.0085609239207082,
+      "Faith Coalition": -0.07468998319460243,
+      "Turnout Monster": 0.09941224055810666
+    },
+    "cec": 1.0
+  },
+  "gen_d0678b244e36": {
+    "name": "Billie Sutton",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Suburban Professional",
+      "Low Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.1974768410557269,
+      "Black Community Strength": -0.02501112135829947,
+      "Senior Whisperer": -1.8543059822675545,
+      "Suburban Professional": -0.02318047101255442,
+      "Rural Populist": 0.08932820319591872,
+      "Faith Coalition": -0.0711543717145528,
+      "Turnout Monster": 0.13733223783105258
+    },
+    "cec": 1.0
+  },
+  "gen_c2c83dd843ef": {
+    "name": "Kurt Evans",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Suburban Professional",
+      "Low Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.1974768410557269,
+      "Black Community Strength": -0.02501112135829947,
+      "Senior Whisperer": -1.8543059822675545,
+      "Suburban Professional": -0.02318047101255442,
+      "Rural Populist": 0.08932820319591872,
+      "Faith Coalition": -0.0711543717145528,
+      "Turnout Monster": 0.13733223783105258
+    },
+    "cec": 1.0
+  },
+  "gen_2ce16bdf84df": {
+    "name": "James Smith",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.08765458388757605,
+      "Black Community Strength": -0.020254498857988777,
+      "Senior Whisperer": -1.175136705302492,
+      "Suburban Professional": 0.004391847382917629,
+      "Rural Populist": 0.06405397809891396,
+      "Faith Coalition": -0.024804787473584586,
+      "Turnout Monster": 0.03394259205800482
+    },
+    "cec": 1.0
+  },
+  "gen_133c0b3aee48": {
+    "name": "Gina Raimondo",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.009726690659684286,
+      "Black Community Strength": -0.0016987010168687693,
+      "Senior Whisperer": -0.15749031428257734,
+      "Suburban Professional": -0.0021303674971137553,
+      "Rural Populist": 0.014719333204496038,
+      "Faith Coalition": -0.0012649835942568546,
+      "Turnout Monster": 0.052187963649988234
+    },
+    "cec": 1.0
+  },
+  "gen_6038ac3c973a": {
+    "name": "Allan Fung",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.009726690659684286,
+      "Black Community Strength": 0.0016987010168687693,
+      "Senior Whisperer": 0.15749031428257734,
+      "Suburban Professional": 0.0021303674971137553,
+      "Rural Populist": -0.014719333204496038,
+      "Faith Coalition": 0.0012649835942568546,
+      "Turnout Monster": 0.052187963649988234
+    },
+    "cec": 1.0
+  },
+  "gen_8d5e5b3bd751": {
+    "name": "Tom Wolf",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.022556686613070535,
+      "Black Community Strength": 0.0016213659844288746,
+      "Senior Whisperer": -0.46564954547386783,
+      "Suburban Professional": 0.028632491863695732,
+      "Rural Populist": -0.20249479036895146,
+      "Faith Coalition": -0.027064049625393157,
+      "Turnout Monster": 0.19785521094696384
+    },
+    "cec": 1.0
+  },
+  "gen_78a3bfa2948c": {
+    "name": "Scott Wagner",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.022556686613070535,
+      "Black Community Strength": -0.0016213659844288746,
+      "Senior Whisperer": 0.46564954547386783,
+      "Suburban Professional": -0.028632491863695732,
+      "Rural Populist": 0.20249479036895146,
+      "Faith Coalition": 0.027064049625393157,
+      "Turnout Monster": 0.19785521094696384
+    },
+    "cec": 1.0
+  },
+  "gen_9b63f9de300e": {
+    "name": "Kate Brown",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": 0.002380386125626766,
+      "Black Community Strength": -0.0021280869129594302,
+      "Senior Whisperer": -0.15299446956810384,
+      "Suburban Professional": 0.003976180634195008,
+      "Rural Populist": -0.007127367124491978,
+      "Faith Coalition": -0.004665263270320231,
+      "Turnout Monster": 0.16787926875540804
+    },
+    "cec": 1.0
+  },
+  "gen_d6cdf7caf336": {
+    "name": "Knute Buehler",
+    "party": "R",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.002380386125626766,
+      "Black Community Strength": 0.0021280869129594302,
+      "Senior Whisperer": 0.15299446956810384,
+      "Suburban Professional": -0.003976180634195008,
+      "Rural Populist": 0.007127367124491978,
+      "Faith Coalition": 0.004665263270320231,
+      "Turnout Monster": 0.16787926875540804
+    },
+    "cec": 1.0
+  },
+  "gen_b64f6b91c919": {
+    "name": "Drew Edmondson",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0709281081764318,
+      "Black Community Strength": -0.011449302132529036,
+      "Senior Whisperer": -0.501552580239728,
+      "Suburban Professional": -0.0014400885726390373,
+      "Rural Populist": 0.03665057899968379,
+      "Faith Coalition": -0.019295078713699867,
+      "Turnout Monster": 0.15132153611393567
+    },
+    "cec": 1.0
+  },
+  "gen_10928dd51d9a": {
+    "name": "Chris Powell",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.0709281081764318,
+      "Black Community Strength": -0.011449302132529036,
+      "Senior Whisperer": -0.501552580239728,
+      "Suburban Professional": -0.0014400885726390373,
+      "Rural Populist": 0.03665057899968379,
+      "Faith Coalition": -0.019295078713699867,
+      "Turnout Monster": 0.15132153611393567
+    },
+    "cec": 1.0
+  },
+  "gen_b4e23ab4dbd1": {
+    "name": "Richard Cordray",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer",
+      "Low Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.006259576325486976,
+      "Black Community Strength": -0.0028492636713127978,
+      "Senior Whisperer": -0.7565819865449561,
+      "Suburban Professional": 0.013333630394380978,
+      "Rural Populist": -0.06488424629831831,
+      "Faith Coalition": -0.0394184153171495,
+      "Turnout Monster": 0.15701654745892396
+    },
+    "cec": 1.0
+  },
+  "gen_8d0ee760cb62": {
+    "name": "Andrew Cuomo",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.024701909362782704,
+      "Black Community Strength": -0.007054592132864048,
+      "Senior Whisperer": -0.8771650811221278,
+      "Suburban Professional": -0.00829812592738411,
+      "Rural Populist": 0.07691086863207511,
+      "Faith Coalition": -0.011106011050896402,
+      "Turnout Monster": 0.17136593371522407
+    },
+    "cec": 1.0
+  },
+  "gen_c86fcd2f6847": {
+    "name": "Adam Laxalt",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.00476562108875246,
+      "Black Community Strength": -0.004311236272360071,
+      "Senior Whisperer": -0.11612624679235801,
+      "Suburban Professional": -0.006074698553783426,
+      "Rural Populist": 0.04967027383441114,
+      "Faith Coalition": -0.004536295657377163,
+      "Turnout Monster": 0.2606317344579205
+    },
+    "cec": 1.0
+  },
+  "gen_ab65225836fd": {
+    "name": "Molly Kelly",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.00313998217537925,
+      "Black Community Strength": -0.004940397203523076,
+      "Senior Whisperer": 0.06250795774077716,
+      "Suburban Professional": 0.0015141914336120933,
+      "Rural Populist": 0.028769169783614316,
+      "Faith Coalition": -0.00130005379079613,
+      "Turnout Monster": 0.00937702326614126
+    },
+    "cec": 1.0
+  },
+  "gen_3b80d4f8f37f": {
+    "name": "Jilletta Jarvis",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.00313998217537925,
+      "Black Community Strength": -0.004940397203523076,
+      "Senior Whisperer": 0.06250795774077716,
+      "Suburban Professional": 0.0015141914336120933,
+      "Rural Populist": 0.028769169783614316,
+      "Faith Coalition": -0.00130005379079613,
+      "Turnout Monster": 0.00937702326614126
+    },
+    "cec": 1.0
+  },
+  "gen_355a04216f9c": {
+    "name": "Bob Krist",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.013207859262297894,
+      "Black Community Strength": -0.030972256678978086,
+      "Senior Whisperer": 0.6619294443905982,
+      "Suburban Professional": 0.0064430510309339585,
+      "Rural Populist": 0.09545648259892844,
+      "Faith Coalition": -0.05664200830276411,
+      "Turnout Monster": 0.23211057565813095
+    },
+    "cec": 1.0
+  },
+  "gen_73c1cd32ed41": {
+    "name": "Jeff Johnson",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Rural Populist"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.002780932894970823,
+      "Black Community Strength": -0.017430132083439936,
+      "Senior Whisperer": 0.7498146888506805,
+      "Suburban Professional": -0.023061138649342314,
+      "Rural Populist": 0.14321246372757696,
+      "Faith Coalition": 0.014644946679036567,
+      "Turnout Monster": 0.1678969555704221
+    },
+    "cec": 1.0
+  },
+  "gen_f268dffd3518": {
+    "name": "Bill Schuette",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Suburban Professional"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.018683466302961565,
+      "Black Community Strength": -0.006235738079937541,
+      "Senior Whisperer": 0.36880253422611553,
+      "Suburban Professional": -0.028613480274248884,
+      "Rural Populist": 0.139720782834239,
+      "Faith Coalition": 0.03387241534655334,
+      "Turnout Monster": 0.12339766819582287
+    },
+    "cec": 1.0
+  },
+  "gen_a721bf0480e9": {
+    "name": "Janet Mills",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.005685947903247045,
+      "Black Community Strength": 0.00744213525417163,
+      "Senior Whisperer": -0.26460509117428604,
+      "Suburban Professional": 0.009321080578877778,
+      "Rural Populist": 0.035573739871796815,
+      "Faith Coalition": -0.0004925528166238468,
+      "Turnout Monster": 0.02535645559904265
+    },
+    "cec": 1.0
+  },
+  "gen_d092ca40c87b": {
+    "name": "Shawn Moody",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.005685947903247045,
+      "Black Community Strength": -0.00744213525417163,
+      "Senior Whisperer": 0.26460509117428604,
+      "Suburban Professional": -0.009321080578877778,
+      "Rural Populist": -0.035573739871796815,
+      "Faith Coalition": 0.0004925528166238468,
+      "Turnout Monster": 0.02535645559904265
+    },
+    "cec": 1.0
+  },
+  "gen_03438cbb8074": {
+    "name": "Ben Jealous",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Hispanic Appeal",
+      "Senior Whisperer",
+      "Rural Populist",
+      "Faith Coalition",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.21203595901383254,
+      "Black Community Strength": 0.0067985449356468665,
+      "Senior Whisperer": 2.0643404370981076,
+      "Suburban Professional": -0.005119206807147356,
+      "Rural Populist": 0.6072237600706771,
+      "Faith Coalition": 0.16765699647105545,
+      "Turnout Monster": 0.04425864785292605
+    },
+    "cec": 1.0
+  },
+  "gen_70cd53b177a7": {
+    "name": "Larry Hogan",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Senior Whisperer",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.21203595901383254,
+      "Black Community Strength": -0.0067985449356468665,
+      "Senior Whisperer": -2.0643404370981076,
+      "Suburban Professional": 0.005119206807147356,
+      "Rural Populist": -0.6072237600706771,
+      "Faith Coalition": -0.16765699647105545,
+      "Turnout Monster": 0.04425864785292605
+    },
+    "cec": 1.0
+  },
+  "gen_de7f830e6e5e": {
+    "name": "Jay Gonzalez",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Black Community Strength",
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.045595675263663864,
+      "Black Community Strength": 0.03146750462668299,
+      "Senior Whisperer": 1.7764816423290672,
+      "Suburban Professional": -0.04465365043210678,
+      "Rural Populist": 0.3119096541269174,
+      "Faith Coalition": 0.1284948660079559,
+      "Turnout Monster": 0.27033465945699514
+    },
+    "cec": 1.0
+  },
+  "gen_2bbde293e92f": {
+    "name": "Charlie Baker",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Black Community Strength",
+      "Low Senior Whisperer",
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Low Faith Coalition",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.045595675263663864,
+      "Black Community Strength": -0.03146750462668299,
+      "Senior Whisperer": -1.7764816423290672,
+      "Suburban Professional": 0.04465365043210678,
+      "Rural Populist": -0.3119096541269174,
+      "Faith Coalition": -0.1284948660079559,
+      "Turnout Monster": 0.27033465945699514
+    },
+    "cec": 1.0
+  },
+  "gen_04c4ca260c39": {
+    "name": "Kris Kobach",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.011266701223177208,
+      "Black Community Strength": -0.008567432994802728,
+      "Senior Whisperer": 0.4203136355199701,
+      "Suburban Professional": -0.010908679805503247,
+      "Rural Populist": 0.015880367377912173,
+      "Faith Coalition": 0.00038662951511613734,
+      "Turnout Monster": 0.2029719272889678
+    },
+    "cec": 1.0
+  },
+  "gen_13c4ae1171c6": {
+    "name": "Bruce Rauner",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer",
+      "Low Suburban Professional",
+      "Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.012239803351169682,
+      "Black Community Strength": -0.0031011243761437613,
+      "Senior Whisperer": 0.7718759533076129,
+      "Suburban Professional": -0.020067010844483948,
+      "Rural Populist": 0.15755019656367567,
+      "Faith Coalition": -0.018415953178391016,
+      "Turnout Monster": 0.2709557089806465
+    },
+    "cec": 1.0
+  },
+  "gen_4ce44debb4fa": {
+    "name": "Fred Hubbell",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Suburban Professional",
+      "Low Rural Populist",
+      "Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.005087337960333277,
+      "Black Community Strength": 0.007995119108572892,
+      "Senior Whisperer": -0.2727683475226327,
+      "Suburban Professional": 0.03239193155535249,
+      "Rural Populist": -0.2335009050832825,
+      "Faith Coalition": -0.025830322389742505,
+      "Turnout Monster": 0.18659019787946496
+    },
+    "cec": 1.0
+  },
+  "gen_ed36ad5523ba": {
+    "name": "David Ige",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.001995257870795019,
+      "Black Community Strength": 0.0036238291099916914,
+      "Senior Whisperer": 0.013467151550304335,
+      "Suburban Professional": -0.0007926637373816903,
+      "Rural Populist": -0.005330309356397166,
+      "Faith Coalition": 0.0019274280758634075,
+      "Turnout Monster": 0.028738886967985322
+    },
+    "cec": 1.0
+  },
+  "gen_a135fe0a3e91": {
+    "name": "Andria Tupola",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.001995257870795019,
+      "Black Community Strength": -0.0036238291099916914,
+      "Senior Whisperer": -0.013467151550304335,
+      "Suburban Professional": 0.0007926637373816903,
+      "Rural Populist": 0.005330309356397166,
+      "Faith Coalition": -0.0019274280758634075,
+      "Turnout Monster": 0.028738886967985322
+    },
+    "cec": 1.0
+  },
+  "gen_d3e3916e6298": {
+    "name": "Ted Metz",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Low Black Community Strength"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.05621774042050315,
+      "Black Community Strength": -0.021770672117130484,
+      "Senior Whisperer": -0.47445523977527276,
+      "Suburban Professional": 0.0027256141173436425,
+      "Rural Populist": -0.08273603008268157,
+      "Faith Coalition": 0.011874543925816874,
+      "Turnout Monster": 0.1438053216161967
+    },
+    "cec": 1.0
+  },
+  "gen_bea4005f3b5b": {
+    "name": "Andrew Gillum",
+    "party": "D",
+    "n_races": 1,
+    "badges": [],
+    "badge_scores": {
+      "Hispanic Appeal": -0.018638538813724518,
+      "Black Community Strength": 0.005097244856241734,
+      "Senior Whisperer": -0.40605823424646326,
+      "Suburban Professional": -0.0004581816767652621,
+      "Rural Populist": -0.11228674282369784,
+      "Faith Coalition": 0.005682489409116272,
+      "Turnout Monster": 0.15267455999086377
+    },
+    "cec": 1.0
+  },
+  "gen_293c57a33d05": {
+    "name": "Ned Lamont",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.016852455974554603,
+      "Black Community Strength": 0.011338682807697982,
+      "Senior Whisperer": -0.09450971117450574,
+      "Suburban Professional": 0.005962510806409523,
+      "Rural Populist": 0.028312016431845183,
+      "Faith Coalition": 0.018910387970545717,
+      "Turnout Monster": 0.02155625168646247
+    },
+    "cec": 1.0
+  },
+  "gen_03cd7748da86": {
+    "name": "Bob Stefanowski",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.016852455974554603,
+      "Black Community Strength": -0.011338682807697982,
+      "Senior Whisperer": 0.09450971117450574,
+      "Suburban Professional": -0.005962510806409523,
+      "Rural Populist": -0.028312016431845183,
+      "Faith Coalition": -0.018910387970545717,
+      "Turnout Monster": 0.02155625168646247
+    },
+    "cec": 1.0
+  },
+  "gen_f9bbf920b293": {
+    "name": "Walker Stapleton",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.041443308673666385,
+      "Black Community Strength": -0.013986670140707784,
+      "Senior Whisperer": 1.0328903517750998,
+      "Suburban Professional": -0.0031859248724243143,
+      "Rural Populist": 0.07093968427732222,
+      "Faith Coalition": -0.02249415967014337,
+      "Turnout Monster": 0.09590637306078065
+    },
+    "cec": 1.0
+  },
+  "gen_30158b5c670c": {
+    "name": "John Cox",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.056300260211738375,
+      "Black Community Strength": -0.0017465938652636355,
+      "Senior Whisperer": 1.1913350138477061,
+      "Suburban Professional": -0.007430645953372657,
+      "Rural Populist": 0.11101635597869947,
+      "Faith Coalition": 0.021647789666177204,
+      "Turnout Monster": 0.13115300718080036
+    },
+    "cec": 1.0
+  },
+  "gen_b9f66667c492": {
+    "name": "David Garcia",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.00903063704139331,
+      "Black Community Strength": 0.014180274946762756,
+      "Senior Whisperer": 0.1580570979978609,
+      "Suburban Professional": 0.0005015718881976328,
+      "Rural Populist": 0.03799609729523089,
+      "Faith Coalition": 0.013327364900093525,
+      "Turnout Monster": 0.0033347893831204845
+    },
+    "cec": 1.0
+  },
+  "gen_d305d1c74cd6": {
+    "name": "Angel Torres",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.00903063704139331,
+      "Black Community Strength": 0.014180274946762756,
+      "Senior Whisperer": 0.1580570979978609,
+      "Suburban Professional": 0.0005015718881976328,
+      "Rural Populist": 0.03799609729523089,
+      "Faith Coalition": 0.013327364900093525,
+      "Turnout Monster": 0.0033347893831204845
+    },
+    "cec": 1.0
+  },
+  "gen_0bdb3a311c0d": {
+    "name": "Doug Ducey",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Low Turnout Monster"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.00903063704139331,
+      "Black Community Strength": -0.014180274946762756,
+      "Senior Whisperer": -0.1580570979978609,
+      "Suburban Professional": -0.0005015718881976328,
+      "Rural Populist": -0.03799609729523089,
+      "Faith Coalition": -0.013327364900093525,
+      "Turnout Monster": 0.0033347893831204845
+    },
+    "cec": 1.0
+  },
+  "gen_220df463c08c": {
+    "name": "Jared Henderson",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.048782798916929986,
+      "Black Community Strength": 0.003311174463568113,
+      "Senior Whisperer": -0.8132898454420259,
+      "Suburban Professional": 0.008952819958224724,
+      "Rural Populist": -0.10846798536382768,
+      "Faith Coalition": 0.0063004874841940135,
+      "Turnout Monster": 0.04616286732072472
+    },
+    "cec": 1.0
+  },
+  "gen_9c4548b51c90": {
+    "name": "Mark West",
+    "party": "I",
+    "n_races": 1,
+    "badges": [
+      "Low Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.048782798916929986,
+      "Black Community Strength": 0.003311174463568113,
+      "Senior Whisperer": -0.8132898454420259,
+      "Suburban Professional": 0.008952819958224724,
+      "Rural Populist": -0.10846798536382768,
+      "Faith Coalition": 0.0063004874841940135,
+      "Turnout Monster": 0.04616286732072472
+    },
+    "cec": 1.0
+  },
+  "gen_eef243b40008": {
+    "name": "Asa Hutchinson",
+    "party": "R",
+    "n_races": 1,
+    "badges": [
+      "Senior Whisperer"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": -0.048782798916929986,
+      "Black Community Strength": -0.003311174463568113,
+      "Senior Whisperer": 0.8132898454420259,
+      "Suburban Professional": -0.008952819958224724,
+      "Rural Populist": 0.10846798536382768,
+      "Faith Coalition": -0.0063004874841940135,
+      "Turnout Monster": 0.04616286732072472
+    },
+    "cec": 1.0
+  },
+  "gen_59e0c725ba7b": {
+    "name": "Walt Maddox",
+    "party": "D",
+    "n_races": 1,
+    "badges": [
+      "Hispanic Appeal",
+      "Black Community Strength",
+      "Low Senior Whisperer",
+      "Low Rural Populist",
+      "Faith Coalition"
+    ],
+    "badge_scores": {
+      "Hispanic Appeal": 0.087399042040088,
+      "Black Community Strength": 0.024041612874641106,
+      "Senior Whisperer": -1.951562635903791,
+      "Suburban Professional": 0.009666162269107109,
+      "Rural Populist": -0.27846638125700973,
+      "Faith Coalition": 0.08878980803785283,
+      "Turnout Monster": 0.17530734093634412
     },
     "cec": 1.0
   }

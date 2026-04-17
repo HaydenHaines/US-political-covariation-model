@@ -82,17 +82,19 @@ export default function ForecastLayout({ children }: { children: React.ReactNode
   return (
     <MapProvider>
       <ForecastStateNavigator />
-      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-3rem)]">
-        {/* Map pane — desktop only; hidden on mobile.
-            defaultOverlayMode="forecast" keeps the focus on competitive ratings,
-            not community-type structure, on all /forecast/* pages. */}
-        <div className="hidden lg:block lg:w-1/2 bg-[rgb(var(--color-bg))] border-r border-[rgb(var(--color-border))]">
-          <MapShell defaultOverlayMode="forecast" />
-        </div>
-        {/* Panel pane */}
-        <div className="flex-1 lg:overflow-y-auto p-4 lg:p-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-[400px_1fr] lg:h-[calc(100vh-3rem)]">
+        {/* Panel pane — LEFT on desktop (F-pattern reading), stacks on top on mobile.
+            Floating card treatment: ring + shadow + rounded corners + margin give visual
+            separation from the map without a hard border cutting the canvas. */}
+        <div className="lg:overflow-y-auto lg:z-10 lg:m-3 lg:rounded-xl lg:bg-[var(--color-surface)] lg:ring-1 lg:ring-foreground/10 lg:shadow-lg p-4 lg:p-5">
           <ForecastTabs />
           {children}
+        </div>
+        {/* Map pane — RIGHT on desktop, hidden on mobile.
+            defaultOverlayMode="forecast" keeps the focus on competitive ratings,
+            not community-type structure, on all /forecast/* pages. */}
+        <div className="hidden lg:block bg-[rgb(var(--color-bg))]">
+          <MapShell defaultOverlayMode="forecast" />
         </div>
       </div>
     </MapProvider>

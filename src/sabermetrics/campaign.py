@@ -733,11 +733,10 @@ def build_campaign_stats(
     df.to_parquet(output_path, index=False)
 
     if len(df) > 0:
-        n_matched = int(df["has_fec_record"].sum())
         n_ran = int(df["ran_in_cycle"].sum())
         n_matched_ran = int((df["has_fec_record"] & df["ran_in_cycle"]).sum())
     else:
-        n_matched = n_ran = n_matched_ran = 0
+        n_ran = n_matched_ran = 0
 
     logger.info(
         "Campaign stats written to %s: %d total rows, %d ran, %d with FEC record",

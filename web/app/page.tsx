@@ -29,21 +29,27 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Hero + balance bar + mini map — full-width container, centered */}
+      {/* Hero — constrained to max-w-5xl */}
       <div className="mx-auto max-w-5xl">
         <HeroSection data={data} isLoading={isLoading} communityCount={communityCount} />
+      </div>
 
+      {/* Mini map — wider column so it spans more of the screen */}
+      {data?.state_colors && (
+        <div className="w-full max-w-[1200px] mx-auto px-4 mb-2">
+          <MiniMap stateColors={data.state_colors} />
+        </div>
+      )}
 
+      {/* Map caption + scroll invitation — back in max-w-5xl for alignment with hero text */}
+      <div className="mx-auto max-w-5xl">
         {data?.state_colors && (
-          <div className="flex flex-col items-center px-4 mb-6">
-            <MiniMap stateColors={data.state_colors} />
-            <p
-              className="text-xs mt-2 max-w-sm text-center"
-              style={{ color: "var(--color-text-subtle)" }}
-            >
-              Map area reflects geography, not population or electoral weight.
-            </p>
-          </div>
+          <p
+            className="text-xs px-4 mb-6 text-center"
+            style={{ color: "var(--color-text-subtle)" }}
+          >
+            Map area reflects geography, not population or electoral weight.
+          </p>
         )}
 
         {/* Scroll invitation */}

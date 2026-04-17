@@ -43,7 +43,7 @@ interface StateFeatureCollection {
 const INITIAL_VIEW_STATE = {
   longitude: -98.0,
   latitude: 39.5,
-  zoom: 2.9,
+  zoom: 3.4,
   pitch: 0,
   bearing: 0,
 };

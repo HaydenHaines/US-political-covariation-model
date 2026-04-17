@@ -44,26 +44,11 @@ interface MiniMapProps {
   stateColors: Record<string, string>;
 }
 
-/**
- * Aspect ratio: US map is roughly 1.6:1 (width:height) for CONUS.
- * We constrain to max 480px wide; height is derived from aspect ratio.
- */
-const MAP_WIDTH = 480;
-const MAP_HEIGHT = Math.round(MAP_WIDTH / 1.6);
-
 export function MiniMap({ stateColors }: MiniMapProps) {
   return (
     <div
-      style={{
-        width: MAP_WIDTH,
-        height: MAP_HEIGHT,
-        maxWidth: "100%",
-        borderRadius: 8,
-        overflow: "hidden",
-        border: "1px solid var(--color-border)",
-        background: "#e8ecf0",
-        position: "relative",
-      }}
+      className="w-full mx-auto"
+      style={{ aspectRatio: "1.6/1", position: "relative" }}
     >
       <MiniMapInner stateColors={stateColors} />
     </div>

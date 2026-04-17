@@ -701,3 +701,69 @@ class PollsterAccuracyResponse(BaseModel):
 
     pollsters: list[PollsterAccuracyEntry]
     """Pollsters sorted by rank (ascending RMSE -- best first)."""
+
+
+# ── Sabermetrics: candidate badges & CTOV ───────────────────────────────────
+
+
+class CandidateBadge(BaseModel):
+    """A single performance badge earned by a candidate."""
+
+    name: str
+    """Badge display name, e.g. 'Hispanic Appeal' or 'Low Rural Populist'."""
+
+    score: float
+    """Signed magnitude of the badge dimension (positive = strength, negative = weakness)."""
+
+
+class CandidateBadgesResponse(BaseModel):
+    """Full badge profile for a single candidate (by bioguide ID)."""
+
+    bioguide_id: str
+    name: str
+    party: str
+    n_races: int
+    badges: list[CandidateBadge]
+    badge_scores: dict[str, float]
+    """All badge dimension scores (not just earned badges)."""
+    cec: float
+    """Candidate Effect Consistency — how stable the candidate's effect is across races (0–1)."""
+
+
+class CTOVEntry(BaseModel):
+    """One community type's CTOV value for a candidate."""
+
+    type_id: int
+    display_name: str
+    ctov: float
+    """Over/underperformance in this community type (positive = Dem overperformance)."""
+
+
+class CTOVResponse(BaseModel):
+    """Top CTOV (Candidate Type-Over Vote) entries for a candidate-race."""
+
+    bioguide_id: str
+    name: str
+    party: str
+    year: int
+    state: str
+    office: str
+    entries: list[CTOVEntry]
+    """Top 10 types by absolute CTOV value."""
+
+
+class RaceCandidateSummary(BaseModel):
+    """Badge summary for one candidate in a race."""
+
+    bioguide_id: str
+    name: str
+    party: str
+    badges: list[CandidateBadge]
+    cec: float
+
+
+class RaceCandidatesResponse(BaseModel):
+    """All candidates with badges for a given race."""
+
+    race_key: str
+    candidates: list[RaceCandidateSummary]

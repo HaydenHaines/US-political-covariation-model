@@ -15,7 +15,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.cache import forecast_cache, make_cache_key
 from api.routers import cache as cache_router
-from api.routers import communities, counties, forecast, governor, historical, meta, pollsters, senate, tracts
+from api.routers import (
+    candidates,
+    communities,
+    counties,
+    forecast,
+    governor,
+    historical,
+    meta,
+    pollsters,
+    senate,
+    tracts,
+)
 from src.propagation.crosstab_w_builder import CROSSTAB_DIMENSION_MAP, build_affinity_index
 
 log = logging.getLogger(__name__)
@@ -439,6 +450,7 @@ def create_app(lifespan_override=None) -> FastAPI:
     app.include_router(governor.router, prefix="/api/v1")
     app.include_router(pollsters.router, prefix="/api/v1")
     app.include_router(tracts.router, prefix="/api/v1")
+    app.include_router(candidates.router, prefix="/api/v1")
     app.include_router(cache_router.router, prefix="/api/v1")
 
     return app

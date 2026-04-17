@@ -138,13 +138,7 @@ function BadgePill({ badge }: { badge: CandidateBadge }) {
 
 // ── Election history table ────────────────────────────────────────────────────
 
-function ElectionHistoryTable({
-  races,
-  party,
-}: {
-  races: RaceResult[];
-  party: string;
-}) {
+function ElectionHistoryTable({ races }: { races: RaceResult[] }) {
   if (races.length === 0) {
     return (
       <p style={{ fontSize: "0.82rem", color: "var(--color-text-muted)" }}>
@@ -523,7 +517,7 @@ export default function CandidateProfilePage({ params }: PageProps) {
 
       {/* Election history */}
       <Section title="Election History">
-        <ElectionHistoryTable races={data.races} party={data.party} />
+        <ElectionHistoryTable races={data.races} />
       </Section>
 
       {/* Predecessor comparison (single-race only) */}

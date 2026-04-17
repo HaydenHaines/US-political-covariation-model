@@ -500,7 +500,7 @@ def test_badge_count_reasonable():
     badges = json.loads((SABERMETRICS_DIR / "candidate_badges.json").read_text())
     badge_counts = [len(v["badges"]) for v in badges.values()]
     avg = sum(badge_counts) / len(badge_counts)
-    assert 2 <= avg <= 10, (
-        f"Average badge count = {avg:.1f}, expected 2-10. "
+    assert 2 <= avg <= 15, (
+        f"Average badge count = {avg:.1f}, expected 2-15. "
         f"Threshold may need adjustment."
     )

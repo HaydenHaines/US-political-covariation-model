@@ -90,12 +90,13 @@ function partyColor(party: string): { fill: string; stroke: string } {
 /**
  * Truncate a dimension label to fit near the axis end.
  * Prioritizes first word (e.g. "Hispanic" from "Hispanic Appeal").
+ * 10-char limit keeps labels within the SVG viewport at typical label radii.
  */
 function shortLabel(name: string): string {
   if (name.length <= 10) return name;
   const words = name.split(" ");
-  // Two-word names: keep both if combined ≤ 14 chars, else first only
-  if (words.length === 2 && words[0].length + words[1].length + 1 <= 14) {
+  // Two-word names: keep both if combined ≤ 10 chars (including space), else first only
+  if (words.length === 2 && words[0].length + words[1].length + 1 <= 10) {
     return name;
   }
   return words[0];

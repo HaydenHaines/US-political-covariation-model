@@ -527,9 +527,9 @@ export default function CandidateProfilePage({ params }: PageProps) {
       {data.badges.length > 0 && (
         <Section title="Performance Badges">
           <div style={{ display: "flex", gap: "16px", alignItems: "flex-start", flexWrap: "wrap" }}>
-            {/* Radar chart */}
+            {/* Radar chart — padding compensates for label overflow outside SVG bounds */}
             {data.badge_scores && Object.keys(data.badge_scores).length > 0 && (
-              <div style={{ flexShrink: 0 }}>
+              <div style={{ flexShrink: 0, padding: "20px", overflow: "visible" }}>
                 <CTOVRadarChart
                   badgeScores={data.badge_scores}
                   party={data.party}

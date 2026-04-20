@@ -268,8 +268,9 @@ def test_compute_cec_is_implemented():
     assert result == 0.0
 
 
-def test_compute_fit_score_is_not_implemented():
-    """compute_fit_score raises NotImplementedError until implemented."""
+def test_compute_fit_score_uniform_W_zero_ctov():
+    """Zero CTOV vector against any W produces fit score of 0.0."""
     from src.sabermetrics.composites import compute_fit_score
-    with pytest.raises(NotImplementedError):
-        compute_fit_score(np.zeros(K), np.ones(K) / K)
+
+    result = compute_fit_score(np.zeros(K), np.ones(K) / K)
+    assert result == 0.0

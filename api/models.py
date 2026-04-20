@@ -1,5 +1,6 @@
 # api/models.py
 """Pydantic response models for the WetherVane API."""
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ class HealthResponse(BaseModel):
 
 
 # ── Model accuracy (static, changes only on retrain) ────────────────────────
+
 
 class OverallAccuracy(BaseModel):
     loo_r: float
@@ -68,6 +70,7 @@ class CountyInCommunity(BaseModel):
 
 class CommunityDemographics(BaseModel):
     """Population-weighted demographic profile for a community."""
+
     pop_total: float | None = None
     pct_white_nh: float | None = None
     pct_black: float | None = None
@@ -122,10 +125,10 @@ class ForecastRow(BaseModel):
 
 
 class PollInput(BaseModel):
-    state: str          # e.g. "FL"
-    race: str           # e.g. "FL_Senate"
+    state: str  # e.g. "FL"
+    race: str  # e.g. "FL_Senate"
     dem_share: float = Field(..., ge=0.0, le=1.0)
-    n: int = 600        # poll sample size
+    n: int = 600  # poll sample size
     generic_ballot_shift: float | None = None
     """Optional explicit generic ballot shift override (Dem share units, e.g. 0.016).
     When None, the shift is auto-calculated from generic ballot polls in the CSV.
@@ -305,8 +308,8 @@ class FundamentalsResponse(BaseModel):
 
 
 class MultiPollInput(BaseModel):
-    cycle: str              # e.g. "2020", "2022"
-    state: str              # e.g. "FL"
+    cycle: str  # e.g. "2020", "2022"
+    state: str  # e.g. "FL"
     race: str | None = None  # optional filter (e.g. "President", "Senate")
     half_life_days: float = 30.0
     apply_quality: bool = True
@@ -320,7 +323,7 @@ class MultiPollInput(BaseModel):
 class MultiPollResponse(BaseModel):
     counties: list[ForecastRow]
     polls_used: int
-    date_range: str         # "2020-01-15 to 2020-11-02"
+    date_range: str  # "2020-01-15 to 2020-11-02"
     effective_n_total: int  # sum of adjusted sample sizes
     generic_ballot: GenericBallotInfo | None = None
     """National environment adjustment applied before the Bayesian update.
@@ -329,8 +332,8 @@ class MultiPollResponse(BaseModel):
 
 class PollRow(BaseModel):
     race: str
-    geography: str          # state abbreviation for state-level polls (e.g. "FL")
-    geo_level: str          # "state" | "county" | "district"
+    geography: str  # state abbreviation for state-level polls (e.g. "FL")
+    geo_level: str  # "state" | "county" | "district"
     dem_share: float
     n_sample: int
     date: str | None
@@ -339,6 +342,7 @@ class PollRow(BaseModel):
 
 
 # ── Type-primary models ─────────────────────────────────────────────────────
+
 
 class TypeSummary(BaseModel):
     type_id: int
@@ -375,6 +379,7 @@ class SuperTypeSummary(BaseModel):
 
 class CorrelatedType(BaseModel):
     """A type most electorally correlated with a given type, from the LW covariance matrix."""
+
     type_id: int
     display_name: str
     super_type_id: int
@@ -385,6 +390,7 @@ class CorrelatedType(BaseModel):
 
 class TypeScatterPoint(BaseModel):
     """One data point per type for the Shift Explorer scatter plot."""
+
     type_id: int
     super_type_id: int
     display_name: str
@@ -520,19 +526,22 @@ class RaceDetail(BaseModel):
 
 # ── Embed widget ─────────────────────────────────────────────────────────
 
+
 class EmbedResponse(BaseModel):
     """Metadata for the embed widget.  Includes a ready-to-paste iframe snippet."""
+
     slug: str
-    race_title: str          # e.g. "2026 FL Senate"
-    lean_label: str          # e.g. "D+4.2" or "R+11.7"
-    lean_color: str          # hex color for the lean label
-    dem_pct: float | None    # 0–1 two-party Dem share
-    rep_pct: float | None    # 0–1 two-party Rep share
+    race_title: str  # e.g. "2026 FL Senate"
+    lean_label: str  # e.g. "D+4.2" or "R+11.7"
+    lean_color: str  # hex color for the lean label
+    dem_pct: float | None  # 0–1 two-party Dem share
+    rep_pct: float | None  # 0–1 two-party Rep share
     n_counties: int
-    iframe_snippet: str      # ready-to-paste HTML
+    iframe_snippet: str  # ready-to-paste HTML
 
 
 # ── County detail (SEO page) ──────────────────────────────────────────────
+
 
 class SiblingCounty(BaseModel):
     county_fips: str
@@ -556,12 +565,13 @@ class CountyDetail(BaseModel):
 
 class ElectionHistoryPoint(BaseModel):
     year: int
-    election_type: str   # "president" | "senate" | "governor"
+    election_type: str  # "president" | "senate" | "governor"
     dem_share: float
     total_votes: int | None = None
 
 
 # ── Chamber probability ──────────────────────────────────────────────────
+
 
 class SeatDistributionBucket(BaseModel):
     """Probability mass for a specific Dem seat total from Monte Carlo simulation."""
@@ -608,6 +618,7 @@ class ChamberProbabilityResponse(BaseModel):
 
 # ── Forecast changelog ───────────────────────────────────────────────────
 
+
 class ChangelogRaceDiff(BaseModel):
     race: str
     before: float | None
@@ -628,8 +639,10 @@ class ChangelogResponse(BaseModel):
 
 # ── Poll trend chart ─────────────────────────────────────────────────────
 
+
 class PollTrendPoll(BaseModel):
     """A single poll data point for the trend chart."""
+
     date: str
     pollster: str | None
     dem_share: float
@@ -644,6 +657,7 @@ class PollTrend(BaseModel):
     by race type (Senate: ±3.7pp, Governor: ±5.5pp).  They represent the
     empirical uncertainty around the structural model, not the poll noise itself.
     """
+
     dates: list[str]
     dem_trend: list[float]
     rep_trend: list[float]
@@ -910,3 +924,25 @@ class PredecessorInfo(BaseModel):
     bioguide_id: str
     name: str
     year: int
+
+
+class FitScoreEntry(BaseModel):
+    """One candidate's fit score for a target district."""
+
+    rank: int
+    bioguide_id: str
+    name: str
+    party: str
+    n_races: int
+    fit_score: float
+    # Type IDs (0-indexed) that contribute most to the fit score.
+    top_type_ids: list[int]
+
+
+class FitScoreResponse(BaseModel):
+    """Ranked candidate-district fit scores for a target race."""
+
+    race_key: str
+    state: str
+    party_filter: str | None
+    candidates: list[FitScoreEntry]

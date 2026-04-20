@@ -5,6 +5,7 @@ Data is loaded once at import time from static JSON/Parquet files produced by
 the sabermetrics pipeline (Phases 1-2).  These files are small (<1MB total)
 and change only when the pipeline is re-run.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,6 +25,8 @@ from api.models import (
     CandidateListResponse,
     CTOVEntry,
     CTOVResponse,
+    FitScoreEntry,
+    FitScoreResponse,
     LegislativeStats,
     PredecessorInfo,
     RaceCandidatesResponse,
@@ -107,6 +110,22 @@ if _CANDIDATES_2026_PATH.exists():
         if race_type_key in raw_2026:
             _CANDIDATES_2026.update(raw_2026[race_type_key])
     log.info("Loaded %d race entries from candidates_2026.json", len(_CANDIDATES_2026))
+
+# Fit scoring: career-average CTOV per candidate (lazily computed on first request).
+# Using lazy load rather than import-time to avoid blocking the API on large parquet reads.
+_CAREER_CTOV: pd.DataFrame = pd.DataFrame()
+
+
+def _get_career_ctov() -> pd.DataFrame:
+    """Load or return the cached career-average CTOV DataFrame."""
+    global _CAREER_CTOV
+    if _CAREER_CTOV.empty and not _CTOV.empty:
+        from src.sabermetrics.composites import compute_career_ctovs
+
+        _CAREER_CTOV = compute_career_ctovs(_CTOV)
+        log.info("Computed career CTOVs: %d candidates", len(_CAREER_CTOV))
+    return _CAREER_CTOV
+
 
 # ── Name-to-bioguide reverse index ──────────────────────────────────────────
 # candidates_2026.json lacks bioguide IDs, so we match by exact name against
@@ -269,9 +288,7 @@ def _build_legislative_stats(bioguide_id: str) -> LegislativeStats | None:
 
     # Prefer congresses_served_les (LES data coverage) when available;
     # fall back to congresses_served_vv (VOTEVIEW coverage).
-    served = _int_or_none(row.get("congresses_served_les")) or _int_or_none(
-        row.get("congresses_served_vv")
-    )
+    served = _int_or_none(row.get("congresses_served_les")) or _int_or_none(row.get("congresses_served_vv"))
 
     return LegislativeStats(
         nominate_dim1=_float_or_none(row.get("career_nominate_dim1")),
@@ -394,8 +411,7 @@ def list_candidates(
         states = sorted({r["state"] for r in races if "state" in r})
         offices = sorted({r["office"] for r in races if "office" in r})
         years = sorted({r["year"] for r in races if "year" in r})
-        badge_names = [b.get("name", "") for b in badge_data.get("badge_details", [])] or \
-                      badge_data.get("badges", [])
+        badge_names = [b.get("name", "") for b in badge_data.get("badge_details", [])] or badge_data.get("badges", [])
 
         items.append(
             CandidateListItem(
@@ -620,10 +636,7 @@ def get_race_candidates(race_key: str):
         inc_name = incumbent["name"]
         inc_party = incumbent.get("party", "")
         # Avoid duplicates
-        already_listed = any(
-            inc_name.split("(")[0].strip() == n.split("(")[0].strip()
-            for n, _ in all_candidates
-        )
+        already_listed = any(inc_name.split("(")[0].strip() == n.split("(")[0].strip() for n, _ in all_candidates)
         if not already_listed:
             all_candidates.append((inc_name, inc_party))
 
@@ -645,4 +658,91 @@ def get_race_candidates(race_key: str):
     return RaceCandidatesResponse(
         race_key=normalized_key,
         candidates=candidates_out,
+    )
+
+
+@router.get(
+    "/races/{race_key:path}/fit-scores",
+    response_model=FitScoreResponse,
+    summary="Rank historical candidates by skill fit for this race's district",
+)
+def get_race_fit_scores(
+    request: Request,
+    race_key: str,
+    party: str | None = None,
+    min_races: int = 2,
+) -> FitScoreResponse:
+    """Return historical candidates ranked by fit score for the target race.
+
+    Fit score = dot(career_CTOV, district_W).  Positive = candidate tends to
+    overperform in the community types that dominate this district.
+
+    Query parameters
+    ----------------
+    party : "D" | "R" | None
+        Filter to one party's candidates. Default: all parties.
+    min_races : int
+        Minimum races for reliable CTOV (default 2, min 1).
+    """
+    import numpy as np
+
+    from src.prediction.forecast_engine import build_W_state
+    from src.sabermetrics.composites import rank_candidates_for_district
+
+    # Parse race_key → state abbreviation.
+    # Format: "2026 GA Senate" or "2026-GA-Senate" (URL-encoded).
+    normalized = race_key.replace("-", " ")
+    parts = normalized.upper().split()
+    if len(parts) < 3:
+        raise HTTPException(status_code=422, detail=f"Cannot parse state from race_key '{race_key}'")
+    state = parts[1]  # "GA", "MI", etc.
+
+    career_ctov = _get_career_ctov()
+    if career_ctov.empty:
+        raise HTTPException(status_code=503, detail="Career CTOV data not available")
+
+    # Retrieve type model arrays from app state (loaded at startup).
+    type_scores = getattr(request.app.state, "type_scores", None)
+    type_county_fips = getattr(request.app.state, "type_county_fips", None)
+    tract_states = getattr(request.app.state, "tract_states", {})
+    tract_votes = getattr(request.app.state, "tract_votes", {})
+
+    if type_scores is None or type_county_fips is None:
+        raise HTTPException(status_code=503, detail="Type model not loaded — try again later")
+
+    # Build state W vector (vote-weighted mean of tract type scores).
+    fips_list = type_county_fips
+    states_list = [tract_states.get(f, f[:2]) for f in fips_list]
+    county_votes = np.array([tract_votes.get(f, 1.0) for f in fips_list], dtype=float)
+
+    W = build_W_state(state, type_scores, states_list, county_votes)
+
+    # Rank candidates by fit score.
+    effective_min = max(1, min_races)
+    party_filter = party.upper() if party else None
+    ranked = rank_candidates_for_district(
+        career_ctov_df=career_ctov,
+        target_W=W,
+        party_filter=party_filter,
+        min_races=effective_min,
+    )
+
+    entries = [
+        FitScoreEntry(
+            rank=int(row["rank"]),
+            bioguide_id=str(row["person_id"]),
+            name=str(row["name"]),
+            party=str(row["party"]),
+            n_races=int(row["n_races"]),
+            fit_score=round(float(row["fit_score"]), 6),
+            top_type_ids=list(row["top_types"]),
+        )
+        for _, row in ranked.iterrows()
+    ]
+
+    return FitScoreResponse(
+        race_key=normalized,
+        state=state,
+        party_filter=party_filter,
+        candidates=entries,
     )

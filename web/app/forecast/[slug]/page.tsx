@@ -54,6 +54,18 @@ const CandidateBadges = dynamic(
   { ssr: false },
 );
 
+// Moneyball Fit Scores — SWR + party toggle, client-only
+const FitScoreSection = dynamic(
+  () =>
+    import("@/components/forecast/FitScoreSection").then(
+      (m) => m.FitScoreSection,
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-[180px]" />,
+  },
+);
+
 // Revalidate every 5 minutes — polls and forecast data update periodically
 export const revalidate = 300;
 
@@ -508,6 +520,14 @@ export default async function RaceDetailPage({ params }: PageProps) {
           stateAbbr={data.state_abbr}
         />
       )}
+
+      {/* Moneyball Fit Scores — which historical candidates match this district */}
+      <FitScoreSection
+        raceKey={`${data.year} ${data.state_abbr} ${data.race_type}`}
+        defaultParty={
+          data.candidate_info?.incumbent?.party === "R" ? "R" : "D"
+        }
+      />
 
       {/* National Environment — structural fundamentals signal common to all races */}
       <FundamentalsCard />

@@ -697,3 +697,43 @@ export async function fetchCandidatePredecessor(bioguideId: string): Promise<Pre
   }
   return res.json();
 }
+
+// ── Moneyball fit scores ──────────────────────────────────────────────────────
+
+/**
+ * One historical candidate's fit score for a target district.
+ *
+ * fit_score is the dot product of the candidate's career CTOV profile
+ * against the district's W vector.  Higher = better structural match.
+ */
+export interface FitScoreEntry {
+  rank: number;
+  bioguide_id: string;
+  name: string;
+  party: string;
+  n_races: number;
+  fit_score: number;
+  /** CTOV type indices (0-based) that contribute most to this candidate's fit. */
+  top_type_ids: number[];
+}
+
+export interface FitScoreResponse {
+  race_key: string;
+  state: string;
+  party_filter: string | null;
+  candidates: FitScoreEntry[];
+}
+
+export async function fetchFitScores(
+  raceKey: string,
+  party?: "D" | "R",
+  minRaces = 2,
+): Promise<FitScoreResponse> {
+  const p = new URLSearchParams({ min_races: String(minRaces) });
+  if (party) p.set("party", party);
+  const res = await fetch(
+    `${API_BASE}/races/${encodeURIComponent(raceKey)}/fit-scores?${p}`,
+  );
+  if (!res.ok) throw new Error(`/races/${raceKey}/fit-scores failed: ${res.status}`);
+  return res.json();
+}

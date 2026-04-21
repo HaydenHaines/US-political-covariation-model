@@ -129,7 +129,7 @@ def validate_predictions(con: duckdb.DuckDBPyConnection) -> list[str]:
     # Check if predictions table exists and has data
     try:
         n_preds = con.execute(
-            "SELECT COUNT(*) FROM predictions WHERE version_id LIKE '%types%'"
+            "SELECT COUNT(*) FROM predictions WHERE forecast_mode = 'local'"
         ).fetchone()[0]
     except Exception:
         # predictions table may not exist yet — skip validation
@@ -137,7 +137,7 @@ def validate_predictions(con: duckdb.DuckDBPyConnection) -> list[str]:
         return errors
 
     if n_preds == 0:
-        log.warning("No type-based predictions found — skipping prediction validation")
+        log.warning("No local-mode predictions found — skipping prediction validation")
         return errors
 
     # ── Compute vote-weighted state predictions for Senate races ──────────
@@ -149,9 +149,8 @@ def validate_predictions(con: duckdb.DuckDBPyConnection) -> list[str]:
             COUNT(*) AS n_counties
         FROM predictions p
         JOIN counties c ON p.county_fips = c.county_fips
-        WHERE p.version_id LIKE '%types%'
-          AND p.race LIKE 'Senate%'
-          AND p.forecast_mode = 'local'
+        WHERE p.forecast_mode = 'local'
+          AND p.race LIKE '%Senate%'
           AND c.state_abbr = SPLIT_PART(p.race, ' ', 2)
         GROUP BY p.race, c.state_abbr
     """).fetchdf()

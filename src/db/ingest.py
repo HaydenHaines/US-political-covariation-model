@@ -155,8 +155,9 @@ def _check_predictions_types_staleness(parquet_path: Path) -> bool:
     if not parquet_path.exists():
         return True  # Non-existent → skip, not stale
 
-    # Read only the schema (no row data) to check for the required column.
-    cols = pd.read_parquet(parquet_path, columns=[]).columns.tolist()
+    # Read schema without loading row data.
+    import pyarrow.parquet as pq
+    cols = pq.read_schema(parquet_path).names
 
     if "forecast_mode" not in cols:
         log.warning(

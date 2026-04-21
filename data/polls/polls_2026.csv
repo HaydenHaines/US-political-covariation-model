@@ -103,7 +103,9 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 MI Governor,MI,state,0.4848,600.0,2026-01-13,Glengariff Group,D=32.0% R=34.0%; LV; src=270towin
 2026 MI Governor,MI,state,0.4912,,2026-02-02,Glengariff Group,D=28.0% R=29.0%; LV; src=wikipedia
 2026 MI Governor,MI,state,0.52,800.0,2026-02-16,Impact Research (D),D=39.0% R=36.0%; LV; src=wikipedia
+2026 MI Governor,MI,state,0.587,1000.0,2026-03-24,Michigan State University/YouGov,D=27.0% R=19.0%; src=wikipedia
 2026 MI Governor,MI,state,0.5263,800.0,2026-03-29,Impact Research (D),D=40.0% R=36.0%; LV; src=wikipedia
+2026 MI Governor,MI,state,0.566,1000.0,2026-04-20,Michigan State Univ.,D=30.0% R=23.0%; src=270towin
 2026 MI Governor,MI,state,0.5085,600.0,,Schoen Cooperman Research (D),D=30.0% R=29.0%; LV; src=wikipedia
 2026 MI Governor,MI,state,0.5072,600.0,,Glengariff Group,D=35.0% R=34.0%; RV; src=wikipedia
 2026 MI Governor,MI,state,0.4697,600.0,,Plymouth Union Public (R),D=31.0% R=35.0%; LV; src=wikipedia
@@ -189,7 +191,9 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 OH Governor,OH,state,0.5521,1343.0,2026-03-10,EMC Research,D=53.0% R=43.0%; LV; src=270towin
 2026 OH Governor,OH,state,0.5055,809.0,2026-03-14,Quantus Insights,D=46.0% R=45.0%; LV; src=wikipedia
 2026 OH Governor,OH,state,0.5055,809.0,2026-03-16,Quantus Insights,D=46.0% R=45.0%; LV; src=270towin
-2026 OH Governor,OH,state,0.5049,,,Decision Desk HQ,D=46.5% R=45.6%; src=wikipedia
+2026 OH Governor,OH,state,0.4947,1000.0,2026-04-14,Bowling Green State University/YouGov,D=47.0% R=48.0%; RV; src=wikipedia
+2026 OH Governor,OH,state,0.4947,1000.0,2026-04-20,Bowling Green Univ.,D=47.0% R=48.0%; RV; src=270towin
+2026 OH Governor,OH,state,0.4984,,,Decision Desk HQ,D=45.4% R=45.7%; src=wikipedia
 2026 OH Senate,OH,state,0.5052,800.0,2025-10-14,YouGov,D=49.0% R=48.0%; RV; src=rcp
 2026 OH Senate,OH,state,0.4842,850.0,2025-12-08,Emerson College,D=46.0% R=49.0%; RV; src=rcp
 2026 OH Senate,OH,state,0.4889,784.0,2026-03-14,Quantus Insights,D=44.0% R=46.0%; LV; src=rcp

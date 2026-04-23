@@ -1,0 +1,85 @@
+name: Monthly Dependency Update
+
+on:
+  schedule:
+    # 1st of each month at 6am UTC
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run uv lock --upgrade
+        run: uv lock --upgrade
+
+      - name: Check for lockfile changes
+        id: changes
+        run: |
+          if git diff --quiet uv.lock; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build PR body with lock diff
+        if: steps.changes.outputs.changed == 'true'
+        id: pr_body
+        run: |
+          MONTH=$(date +%Y-%m)
+          DIFF=$(git diff uv.lock | head -200)
+          # Truncate if the diff is large
+          LINE_COUNT=$(git diff uv.lock | wc -l)
+          if [ "$LINE_COUNT" -gt 200 ]; then
+            TRUNCATION_NOTE="*(diff truncated — showing first 200 lines of ${LINE_COUNT} total)*"
+          else
+            TRUNCATION_NOTE=""
+          fi
+
+          # Write body to a file to avoid quoting issues
+          cat > /tmp/pr_body.md << 'BODY_EOF'
+          ## Monthly dependency update
+
+          `uv lock --upgrade` was run to bring all dependencies to their latest
+          compatible versions as specified in `pyproject.toml`.
+
+          ### Lock file diff
+          BODY_EOF
+
+          echo "" >> /tmp/pr_body.md
+          if [ -n "$TRUNCATION_NOTE" ]; then
+            echo "$TRUNCATION_NOTE" >> /tmp/pr_body.md
+            echo "" >> /tmp/pr_body.md
+          fi
+          echo '```diff' >> /tmp/pr_body.md
+          echo "$DIFF" >> /tmp/pr_body.md
+          echo '```' >> /tmp/pr_body.md
+
+          echo "month=$MONTH" >> "$GITHUB_OUTPUT"
+
+      - name: Create pull request
+        if: steps.changes.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: deps/monthly-update-${{ steps.pr_body.outputs.month }}
+          base: main
+          commit-message: "chore(deps): monthly dependency update — ${{ steps.pr_body.outputs.month }}"
+          title: "chore(deps): monthly dependency update — ${{ steps.pr_body.outputs.month }}"
+          body-path: /tmp/pr_body.md
+          labels: dependencies
+          delete-branch: true
+
+      - name: No changes — nothing to do
+        if: steps.changes.outputs.changed == 'false'
+        run: echo "All dependencies are already up to date. No PR needed."

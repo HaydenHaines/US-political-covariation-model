@@ -1,17 +1,17 @@
 {
   "cycle": 2026,
   "in_party": "D",
-  "approval_net_oct": -14.6,
+  "approval_net_oct": -16.1,
   "gdp_q2_growth_pct": 0.5,
   "unemployment_oct": 4.3,
   "cpi_yoy_oct": 3.29,
   "consumer_sentiment": 56.6,
   "source_notes": {
-    "approval": "RealClearPolling average \u2014 Approve 41.7%, Disapprove 56.3%, Net -14.6pp. Date range on page: 3/20 - 4/9. Fetched 2026-04-12 09:10 UTC.",
-    "gdp": "FRED A191RL1Q225SBEA \u2014 Real GDP growth (annualized quarterly, %) \u2014 as of 2025-10-01. Fetched 2026-04-19 04:09.",
-    "unemployment": "FRED UNRATE \u2014 Unemployment rate (%) \u2014 as of 2026-03-01. Fetched 2026-04-19 04:09.",
-    "cpi": "FRED CPIAUCSL \u2014 CPI-U (seasonally adjusted) \u2014 YoY: 2026-03-01 vs 2025-03-01. Fetched 2026-04-19 04:09.",
-    "consumer_sentiment": "FRED UMCSENT \u2014 University of Michigan Consumer Sentiment Index \u2014 as of 2026-02-01. Fetched 2026-04-19 04:09.",
-    "last_updated": "2026-04-19 04:09"
+    "approval": "RealClearPolling average \u2014 Approve 40.6%, Disapprove 56.7%, Net -16.1pp. Date range on page: 3/30 - 4/20. Fetched 2026-04-22 09:09 UTC.",
+    "gdp": "FRED A191RL1Q225SBEA \u2014 Real GDP growth (annualized quarterly, %) \u2014 as of 2025-10-01. Fetched 2026-04-22 04:09.",
+    "unemployment": "FRED UNRATE \u2014 Unemployment rate (%) \u2014 as of 2026-03-01. Fetched 2026-04-22 04:09.",
+    "cpi": "FRED CPIAUCSL \u2014 CPI-U (seasonally adjusted) \u2014 YoY: 2026-03-01 vs 2025-03-01. Fetched 2026-04-22 04:09.",
+    "consumer_sentiment": "FRED UMCSENT \u2014 University of Michigan Consumer Sentiment Index \u2014 as of 2026-02-01. Fetched 2026-04-22 04:09.",
+    "last_updated": "2026-04-22 09:09 UTC"
   }
 }

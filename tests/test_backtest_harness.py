@@ -22,6 +22,20 @@ from src.validation.backtest_harness import (
     load_historic_polls,
     run_backtest,
 )
+from tests.conftest import skip_if_missing
+
+# Data files required by individual tests. Paths are relative to the project
+# root; all live under gitignored directories so CI never has them — the
+# decorators below skip the affected tests when the files are missing.
+_PRES_POLLAVERAGES = "data/raw/fivethirtyeight/data-repo/polls/pres_pollaverages_1968-2016.csv"
+_PRES_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/presidential_elections.csv"
+_SEN_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/us_senate_elections.csv"
+_GOV_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/governors_elections.csv"
+_ACTUALS_PRES_2020 = "data/assembled/medsl_county_presidential_2020.parquet"
+_ACTUALS_GOV_2018 = "data/assembled/algara_county_governor_2018.parquet"
+_ACTUALS_GOV_2022 = "data/assembled/medsl_county_2022_governor.parquet"
+_ACTUALS_SEN_2022 = "data/assembled/medsl_county_senate_2022.parquet"
+_COMMUNITIES_TYPES = "data/communities/type_assignments.parquet"
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +102,7 @@ class TestStateNameMapping:
 # ---------------------------------------------------------------------------
 
 class TestLoadHistoricPollsPresidential:
+    @skip_if_missing(_PRES_POLLAVERAGES)
     def test_2016_loads_correct_number_of_states(self):
         """2016 presidential should load 51 states (50 + DC)."""
         polls = load_historic_polls(2016, "president")
@@ -97,6 +112,7 @@ class TestLoadHistoricPollsPresidential:
             f"Expected ≥48 states, got {len(states_in_polls)}"
         )
 
+    @skip_if_missing(_PRES_POLLAVERAGES)
     def test_2016_race_name_format(self):
         """Race names should be '{year} {state} President'."""
         polls = load_historic_polls(2016, "president")
@@ -106,6 +122,7 @@ class TestLoadHistoricPollsPresidential:
             assert parts[0] == "2016"
             assert parts[2] == "President"
 
+    @skip_if_missing(_PRES_POLLAVERAGES)
     def test_2016_dem_shares_are_probabilities(self):
         """All dem_share values should be in (0, 1)."""
         polls = load_historic_polls(2016, "president")
@@ -116,6 +133,7 @@ class TestLoadHistoricPollsPresidential:
                     f"dem_share={share} out of range for {race_name}"
                 )
 
+    @skip_if_missing(_PRES_POLLAVERAGES)
     def test_2016_has_expected_keys(self):
         """Poll dicts should contain required forecast_engine keys."""
         polls = load_historic_polls(2016, "president")
@@ -126,6 +144,7 @@ class TestLoadHistoricPollsPresidential:
                     f"Missing keys in {race_name}: {required_keys - set(poll.keys())}"
                 )
 
+    @skip_if_missing(_PRES_CHECKING)
     def test_2020_polls_load(self):
         """2020 presidential polls (from checking-our-work) should load."""
         polls = load_historic_polls(2020, "president")
@@ -141,11 +160,13 @@ class TestLoadHistoricPollsPresidential:
 # ---------------------------------------------------------------------------
 
 class TestLoadHistoricPollsSenate:
+    @skip_if_missing(_SEN_CHECKING)
     def test_2022_senate_loads(self):
         """2022 senate should have races for ~33 states."""
         polls = load_historic_polls(2022, "senate")
         assert len(polls) >= 25, f"Expected ≥25 senate races, got {len(polls)}"
 
+    @skip_if_missing(_SEN_CHECKING)
     def test_2022_senate_race_format(self):
         polls = load_historic_polls(2022, "senate")
         for race_name in polls:
@@ -153,6 +174,7 @@ class TestLoadHistoricPollsSenate:
             assert parts[0] == "2022"
             assert parts[2] == "Senate"
 
+    @skip_if_missing(_SEN_CHECKING)
     def test_2022_senate_dem_shares_valid(self):
         polls = load_historic_polls(2022, "senate")
         for race_name, poll_list in polls.items():
@@ -161,6 +183,7 @@ class TestLoadHistoricPollsSenate:
                     f"Invalid dem_share in {race_name}: {poll['dem_share']}"
                 )
 
+    @skip_if_missing(_SEN_CHECKING)
     def test_2018_senate_loads(self):
         polls = load_historic_polls(2018, "senate")
         assert len(polls) >= 20
@@ -175,37 +198,44 @@ class TestLoadHistoricPollsSenate:
 # ---------------------------------------------------------------------------
 
 class TestLoadHistoricActuals:
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_2020_presidential_shape(self):
         """2020 presidential actuals should have ~3,154 counties."""
         df = load_historic_actuals(2020, "president")
         assert len(df) >= 3000, f"Expected ≥3000 counties, got {len(df)}"
         assert set(df.columns) == {"county_fips", "state_abbr", "actual_dem_share"}
 
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_2020_presidential_no_state_totals(self):
         """FIPS '00000' (state totals) should be excluded."""
         df = load_historic_actuals(2020, "president")
         assert "00000" not in df["county_fips"].values
 
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_2020_presidential_no_nans(self):
         df = load_historic_actuals(2020, "president")
         assert df["actual_dem_share"].isna().sum() == 0
 
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_2020_presidential_dem_shares_valid(self):
         df = load_historic_actuals(2020, "president")
         assert (df["actual_dem_share"] >= 0.0).all()
         assert (df["actual_dem_share"] <= 1.0).all()
 
+    @skip_if_missing(_ACTUALS_GOV_2018)
     def test_2018_governor_loads(self):
         """2018 governor actuals from algara parquet."""
         df = load_historic_actuals(2018, "governor")
         assert len(df) >= 500, f"Expected ≥500 counties, got {len(df)}"
         assert "actual_dem_share" in df.columns
 
+    @skip_if_missing(_ACTUALS_GOV_2022)
     def test_2022_governor_loads(self):
         """2022 governor actuals from medsl parquet."""
         df = load_historic_actuals(2022, "governor")
         assert len(df) >= 500
 
+    @skip_if_missing(_ACTUALS_SEN_2022)
     def test_2022_senate_loads(self):
         df = load_historic_actuals(2022, "senate")
         assert len(df) >= 500
@@ -214,6 +244,7 @@ class TestLoadHistoricActuals:
         with pytest.raises(ValueError, match="Unknown race_type"):
             load_historic_actuals(2020, "house")
 
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_fips_are_string_type(self):
         """FIPS codes should be string type (not int)."""
         df = load_historic_actuals(2020, "president")
@@ -221,6 +252,7 @@ class TestLoadHistoricActuals:
             f"Expected str dtype, got {df['county_fips'].dtype}"
         )
 
+    @skip_if_missing(_ACTUALS_PRES_2020)
     def test_fips_mostly_5_digits(self):
         """The vast majority of FIPS codes should be 5 digits."""
         df = load_historic_actuals(2020, "president")
@@ -233,6 +265,7 @@ class TestLoadHistoricActuals:
 # Full backtest integration (2020 presidential)
 # ---------------------------------------------------------------------------
 
+@skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
 class TestRunBacktest2020Presidential:
     """Integration test: run the full backtest pipeline for 2020 presidential."""
 

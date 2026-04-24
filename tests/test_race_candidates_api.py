@@ -7,10 +7,20 @@ requiring real badge data files on disk.
 from __future__ import annotations
 
 import json
+from contextlib import asynccontextmanager
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+
+@asynccontextmanager
+async def _noop_lifespan(app):
+    """Test lifespan: skip DB/parquet loading so data/wethervane.duckdb isn't required.
+
+    Mirrors the pattern from api/tests/conftest.py (introduced by the #247 CI fix).
+    """
+    yield
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +80,7 @@ def test_client():
     import api.routers.candidates as candidates_module
     from api.main import create_app
 
-    app = create_app()
+    app = create_app(lifespan_override=_noop_lifespan)
 
     with (
         patch.object(candidates_module, "_BADGES", _MOCK_BADGES),

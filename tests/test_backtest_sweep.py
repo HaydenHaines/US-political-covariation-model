@@ -30,6 +30,20 @@ from src.validation.backtest_sweep import (
     run_backtest_with_params,
     sweep_parameters,
 )
+from tests.conftest import skip_if_missing
+
+# Files in ``data/raw/`` and ``data/assembled/`` are gitignored, so CI never
+# has them. The backtest integration tests below need actual historical
+# election data to run; when absent they skip instead of erroring.
+_PRES_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/presidential_elections.csv"
+_SEN_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/us_senate_elections.csv"
+_GOV_CHECKING = "data/raw/fivethirtyeight/checking-our-work-data/governors_elections.csv"
+_ACTUALS_PRES_2020 = "data/assembled/medsl_county_presidential_2020.parquet"
+_ACTUALS_PRES_2016 = "data/assembled/medsl_county_presidential_2016.parquet"
+_ACTUALS_PRES_2008 = "data/assembled/medsl_county_presidential_2008.parquet"
+_ACTUALS_SEN_2022 = "data/assembled/medsl_county_senate_2022.parquet"
+_ACTUALS_GOV_2018 = "data/assembled/algara_county_governor_2018.parquet"
+_COMMUNITIES_TYPES = "data/communities/type_assignments.parquet"
 
 
 # ---------------------------------------------------------------------------
@@ -103,6 +117,7 @@ class TestBuildYearAdaptivePriors:
         priors = build_year_adaptive_priors(test_fips, 1999)
         np.testing.assert_allclose(priors, _FALLBACK_DEM_SHARE)
 
+    @skip_if_missing(_ACTUALS_PRES_2016)
     def test_prior_year_matches_expected(self):
         """Verify that 2020 backtest loads 2016 data (not 2020 itself)."""
         # Load both the 2016 actuals directly and the year-adaptive priors for 2020.
@@ -129,6 +144,7 @@ class TestBuildYearAdaptivePriors:
 class TestRunBacktestWithParams:
     """Integration tests that run actual backtests with different params."""
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_default_params_produce_valid_metrics(self):
         """Run with defaults and check output structure."""
         result = run_backtest_with_params(2020, "president", {})
@@ -140,6 +156,7 @@ class TestRunBacktestWithParams:
         assert result["n_counties"] > 0
         assert 0.5 < result["r"] < 1.0, f"Unexpected r={result['r']}"
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2008, _COMMUNITIES_TYPES)
     def test_year_adaptive_priors_flag(self):
         """Year-adaptive priors should produce different (generally better) results."""
         ridge = run_backtest_with_params(2008, "president", {"use_year_adaptive_priors": False})
@@ -151,24 +168,28 @@ class TestRunBacktestWithParams:
         # They should be different (different priors → different forecasts).
         assert ridge["r"] != adaptive["r"], "Ridge and adaptive priors gave identical r"
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_custom_lam_changes_output(self):
         """Different lam values should produce different results."""
         low_lam = run_backtest_with_params(2020, "president", {"lam": 0.1})
         high_lam = run_backtest_with_params(2020, "president", {"lam": 10.0})
         assert low_lam["r"] != high_lam["r"], "Different lam values gave identical r"
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_poll_blend_scale_changes_output(self):
         """Different poll_blend_scale should affect county predictions."""
         low_k = run_backtest_with_params(2020, "president", {"poll_blend_scale": 1.0})
         high_k = run_backtest_with_params(2020, "president", {"poll_blend_scale": 50.0})
         assert low_k["rmse"] != high_k["rmse"], "Different poll_blend_scale gave identical RMSE"
 
+    @skip_if_missing(_SEN_CHECKING, _ACTUALS_SEN_2022, _COMMUNITIES_TYPES)
     def test_senate_backtest_works(self):
         """Senate race backtest should produce valid output."""
         result = run_backtest_with_params(2022, "senate", {"use_year_adaptive_priors": True})
         assert result["n_counties"] > 0
         assert not math.isnan(result["r"])
 
+    @skip_if_missing(_GOV_CHECKING, _ACTUALS_GOV_2018, _COMMUNITIES_TYPES)
     def test_governor_backtest_works(self):
         """Governor race backtest should produce valid output."""
         result = run_backtest_with_params(2018, "governor", {})
@@ -180,6 +201,7 @@ class TestRunBacktestWithParams:
         with pytest.raises(ValueError):
             run_backtest_with_params(2020, "dogcatcher", {})
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_params_are_recorded_in_output(self):
         """The result dict should include the params that were used."""
         params = {"lam": 2.5, "mu": 0.5, "poll_blend_scale": 7.0}
@@ -193,6 +215,7 @@ class TestRunBacktestWithParams:
 # Parameter sweep
 # ---------------------------------------------------------------------------
 
+@skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _SEN_CHECKING, _ACTUALS_SEN_2022, _COMMUNITIES_TYPES)
 class TestSweepParameters:
     def test_small_sweep_output_shape(self):
         """A 2x2 grid over 2 elections should produce 2*2*2 = 8 rows."""
@@ -223,6 +246,7 @@ class TestSweepParameters:
 # ---------------------------------------------------------------------------
 
 class TestComparePriors:
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_comparison_output_structure(self):
         """compare_priors should return a DataFrame with both Ridge and adaptive columns."""
         configs = [(2020, "president")]
@@ -311,6 +335,7 @@ class TestBuildBlendedPriors:
         single = build_year_adaptive_priors(fips, 2008)
         np.testing.assert_allclose(blended, single)
 
+    @skip_if_missing(_ACTUALS_PRES_2016)
     def test_equal_weight_decay_one(self):
         """decay=1.0 should average all prior elections equally.
 
@@ -338,6 +363,7 @@ class TestBuildBlendedPriors:
             f"Equal-weight blended={blended[0]:.6f} != manual mean={expected_mean:.6f}"
         )
 
+    @skip_if_missing(_ACTUALS_PRES_2016)
     def test_weight_normalization(self):
         """For any decay value, the blended output should be a valid weighted average.
 
@@ -383,6 +409,7 @@ class TestBuildBlendedPriors:
         priors = build_blended_priors(self.TEST_FIPS, 1999, prior_decay=0.5)
         np.testing.assert_allclose(priors, _FALLBACK_DEM_SHARE)
 
+    @skip_if_missing(_ACTUALS_PRES_2016)
     def test_decay_changes_output(self):
         """Different decay values should produce different results (for multi-election windows)."""
         fips = self.TEST_FIPS
@@ -416,6 +443,7 @@ class TestBuildBlendedPriors:
 class TestHalfLifeDaysPassThrough:
     """Verify that half_life_days is accepted and influences forecast output."""
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_half_life_days_param_accepted(self):
         """run_backtest_with_params should not raise when half_life_days is supplied."""
         result = run_backtest_with_params(
@@ -424,6 +452,7 @@ class TestHalfLifeDaysPassThrough:
         assert "r" in result
         assert not math.isnan(result["r"])
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_half_life_days_passed_to_run_forecast(self):
         """half_life_days should be forwarded to run_forecast(), not silently dropped.
 
@@ -463,6 +492,7 @@ class TestHalfLifeDaysPassThrough:
 class TestRunBacktestWithPriorDecay:
     """Verify prior_decay is wired through to the actual backtest."""
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2008, _COMMUNITIES_TYPES)
     def test_prior_decay_zero_same_as_adaptive_default(self):
         """prior_decay=0 should match use_year_adaptive_priors=True (single-year) results."""
         default_adaptive = run_backtest_with_params(
@@ -475,6 +505,7 @@ class TestRunBacktestWithPriorDecay:
         assert default_adaptive["r"] == decay_zero["r"]
         assert default_adaptive["rmse"] == decay_zero["rmse"]
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_prior_decay_positive_produces_valid_metrics(self):
         """prior_decay=0.5 should produce valid (non-NaN) metrics."""
         result = run_backtest_with_params(
@@ -484,6 +515,7 @@ class TestRunBacktestWithPriorDecay:
         assert not math.isnan(result["r"]), "prior_decay=0.5 produced NaN r"
         assert result["n_counties"] > 0
 
+    @skip_if_missing(_PRES_CHECKING, _ACTUALS_PRES_2020, _COMMUNITIES_TYPES)
     def test_prior_decay_ignored_without_adaptive_priors(self):
         """prior_decay should have no effect when use_year_adaptive_priors=False."""
         ridge_no_decay = run_backtest_with_params(

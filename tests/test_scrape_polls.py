@@ -17,6 +17,7 @@ from scrape_2026_polls import (
     deduplicate,
     extract_pct,
     extract_sample_size,
+    merge_with_existing,
     normalize_pollster,
     parse_poll_date,
     scrape_270towin,
@@ -25,6 +26,8 @@ from scrape_2026_polls import (
     scrape_wikipedia,
     two_party_share,
 )
+
+import pandas as pd
 
 
 # ============================================================================
@@ -1036,3 +1039,131 @@ class TestBuildOutputDfGenericBallot:
         assert gb_row["geography"] == "US"
         assert state_row["geo_level"] == "state"
         assert state_row["geography"] == "GA"
+
+
+# ============================================================================
+# merge_with_existing — preserve xt_* / methodology enrichment on re-scrape
+# ============================================================================
+class TestMergeWithExisting:
+    _SCRAPER_COLS = ["race", "geography", "geo_level", "dem_share",
+                     "n_sample", "date", "pollster", "notes"]
+
+    def _new_row(self, **overrides):
+        base = {
+            "race": "2026 AZ Governor",
+            "geography": "AZ",
+            "geo_level": "state",
+            "dem_share": 0.5057,
+            "n_sample": 850.0,
+            "date": "2025-11-10",
+            "pollster": "Emerson College",
+            "notes": "D=44% R=43%",
+        }
+        base.update(overrides)
+        return base
+
+    def test_rescrape_preserves_xt_enrichment(self):
+        """The regression: xt_* values on an existing row must survive a
+        re-scrape that produces the same race+date+pollster but no xt_*
+        columns. Previously ``drop_duplicates(keep="last")`` wiped them."""
+        existing = pd.DataFrame([
+            {**self._new_row(),
+             "methodology": "mixed",
+             "xt_education_college": 0.355,
+             "xt_race_white": 0.712,
+             "xt_vote_race_white": 0.416},
+        ])
+        new = pd.DataFrame([self._new_row()])
+
+        merged = merge_with_existing(new, existing)
+
+        assert len(merged) == 1
+        row = merged.iloc[0]
+        assert row["xt_education_college"] == 0.355
+        assert row["xt_race_white"] == 0.712
+        assert row["xt_vote_race_white"] == 0.416
+        assert row["methodology"] == "mixed"
+
+    def test_rescrape_prefers_fresh_scraper_cols(self):
+        """Scraper-produced columns (dem_share, n_sample, notes) on the
+        fresh row win over the stale existing values."""
+        existing = pd.DataFrame([
+            {**self._new_row(dem_share=0.47, n_sample=800, notes="stale"),
+             "xt_education_college": 0.355},
+        ])
+        new = pd.DataFrame([
+            self._new_row(dem_share=0.5057, n_sample=850, notes="fresh"),
+        ])
+
+        merged = merge_with_existing(new, existing)
+
+        assert len(merged) == 1
+        row = merged.iloc[0]
+        assert row["dem_share"] == 0.5057
+        assert row["n_sample"] == 850
+        assert row["notes"] == "fresh"
+        # enrichment still preserved
+        assert row["xt_education_college"] == 0.355
+
+    def test_new_row_has_no_existing_match(self):
+        """A brand-new race+date+pollster triple is appended, not merged."""
+        existing = pd.DataFrame([
+            {**self._new_row(race="2026 OH Governor", geography="OH"),
+             "xt_education_college": 0.40},
+        ])
+        new = pd.DataFrame([self._new_row()])
+
+        merged = merge_with_existing(new, existing)
+
+        assert len(merged) == 2
+        az = merged[merged["race"] == "2026 AZ Governor"].iloc[0]
+        oh = merged[merged["race"] == "2026 OH Governor"].iloc[0]
+        # New row gets NaN for enrichment columns (nothing to carry)
+        assert pd.isna(az["xt_education_college"])
+        # Existing row keeps its enrichment
+        assert oh["xt_education_college"] == 0.40
+
+    def test_existing_row_with_no_fresh_match_is_preserved(self):
+        """Polls in the existing CSV that weren't re-scraped (e.g. because
+        RCP returned 403) must survive the merge unchanged."""
+        existing = pd.DataFrame([
+            {**self._new_row(race="2026 OH Governor", geography="OH",
+                             dem_share=0.45),
+             "xt_education_college": 0.40},
+        ])
+        new = pd.DataFrame([self._new_row()])  # different race entirely
+
+        merged = merge_with_existing(new, existing)
+
+        oh_rows = merged[merged["race"] == "2026 OH Governor"]
+        assert len(oh_rows) == 1
+        assert oh_rows.iloc[0]["dem_share"] == 0.45
+        assert oh_rows.iloc[0]["xt_education_college"] == 0.40
+
+    def test_no_enrichment_cols_behaves_like_plain_dedup(self):
+        """When the existing CSV has no extra columns, merge collapses to
+        the original concat+drop_duplicates semantics."""
+        existing = pd.DataFrame([
+            self._new_row(dem_share=0.47, notes="old"),
+        ])
+        new = pd.DataFrame([self._new_row(dem_share=0.5057, notes="new")])
+
+        merged = merge_with_existing(new, existing)
+
+        assert len(merged) == 1
+        assert merged.iloc[0]["dem_share"] == 0.5057
+        assert merged.iloc[0]["notes"] == "new"
+
+    def test_duplicate_existing_rows_deduped_by_last(self):
+        """If the existing CSV has duplicates on the key (shouldn't happen
+        but could from hand-edits), the last-seen enrichment is used."""
+        existing = pd.DataFrame([
+            {**self._new_row(notes="first"), "xt_education_college": 0.30},
+            {**self._new_row(notes="second"), "xt_education_college": 0.35},
+        ])
+        new = pd.DataFrame([self._new_row(notes="fresh")])
+
+        merged = merge_with_existing(new, existing)
+
+        assert len(merged) == 1
+        assert merged.iloc[0]["xt_education_college"] == 0.35

@@ -1448,23 +1448,45 @@ def main():
         print(df.to_csv(index=False))
     else:
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-        # Merge with existing polls so historical data survives RCP 403s and
-        # scraper gaps. Keep "last" on duplicates — freshly scraped wins.
         if OUTPUT_PATH.exists():
             existing = pd.read_csv(OUTPUT_PATH)
-            merged = pd.concat([existing, df], ignore_index=True).drop_duplicates(
-                subset=["race", "date", "pollster"], keep="last"
-            )
-            merged = merged.sort_values(["race", "date"]).reset_index(drop=True)
-            n_new = len(merged) - len(existing)
-            logger.info(
-                "Merged %d new polls into %d existing → %d total",
-                max(n_new, 0), len(existing), len(merged),
-            )
-            df = merged
+            df = merge_with_existing(df, existing)
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(OUTPUT_PATH, index=False)
         logger.info("Written %d polls to %s", len(df), OUTPUT_PATH)
+
+
+def merge_with_existing(new: pd.DataFrame, existing: pd.DataFrame) -> pd.DataFrame:
+    """Merge freshly scraped polls with the existing CSV, preserving enrichment.
+
+    Freshly scraped rows win for columns the scraper produces. Enrichment
+    columns (xt_* crosstabs, methodology, etc.) are hand-curated or populated
+    by downstream scripts (scrape_emerson_crosstabs, parse_marist_pdf, ...)
+    and MUST survive a re-scrape of the same race+date+pollster. The naive
+    `concat(...).drop_duplicates(keep="last")` pattern silently overwrites
+    them with NaN, which is the regression fixed here.
+    """
+    key = ["race", "date", "pollster"]
+    enrichment_cols = [c for c in existing.columns if c not in new.columns]
+
+    if enrichment_cols:
+        # Carry enrichment from any matching existing row onto the fresh row.
+        new = new.merge(
+            existing[key + enrichment_cols].drop_duplicates(subset=key, keep="last"),
+            on=key,
+            how="left",
+        )
+
+    merged = pd.concat([existing, new], ignore_index=True).drop_duplicates(
+        subset=key, keep="last"
+    )
+    merged = merged.sort_values(["race", "date"]).reset_index(drop=True)
+    n_new = len(merged) - len(existing)
+    logger.info(
+        "Merged %d new polls into %d existing → %d total",
+        max(n_new, 0), len(existing), len(merged),
+    )
+    return merged
 
 
 if __name__ == "__main__":

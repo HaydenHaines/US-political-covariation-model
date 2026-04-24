@@ -112,7 +112,7 @@ function CandidateRow({ entry, maxScore }: CandidateRowProps) {
       </span>
 
       {/* Name + metadata */}
-      <div style={{ minWidth: 0 }}>
+      <div style={{ minWidth: 0, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: "4px", flexWrap: "wrap" }}>
           <Link
             href={`/candidates/${entry.bioguide_id}`}
@@ -121,7 +121,6 @@ function CandidateRow({ entry, maxScore }: CandidateRowProps) {
               fontWeight: 600,
               color,
               textDecoration: "none",
-              overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}

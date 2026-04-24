@@ -715,6 +715,8 @@ export interface FitScoreEntry {
   fit_score: number;
   /** CTOV type indices (0-based) that contribute most to this candidate's fit. */
   top_type_ids: number[];
+  /** Human-readable display names for the top contributing types. */
+  top_type_names: string[];
 }
 
 export interface FitScoreResponse {

@@ -937,6 +937,8 @@ class FitScoreEntry(BaseModel):
     fit_score: float
     # Type IDs (0-indexed) that contribute most to the fit score.
     top_type_ids: list[int]
+    # Human-readable display names for the top contributing types.
+    top_type_names: list[str]
 
 
 class FitScoreResponse(BaseModel):

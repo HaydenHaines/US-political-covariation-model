@@ -12,9 +12,9 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 FL Governor,FL,state,0.4231,728.0,2025-10-25,University of North Florida,D=33.0% R=45.0%; LV; src=wikipedia
 2026 FL Governor,FL,state,0.4337,728.0,2025-10-28,University of North Florida,D=36.0% R=47.0%; LV; src=270towin
 2026 FL Governor,FL,state,0.4675,1129.0,2026-02-16,Targoz Market Research,D=36.0% R=41.0%; LV; src=wikipedia
-2026 FL Governor,FL,state,0.4557,786.0,2026-03-02,University of North Florida,D=36.0% R=43.0%; LV; src=wikipedia
+2026 FL Governor,FL,state,0.4557,786.0,2026-03-02,University of North Florida,D=36.0% R=43.0%; LV; src=rcp
 2026 FL Governor,FL,state,0.4557,786.0,2026-03-04,University of North Florida,D=36.0% R=43.0%; LV; src=270towin
-2026 FL Governor,FL,state,0.4444,1165.0,2026-03-31,Emerson College,D=36.0% R=45.0%; LV; src=wikipedia
+2026 FL Governor,FL,state,0.4444,1125.0,2026-03-31,Emerson College,D=36.0% R=45.0%; LV; src=rcp
 2026 FL Governor,FL,state,0.4875,1125.0,2026-04-02,Emerson College,D=39.0% R=41.0%; LV; src=270towin
 2026 FL Governor,FL,state,0.5,1834.0,2026-04-03,MDW (D),D=41.0% R=41.0%; LV; src=wikipedia
 2026 FL Governor,FL,state,0.4762,795.0,2026-04-06,Keystone Analytics,D=40.0% R=44.0%; LV; src=wikipedia
@@ -34,13 +34,13 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 GA Senate,GA,state,0.5,600.0,2025-03-10,Cygnal,D=44.0% R=44.0%; LV; src=wikipedia
 2026 GA Senate,GA,state,0.5517,1000.0,2025-04-24,Atlanta Journal-Constitution,D=48.0% R=39.0%; RV; src=wikipedia
 2026 GA Senate,GA,state,0.5275,1426.0,2025-04-27,Trafalgar Group,D=48.0% R=43.0%; LV; src=wikipedia
-2026 GA Senate,GA,state,0.5227,800.0,2025-05-17,Cygnal,D=46.0% R=42.0%; LV; src=wikipedia
+2026 GA Senate,GA,state,0.5227,800.0,2025-05-17,Cygnal,D=46.0% R=42.0%; LV; src=rcp
 2026 GA Senate,GA,state,0.5169,800.0,2025-05-22,Cygnal,D=46.0% R=43.0%; LV; src=270towin
 2026 GA Senate,GA,state,0.5385,610.0,2025-06-18,Cygnal,D=49.0% R=42.0%; LV; src=wikipedia
-2026 GA Senate,GA,state,0.5238,2956.0,2025-08-01,TIPP Insights,D=44.0% R=40.0%; RV; src=wikipedia
-2026 GA Senate,GA,state,0.5195,624.0,2025-09-12,Quantus Insights,D=40.0% R=37.0%; RV; src=wikipedia
+2026 GA Senate,GA,state,0.5238,2956.0,2025-08-01,TIPP Insights,D=44.0% R=40.0%; RV; src=rcp
+2026 GA Senate,GA,state,0.5195,624.0,2025-09-12,Quantus Insights,D=40.0% R=37.0%; RV; src=rcp
 2026 GA Senate,GA,state,0.5455,624.0,2025-09-15,Quantus Insights,D=42.0% R=35.0%; LV; src=270towin
-2026 GA Senate,GA,state,0.5165,1000.0,2026-03-02,Emerson College,D=47.0% R=44.0%; LV; src=wikipedia
+2026 GA Senate,GA,state,0.5165,1000.0,2026-03-02,Emerson College,D=47.0% R=44.0%; LV; src=rcp
 2026 GA Senate,GA,state,0.5444,1000.0,2026-03-05,Emerson College,D=49.0% R=41.0%; LV; src=270towin
 2026 Generic Ballot,US,national,0.5464,1392.0,2026-03-04,NPR,D=53.0% R=44.0%; RV; src=rcp
 2026 Generic Ballot,US,national,0.5238,1147.0,2026-03-16,Yahoo News,D=44.0% R=40.0%; RV; src=rcp
@@ -56,6 +56,8 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 Generic Ballot,US,national,0.5172,2200.0,2026-04-05,Morning Consult,D=45.0% R=42.0%; RV; src=rcp
 2026 Generic Ballot,US,national,0.5116,1560.0,2026-04-06,Economist/YouGov,D=44.0% R=42.0%; RV; src=rcp
 2026 Generic Ballot,US,national,0.5269,2000.0,2026-04-09,RMG Research,D=49.0% R=44.0%; RV; src=rcp
+2026 Generic Ballot,US,national,0.5294,1573.0,2026-04-13,Economist/YouGov,D=45.0% R=40.0%; RV; src=rcp
+2026 Generic Ballot,US,national,0.5172,2203.0,2026-04-20,Morning Consult,D=45.0% R=42.0%; RV; src=rcp
 2026 IA Senate,IA,state,0.4824,1108.0,2026-01-11,Change Research (D),D=41.0% R=44.0%; LV; src=wikipedia
 2026 IA Senate,IA,state,0.4778,1200.0,2026-03-16,GQR (D),D=43.0% R=47.0%; LV; src=wikipedia
 2026 MA Senate,MA,state,0.6353,500.0,2025-11-23,Boston Globe/Suffolk,D=54.0% R=31.0%; RV; src=rcp
@@ -74,11 +76,11 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 ME Senate,ME,state,0.5238,810.0,2026-03-02,Pan Atlantic,D=44.0% R=40.0%; LV; src=rcp
 2026 ME Senate,ME,state,0.5,810.0,2026-03-02,Pan Atlantic Research,D=44.0% R=44.0%; LV; src=wikipedia
 2026 ME Senate,ME,state,0.5,810.0,2026-03-04,Pan Atlantic Research,D=44.0% R=44.0%; LV; src=270towin
-2026 ME Senate,ME,state,0.4886,800.0,2026-03-05,Quantus Insights,D=43.0% R=45.0%; LV; src=wikipedia
+2026 ME Senate,ME,state,0.5385,800.0,2026-03-05,Quantus Insights,D=49.0% R=42.0%; LV; src=rcp
 2026 ME Senate,ME,state,0.5,600.0,2026-03-08,OnMessage Public Strategies (R),D=42.0% R=42.0%; LV; src=wikipedia
 2026 ME Senate,ME,state,0.4886,800.0,2026-03-09,Quantus Insights,D=43.0% R=45.0%; LV; src=270towin
 2026 ME Senate,ME,state,0.5,600.0,2026-03-10,OnMessage,D=42.0% R=42.0%; LV; src=270towin
-2026 ME Senate,ME,state,0.5169,1075.0,2026-03-23,Emerson College,D=46.0% R=43.0%; LV; src=wikipedia
+2026 ME Senate,ME,state,0.5393,1075.0,2026-03-23,Emerson College,D=48.0% R=41.0%; LV; src=rcp
 2026 ME Senate,ME,state,0.5169,1075.0,2026-03-26,Emerson College,D=46.0% R=43.0%; LV; src=270towin
 2026 ME Senate,ME,state,0.5517,1167.0,2026-03-31,MPRC,D=48.0% R=39.0%; LV; src=rcp
 2026 ME Senate,ME,state,0.4828,1167.0,2026-03-31,Maine People's Resource Center (D),D=42.0% R=45.0%; LV; src=wikipedia
@@ -93,9 +95,9 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 MI Governor,MI,state,0.4658,252.0,2025-10-25,Rosetta Stone,D=34.0% R=39.0%; LV; src=rcp
 2026 MI Governor,MI,state,0.4658,637.0,2025-10-25,Rosetta Stone Communications (R),D=34.0% R=39.0%; LV; src=wikipedia
 2026 MI Governor,MI,state,0.4658,637.0,2025-11-06,Rosetta Stone,D=34.0% R=39.0%; LV; src=270towin
-2026 MI Governor,MI,state,0.4925,600.0,2025-11-11,EPIC-MRA,D=33.0% R=34.0%; RV; src=wikipedia
+2026 MI Governor,MI,state,0.4925,600.0,2025-11-11,EPIC-MRA,D=33.0% R=34.0%; RV; src=rcp
 2026 MI Governor,MI,state,0.4925,600.0,2025-11-14,EPIC-MRA,D=33.0% R=34.0%; LV; src=270towin
-2026 MI Governor,MI,state,0.4559,616.0,2025-11-21,Mitchell Research,D=31.0% R=37.0%; LV; src=wikipedia
+2026 MI Governor,MI,state,0.4559,616.0,2025-11-21,Mitchell Research,D=31.0% R=37.0%; LV; src=rcp
 2026 MI Governor,MI,state,0.4559,616.0,2025-12-02,Mitchell Research,D=31.0% R=37.0%; LV; src=270towin
 2026 MI Governor,MI,state,0.4848,600.0,2026-01-06,Detroit News,D=32.0% R=34.0%; LV; src=rcp
 2026 MI Governor,MI,state,0.4745,,2026-01-06,Real Clear Politics,D=32.5% R=36.0%; src=wikipedia
@@ -142,8 +144,9 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 NC Senate,NC,state,0.5444,600.0,2026-03-23,Carolina Journal/Harper,D=49.0% R=41.0%; LV; src=rcp
 2026 NC Senate,NC,state,0.6098,800.0,2026-03-27,Nexus/Strategic Partners Solutions,D=50.0% R=32.0%; LV; src=270towin
 2026 NC Senate,NC,state,0.5854,871.0,2026-03-31,Catawba College,D=48.0% R=34.0%; LV; src=270towin
-2026 NC Senate,NC,state,0.5269,987.0,2026-04-01,Quantus Insights,D=49.0% R=44.0%; LV; src=wikipedia
+2026 NC Senate,NC,state,0.5269,987.0,2026-04-01,Quantus Insights,D=49.0% R=44.0%; LV; src=rcp
 2026 NC Senate,NC,state,0.5269,987.0,2026-04-02,Quantus Insights,D=49.0% R=44.0%; LV; src=270towin
+2026 NC Senate,NC,state,0.5435,703.0,2026-04-06,High Point/YouGov,D=50.0% R=42.0%; LV; src=rcp
 2026 NC Senate,NC,state,0.5435,703.0,2026-04-06,High Point University/YouGov,D=50.0% R=42.0%; LV; src=wikipedia
 2026 NC Senate,NC,state,0.5435,703.0,2026-04-17,High Point Univ.,D=50.0% R=42.0%; LV; src=270towin
 2026 NH Governor,NH,state,0.4382,2053.0,2026-01-19,UNH,D=39.0% R=50.0%; LV; src=rcp
@@ -169,7 +172,7 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 NH Senate,NH,state,0.5169,1491.0,2026-03-18,St. Anselm,D=46.0% R=43.0%; RV; src=rcp
 2026 NH Senate,NH,state,0.5529,1491.0,2026-03-18,Saint Anselm College,D=47.0% R=38.0%; RV; src=wikipedia
 2026 NH Senate,NH,state,0.5169,1491.0,2026-03-23,Saint Anselm College,D=46.0% R=43.0%; RV; src=270towin
-2026 NH Senate,NH,state,0.5517,1000.0,2026-03-23,Emerson College,D=48.0% R=39.0%; LV; src=wikipedia
+2026 NH Senate,NH,state,0.5056,1100.0,2026-03-23,Emerson College,D=45.0% R=44.0%; LV; src=rcp
 2026 NH Senate,NH,state,0.5056,1100.0,2026-03-26,Emerson College,D=45.0% R=44.0%; LV; src=270towin
 2026 NV Governor,NV,state,0.5,800.0,2025-11-18,Emerson College,D=41.0% R=41.0%; RV; src=rcp
 2026 NV Governor,NV,state,0.4935,845.0,2026-03-13,Noble Predictive Insights,D=38.0% R=39.0%; RV; src=rcp
@@ -184,29 +187,31 @@ race,geography,geo_level,dem_share,n_sample,date,pollster,notes
 2026 OH Governor,OH,state,0.4845,800.0,2025-10-14,YouGov,D=47.0% R=50.0%; RV; src=rcp
 2026 OH Governor,OH,state,0.4845,800.0,2025-10-14,Bowling Green State University/YouGov,D=47.0% R=50.0%; RV; src=wikipedia
 2026 OH Governor,OH,state,0.4845,800.0,2025-10-17,Bowling Green Univ.,D=47.0% R=50.0%; RV; src=270towin
-2026 OH Governor,OH,state,0.5055,850.0,2025-12-08,Emerson College,D=46.0% R=45.0%; RV; src=wikipedia
+2026 OH Governor,OH,state,0.5055,850.0,2025-12-08,Emerson College,D=46.0% R=45.0%; RV; src=rcp
 2026 OH Governor,OH,state,0.4886,603.0,2025-12-08,Data Targeting (R),D=43.0% R=45.0%; LV; src=wikipedia
 2026 OH Governor,OH,state,0.5055,850.0,2025-12-11,Emerson College,D=46.0% R=45.0%; RV; src=270towin
 2026 OH Governor,OH,state,0.5521,1343.0,2026-02-22,EMC Research (D),D=53.0% R=43.0%; LV; src=wikipedia
 2026 OH Governor,OH,state,0.5521,1343.0,2026-03-10,EMC Research,D=53.0% R=43.0%; LV; src=270towin
-2026 OH Governor,OH,state,0.5055,809.0,2026-03-14,Quantus Insights,D=46.0% R=45.0%; LV; src=wikipedia
+2026 OH Governor,OH,state,0.5055,809.0,2026-03-14,Quantus Insights,D=46.0% R=45.0%; LV; src=rcp
 2026 OH Governor,OH,state,0.5055,809.0,2026-03-16,Quantus Insights,D=46.0% R=45.0%; LV; src=270towin
+2026 OH Governor,OH,state,0.4947,1000.0,2026-04-14,YouGov,D=47.0% R=48.0%; RV; src=rcp
 2026 OH Governor,OH,state,0.4947,1000.0,2026-04-14,Bowling Green State University/YouGov,D=47.0% R=48.0%; RV; src=wikipedia
 2026 OH Governor,OH,state,0.4947,1000.0,2026-04-20,Bowling Green Univ.,D=47.0% R=48.0%; RV; src=270towin
 2026 OH Governor,OH,state,0.4984,,,Decision Desk HQ,D=45.4% R=45.7%; src=wikipedia
 2026 OH Senate,OH,state,0.5052,800.0,2025-10-14,YouGov,D=49.0% R=48.0%; RV; src=rcp
 2026 OH Senate,OH,state,0.4842,850.0,2025-12-08,Emerson College,D=46.0% R=49.0%; RV; src=rcp
 2026 OH Senate,OH,state,0.4889,784.0,2026-03-14,Quantus Insights,D=44.0% R=46.0%; LV; src=rcp
+2026 OH Senate,OH,state,0.4845,1000.0,2026-04-14,YouGov,D=47.0% R=50.0%; RV; src=rcp
 2026 PA Governor,PA,state,0.5851,1579.0,2025-09-29,Quinnipiac University,D=55.0% R=39.0%; RV; src=wikipedia
 2026 PA Governor,PA,state,0.5895,1579.0,2025-10-01,Quinnipiac University,D=56.0% R=39.0%; RV; src=270towin
-2026 PA Governor,PA,state,0.5978,836.0,2026-02-23,Quinnipiac University,D=55.0% R=37.0%; RV; src=wikipedia
+2026 PA Governor,PA,state,0.5978,836.0,2026-02-23,Quinnipiac University,D=55.0% R=37.0%; RV; src=rcp
 2026 PA Governor,PA,state,0.5978,836.0,2026-02-25,Quinnipiac University,D=55.0% R=37.0%; RV; src=270towin
 2026 PA Governor,PA,state,0.6316,834.0,2026-03-01,Franklin &amp; Marshall,D=48.0% R=28.0%; RV; src=rcp
 2026 PA Governor,PA,state,0.6316,834.0,2026-03-01,Franklin & Marshall College,D=48.0% R=28.0%; RV; src=wikipedia
 2026 PA Governor,PA,state,0.6316,834.0,2026-03-05,Franklin & Marshall,D=48.0% R=28.0%; RV; src=270towin
 2026 PA Governor,PA,state,0.617,700.0,2026-03-29,Susquehanna,D=58.0% R=36.0%; LV; src=rcp
 2026 TX Governor,TX,state,0.4674,843.0,2025-08-29,Texas Public Opinion Research,D=43.0% R=49.0%; RV; src=wikipedia
-2026 TX Governor,TX,state,0.4565,1165.0,2026-01-12,Emerson College,D=42.0% R=50.0%; RV; src=wikipedia
+2026 TX Governor,TX,state,0.4565,1165.0,2026-01-12,Emerson College,D=42.0% R=50.0%; LV; src=rcp
 2026 TX Governor,TX,state,0.4565,1165.0,2026-01-15,Emerson College,D=42.0% R=50.0%; LV; src=270towin
 2026 TX Governor,TX,state,0.4615,1502.0,2026-01-31,University of Houston,D=42.0% R=49.0%; LV; src=rcp
 2026 TX Governor,TX,state,0.4615,1502.0,2026-01-31,University of Houston/YouGov,D=42.0% R=49.0%; LV; src=wikipedia

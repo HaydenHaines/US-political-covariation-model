@@ -671,6 +671,7 @@ def get_race_fit_scores(
     race_key: str,
     party: str | None = None,
     min_races: int = 2,
+    db: duckdb.DuckDBPyConnection = Depends(get_db),
 ) -> FitScoreResponse:
     """Return historical candidates ranked by fit score for the target race.
 
@@ -727,6 +728,7 @@ def get_race_fit_scores(
         min_races=effective_min,
     )
 
+    type_names = _get_type_display_names(db)
     entries = [
         FitScoreEntry(
             rank=int(row["rank"]),
@@ -736,6 +738,7 @@ def get_race_fit_scores(
             n_races=int(row["n_races"]),
             fit_score=round(float(row["fit_score"]), 6),
             top_type_ids=list(row["top_types"]),
+            top_type_names=[type_names.get(tid, f"Type {tid}") for tid in row["top_types"]],
         )
         for _, row in ranked.iterrows()
     ]

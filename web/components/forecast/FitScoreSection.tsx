@@ -138,6 +138,32 @@ function CandidateRow({ entry, maxScore }: CandidateRowProps) {
             ({entry.party}) · {entry.n_races} race{entry.n_races !== 1 ? "s" : ""}
           </span>
         </div>
+        {entry.top_type_names.length > 0 && (
+          <div
+            style={{
+              display: "flex",
+              gap: "4px",
+              flexWrap: "wrap",
+              marginTop: "3px",
+            }}
+          >
+            {entry.top_type_names.slice(0, 3).map((name) => (
+              <span
+                key={name}
+                style={{
+                  fontSize: "0.6rem",
+                  padding: "1px 5px",
+                  borderRadius: "3px",
+                  background: "rgba(20, 184, 166, 0.12)",
+                  color: "var(--color-teal, #14b8a6)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Fit bar */}

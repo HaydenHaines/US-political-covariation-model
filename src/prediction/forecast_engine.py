@@ -59,7 +59,18 @@ def prepare_polls(
     if not polls_by_race:
         return {}
 
-    # Flatten all polls, keeping race labels, original notes, and methodology tags
+    core_keys = {
+        "dem_share",
+        "n_sample",
+        "state",
+        "date",
+        "pollster",
+        "notes",
+        "geo_level",
+    }
+
+    # Flatten all polls, keeping race labels, original notes, methodology tags,
+    # and enrichment metadata that downstream W builders consume.
     all_obs: list[PollObservation] = []
     all_notes: list[str] = []
     all_methodologies: list[str | None] = []
@@ -75,6 +86,7 @@ def prepare_polls(
                 date=p.get("date", ""),
                 pollster=p.get("pollster", ""),
                 geo_level=p.get("geo_level", "state"),
+                metadata={k: v for k, v in p.items() if k not in core_keys},
             )
             all_obs.append(obs)
             all_notes.append(p.get("notes", ""))
@@ -99,17 +111,20 @@ def prepare_polls(
         methodology_weights=methodology_weights,
     )
 
-    # Reconstruct dicts grouped by race, preserving original notes
+    # Reconstruct dicts grouped by race, preserving original enrichment metadata
+    # while replacing topline fields with weighted values.
     result: dict[str, list[dict]] = {}
     for obs, notes, race_id in zip(weighted, all_notes, race_labels):
-        d = {
+        d = dict(obs.metadata)
+        d.update({
             "dem_share": obs.dem_share,
             "n_sample": obs.n_sample,
             "state": obs.geography,
             "date": obs.date,
             "pollster": obs.pollster,
             "notes": notes,
-        }
+            "geo_level": obs.geo_level,
+        })
         result.setdefault(race_id, []).append(d)
 
     return result

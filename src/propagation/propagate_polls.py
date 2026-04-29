@@ -36,7 +36,7 @@ Outputs:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -78,6 +78,7 @@ class PollObservation:
     date:        poll date string (for logging)
     pollster:    polling firm (for logging)
     geo_level:   "state" | "county" | "district"
+    metadata:    optional original poll fields to preserve through weighting
     """
     geography: str
     dem_share: float
@@ -86,6 +87,7 @@ class PollObservation:
     date: str = ""
     pollster: str = ""
     geo_level: str = "state"
+    metadata: dict[str, object] = field(default_factory=dict)
 
     @property
     def sigma(self) -> float:

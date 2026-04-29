@@ -7,17 +7,15 @@
   C) Crosstab-stripped polls_2026, same as (A).
      Baseline: what the forecast looks like if every xt_ value were null.
 
-Key insight surfaced by this script (2026-04-24): prepare_polls at
-src/prediction/forecast_engine.py:102-113 reconstructs poll dicts from a
-PollObservation dataclass that only carries topline fields.  xt_ and
-methodology keys are dropped before the dicts reach the W-builder.  Thus
-run A == run C: Tier 2 is wired but silently disabled in production.
+Key insight surfaced by this script (2026-04-24): prepare_polls used to
+reconstruct poll dicts from PollObservation topline fields only, dropping
+xt_ and methodology keys before the dicts reached the W-builder.  Run A
+should now differ from run C when production metadata preservation works.
 
 Task context: follow-up to WV PR #167 (re-scrape regression fix).
 After the fix, 25 state-level polls in polls_2026.csv carry xt_ crosstab
 data.  This script measures (a) whether those crosstabs move the live
-forecast (they don't — prepare_polls blocks them) and (b) what ensemble
-impact they would have once the preprocessing bug is addressed.
+forecast and (b) how that compares with a prepare_polls bypass run.
 
 Outputs a per-race table with enriched/stripped/bypass state-level pred,
 theta_national deltas, and pred-change diagnostics suitable for the
@@ -28,8 +26,13 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import sys
 from datetime import date
 from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 import pandas as pd
@@ -40,9 +43,6 @@ from src.prediction.generic_ballot import compute_gb_shift
 
 logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
 log = logging.getLogger(__name__)
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
 
 def _load_data() -> dict:
     from src.core import config as _cfg

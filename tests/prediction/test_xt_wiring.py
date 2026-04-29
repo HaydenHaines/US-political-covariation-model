@@ -242,6 +242,66 @@ class TestXtWVectorDifferentiation:
             "different theta_national vectors."
         )
 
+    def test_xt_signal_survives_prepare_polls_when_reference_date_set(self):
+        """The production path weights polls before building W vectors.
+
+        A poll enriched with xt_* metadata should still differ from the same
+        poll stripped to toplines after prepare_polls runs inside run_forecast.
+        """
+        J = 4
+        type_profiles = _make_type_profiles(J)
+        type_scores = _make_type_scores(J=J)
+        states = ["GA"] * 3 + ["FL"] * 3
+        county_priors = np.full(len(states), 0.5)
+        county_votes = np.ones(len(states))
+
+        base_poll = {
+            "dem_share": 0.55,
+            "n_sample": 800,
+            "state": "GA",
+            "date": "2026-03-15",
+            "pollster": "TestPollster",
+            "notes": "",
+            "methodology": "mixed",
+        }
+        enriched_poll = {
+            **base_poll,
+            "xt_education_college": 0.70,
+            "xt_vote_education_college": 0.64,
+            "xt_race_black": 0.20,
+            "xt_vote_race_black": 0.78,
+        }
+
+        stripped = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={"test_race": [base_poll]},
+            races=["test_race"],
+            lam=0.5,
+            mu=0.5,
+            type_profiles=type_profiles,
+            reference_date="2026-03-29",
+        )["test_race"].theta_national
+        enriched = run_forecast(
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            polls_by_race={"test_race": [enriched_poll]},
+            races=["test_race"],
+            lam=0.5,
+            mu=0.5,
+            type_profiles=type_profiles,
+            reference_date="2026-03-29",
+        )["test_race"].theta_national
+
+        assert not np.allclose(enriched, stripped), (
+            "Expected xt-enriched poll to differ from stripped topline poll "
+            "after prepare_polls, but the metadata was lost before W-building."
+        )
+
 
 # ---------------------------------------------------------------------------
 # Tier fallback behaviour

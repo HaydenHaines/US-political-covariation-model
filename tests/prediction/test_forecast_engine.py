@@ -273,6 +273,35 @@ class TestPreparePolls:
         assert p["state"] == "GA"
         assert "notes" in p
 
+    def test_preserves_enrichment_metadata(self):
+        """Crosstab and methodology metadata should survive weighting."""
+        raw = {
+            "2026 GA Senate": [
+                {
+                    "dem_share": 0.53,
+                    "n_sample": 600,
+                    "state": "GA",
+                    "date": "2026-03-15",
+                    "pollster": "TestPollster",
+                    "notes": "src=test",
+                    "methodology": "mixed",
+                    "xt_education_college": 0.62,
+                    "xt_vote_education_college": 0.58,
+                    "xt_race_black": 0.21,
+                    "custom_source_id": "poll-123",
+                },
+            ]
+        }
+
+        result = prepare_polls(raw, reference_date="2026-03-29")
+
+        p = result["2026 GA Senate"][0]
+        assert p["methodology"] == "mixed"
+        assert p["xt_education_college"] == pytest.approx(0.62)
+        assert p["xt_vote_education_college"] == pytest.approx(0.58)
+        assert p["xt_race_black"] == pytest.approx(0.21)
+        assert p["custom_source_id"] == "poll-123"
+
     def test_empty_input(self):
         result = prepare_polls({}, reference_date="2026-03-29")
         assert result == {}

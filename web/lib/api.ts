@@ -726,6 +726,27 @@ export interface FitScoreResponse {
   candidates: FitScoreEntry[];
 }
 
+// ── Cross-type poll impact ────────────────────────────────────────────────────
+
+export interface XtImpactMover {
+  race_id: string;
+  delta_pp: number;
+}
+
+export interface XtImpactResponse {
+  top_movers: XtImpactMover[];
+  mean_delta: number;
+  max_delta: number;
+  races_with_xt: number;
+  report_date: string;
+}
+
+export async function fetchXtImpact(limit = 10): Promise<XtImpactResponse> {
+  const res = await fetch(`${API_BASE}/forecast/xt-impact?limit=${limit}`);
+  if (!res.ok) throw new Error(`/forecast/xt-impact failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchFitScores(
   raceKey: string,
   party?: "D" | "R",

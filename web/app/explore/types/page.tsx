@@ -15,6 +15,15 @@ const ScatterPlot = dynamic(
   },
 );
 
+const XtImpactPanel = dynamic(
+  () =>
+    import("@/components/explore/XtImpactPanel").then((m) => m.XtImpactPanel),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-[200px]" />,
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Metadata
 // ---------------------------------------------------------------------------
@@ -152,6 +161,33 @@ export default function ExploreTypesPage() {
         >
           <ScatterPlot width={700} height={420} />
         </div>
+      </section>
+
+      {/* Cross-type poll movers */}
+      <section style={{ marginBottom: 56 }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-serif)",
+            fontSize: 22,
+            fontWeight: 700,
+            margin: "0 0 16px",
+          }}
+        >
+          Cross-Type Poll Movers
+        </h2>
+        <p
+          style={{
+            fontSize: 14,
+            color: "var(--color-text-muted)",
+            margin: "0 0 20px",
+            lineHeight: 1.6,
+          }}
+        >
+          Races whose forecasts shift the most when cross-type polling data is
+          applied. Positive delta means Dem-favored types are overrepresented in
+          recent polls.
+        </p>
+        <XtImpactPanel />
       </section>
 
       {/* Type directory grid */}

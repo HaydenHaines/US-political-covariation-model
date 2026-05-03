@@ -580,3 +580,220 @@ def run_forecast(
         )
 
     return results
+
+
+def _xt_delta_from_polls(
+    polls_by_race: dict[str, list[dict]],
+    type_scores: np.ndarray,
+    county_priors: np.ndarray,
+    states: list[str],
+    county_votes: np.ndarray,
+    all_race_ids: list[str],
+    **run_forecast_kwargs,
+) -> dict:
+    """Compute enriched-vs-stripped xt_ impact from pre-loaded data.
+
+    Called by make_xt_impact_report(). Split out for testability.
+    Does NOT write to disk or mutate global state.
+
+    Parameters
+    ----------
+    polls_by_race:
+        Poll dicts keyed by race ID.  May contain xt_* fields.
+    run_forecast_kwargs:
+        Any kwargs forwarded to run_forecast() — e.g. reference_date,
+        type_profiles, lam, mu, generic_ballot_shift.  reference_date
+        is also used as the report_date in the returned dict.
+    """
+    from datetime import date as _date
+
+    polls_stripped = {
+        race_id: [
+            {k: v for k, v in p.items() if not k.startswith("xt_") and k != "methodology"}
+            for p in polls
+        ]
+        for race_id, polls in polls_by_race.items()
+    }
+
+    common = dict(
+        type_scores=type_scores,
+        county_priors=county_priors,
+        states=states,
+        county_votes=county_votes,
+        races=all_race_ids,
+        **run_forecast_kwargs,
+    )
+    results_enriched = run_forecast(polls_by_race=polls_by_race, **common)
+    results_stripped = run_forecast(polls_by_race=polls_stripped, **common)
+
+    xt_race_counts = {
+        race_id: sum(1 for p in polls if any(k.startswith("xt_") for k in p))
+        for race_id, polls in polls_by_race.items()
+    }
+
+    states_arr = np.array(states)
+
+    def _state_pred(result: ForecastResult, state_abbr: str) -> float | None:
+        mask = states_arr == state_abbr
+        if not mask.any():
+            return None
+        votes = county_votes[mask]
+        if votes.sum() <= 0:
+            return float(np.mean(result.county_preds_local[mask]))
+        return float(np.average(result.county_preds_local[mask], weights=votes))
+
+    enriched_deltas: dict[str, float] = {}
+    for race_id in sorted(results_enriched):
+        if race_id not in results_stripped:
+            continue
+        parts = race_id.split()
+        state = parts[1] if len(parts) > 1 else None
+        if state is None:
+            continue
+        p_e = _state_pred(results_enriched[race_id], state)
+        p_s = _state_pred(results_stripped[race_id], state)
+        if p_e is not None and p_s is not None:
+            enriched_deltas[race_id] = (p_e - p_s) * 100.0
+
+    xt_deltas = [
+        abs(enriched_deltas[r])
+        for r in enriched_deltas
+        if xt_race_counts.get(r, 0) > 0
+    ]
+    report_date = run_forecast_kwargs.get("reference_date") or str(_date.today())
+
+    return {
+        "enriched_deltas": enriched_deltas,
+        "mean_delta": float(np.mean(xt_deltas)) if xt_deltas else 0.0,
+        "max_delta": float(np.max(xt_deltas)) if xt_deltas else 0.0,
+        "races_with_xt": sum(1 for c in xt_race_counts.values() if c > 0),
+        "report_date": report_date,
+    }
+
+
+def make_xt_impact_report(races: list[str] | None = None) -> dict:
+    """Run enriched vs. xt_-stripped forecast comparison and return a summary dict.
+
+    Converts the core comparison logic from
+    scripts/experiments/compare_xt_impact_v2.py into a reusable function.
+    Does NOT write to disk or mutate global state.
+
+    Parameters
+    ----------
+    races:
+        Optional list of race IDs to include.  When None, all state-level
+        races found in polls_2026.csv are included.
+
+    Returns
+    -------
+    dict with keys:
+        enriched_deltas   {race_id: float}  enriched minus stripped (pp)
+        mean_delta        float  mean |delta| over races with xt_ polls
+        max_delta         float  max |delta| over races with xt_ polls
+        races_with_xt     int    count of races with at least one xt_ poll
+        report_date       str    ISO date of the run
+    """
+    import json
+    from datetime import date as _date
+    from pathlib import Path as _Path
+
+    import pandas as _pd
+
+    from src.core import config as _cfg
+    from src.assembly.define_races import load_races
+    from src.prediction.county_priors import load_county_priors_with_ridge
+    from src.prediction.generic_ballot import compute_gb_shift
+
+    project_root = _Path(__file__).resolve().parents[2]
+
+    ta_df = _pd.read_parquet(project_root / "data" / "communities" / "type_assignments.parquet")
+    county_fips = ta_df["county_fips"].astype(str).str.zfill(5).tolist()
+    score_cols = sorted([c for c in ta_df.columns if c.endswith("_score")])
+    type_scores_loaded = ta_df[score_cols].values
+    states_list = [_cfg.STATE_ABBR.get(f[:2], "??") for f in county_fips]
+
+    county_votes = np.ones(len(county_fips))
+    votes_path = project_root / "data" / "assembled" / "medsl_county_presidential_2024.parquet"
+    if votes_path.exists():
+        vdf = _pd.read_parquet(votes_path)
+        votes_col = "pres_total_2024" if "pres_total_2024" in vdf.columns else "totalvotes"
+        if "county_fips" in vdf.columns and votes_col in vdf.columns:
+            vmap = dict(zip(
+                vdf["county_fips"].astype(str).str.zfill(5),
+                vdf[votes_col],
+            ))
+            county_votes = np.array([float(vmap.get(f, 1.0)) for f in county_fips])
+
+    county_priors_loaded = load_county_priors_with_ridge(county_fips)
+
+    tp_path = project_root / "data" / "communities" / "type_profiles.parquet"
+    type_profiles = _pd.read_parquet(tp_path) if tp_path.exists() else None
+
+    polls_path = project_root / "data" / "polls" / "polls_2026.csv"
+    polls_df = _pd.read_csv(polls_path)
+    if "geography" in polls_df.columns and "state" not in polls_df.columns:
+        polls_df = polls_df.rename(columns={"geography": "state"})
+    if "geo_level" in polls_df.columns:
+        polls_df = polls_df[polls_df["geo_level"] == "state"].copy()
+
+    xt_cols = [c for c in polls_df.columns if c.startswith("xt_")]
+
+    polls_by_race: dict[str, list[dict]] = {}
+    for race_id, grp in polls_df.groupby("race"):
+        if str(race_id).startswith("2026 Generic Ballot"):
+            continue
+        if races is not None and str(race_id) not in races:
+            continue
+        race_dicts = []
+        for _, row in grp.iterrows():
+            d: dict = {
+                "dem_share": float(row["dem_share"]),
+                "n_sample": int(row["n_sample"]) if _pd.notna(row["n_sample"]) else 600,
+                "state": str(row["state"]),
+                "date": str(row["date"]) if _pd.notna(row.get("date")) else "",
+                "pollster": str(row["pollster"]) if _pd.notna(row.get("pollster")) else "",
+                "notes": str(row["notes"]) if _pd.notna(row.get("notes")) else "",
+            }
+            method = row.get("methodology")
+            if method is not None and _pd.notna(method):
+                d["methodology"] = str(method)
+            for col in xt_cols:
+                val = row.get(col)
+                if val is not None and _pd.notna(val):
+                    d[col] = float(val)
+            race_dicts.append(d)
+        if race_dicts:
+            polls_by_race[str(race_id)] = race_dicts
+
+    params_path = project_root / "data" / "config" / "prediction_params.json"
+    params = json.loads(params_path.read_text()) if params_path.exists() else {}
+    fc = params.get("forecast", {})
+    pw = params.get("poll_weighting", {})
+
+    registry = load_races(2026)
+    all_race_ids = [r.race_id for r in registry]
+    if races is not None:
+        all_race_ids = [r for r in all_race_ids if r in races]
+
+    gb_shift = compute_gb_shift().shift
+    accuracy_path = project_root / "data" / "config" / "pollster_accuracy.json"
+
+    return _xt_delta_from_polls(
+        polls_by_race=polls_by_race,
+        type_scores=type_scores_loaded,
+        county_priors=county_priors_loaded,
+        states=states_list,
+        county_votes=county_votes,
+        all_race_ids=all_race_ids,
+        reference_date=str(_date.today()),
+        lam=fc.get("lam", 1.0),
+        mu=fc.get("mu", 1.0),
+        generic_ballot_shift=gb_shift,
+        w_vector_mode=fc.get("w_vector_mode", "core"),
+        type_profiles=type_profiles,
+        half_life_days=pw.get("half_life_days", 30.0),
+        pre_primary_discount=pw.get("pre_primary_discount", 0.5),
+        accuracy_path=accuracy_path if accuracy_path.exists() else None,
+        methodology_weights=pw.get("methodology_weights"),
+        poll_blend_scale=fc.get("poll_blend_scale", 5.0),
+    )

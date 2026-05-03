@@ -5,10 +5,15 @@ const API_BASE = process.env.API_URL || "http://localhost:8002";
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
   const limit = searchParams.get("limit") ?? "10";
+  const raceType = searchParams.get("race_type");
+
+  const upstream = new URL(`${API_BASE}/api/v1/forecast/xt-impact`);
+  upstream.searchParams.set("limit", limit);
+  if (raceType) upstream.searchParams.set("race_type", raceType);
 
   try {
     const res = await fetch(
-      `${API_BASE}/api/v1/forecast/xt-impact?limit=${limit}`,
+      upstream.toString(),
       { next: { revalidate: 3600 } },
     );
     if (!res.ok) {

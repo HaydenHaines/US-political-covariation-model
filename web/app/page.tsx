@@ -42,9 +42,10 @@ export default function LandingPage() {
         </div>
       )}
 
-      {/* Top Movers widget — constrained to max-w-5xl */}
-      <div className="mx-auto max-w-5xl px-4 mb-4">
+      {/* Top Movers widgets — constrained to max-w-5xl */}
+      <div className="mx-auto max-w-5xl px-4 mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
         <XtTopMoversCard />
+        <XtTopMoversCard raceType="governor" />
       </div>
 
       {/* Map caption + scroll invitation — back in max-w-5xl for alignment with hero text */}

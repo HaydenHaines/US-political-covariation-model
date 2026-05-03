@@ -5,8 +5,9 @@ import useSWR from "swr";
 import type { XtImpactResponse } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
-async function fetchTop5(): Promise<XtImpactResponse> {
-  const res = await fetch("/api/forecast/xt-impact?limit=5");
+async function fetchTop5(raceType?: string): Promise<XtImpactResponse> {
+  const url = `/api/forecast/xt-impact?limit=5${raceType ? `&race_type=${encodeURIComponent(raceType)}` : ""}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`xt-impact failed: ${res.status}`);
   return res.json();
 }
@@ -50,10 +51,15 @@ function DeltaBar({ delta, maxAbs }: { delta: number; maxAbs: number }) {
   );
 }
 
-export function XtTopMoversCard() {
+interface XtTopMoversCardProps {
+  raceType?: string;
+}
+
+export function XtTopMoversCard({ raceType }: XtTopMoversCardProps = {}) {
+  const swrKey = raceType ? `xt-impact-5-${raceType}` : "xt-impact-5";
   const { data, isLoading } = useSWR<XtImpactResponse>(
-    "xt-impact-5",
-    fetchTop5,
+    swrKey,
+    () => fetchTop5(raceType),
     { revalidateOnFocus: false, dedupingInterval: 3_600_000 },
   );
 
@@ -106,7 +112,9 @@ export function XtTopMoversCard() {
             letterSpacing: "0.07em",
           }}
         >
-          Top Senate Movers
+          {raceType
+            ? `Top ${raceType.charAt(0).toUpperCase() + raceType.slice(1)} Movers`
+            : "Top Senate Movers"}
         </h3>
         <span style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
           Cross-type poll impact

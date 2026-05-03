@@ -1,5 +1,7 @@
 """Tests for the forecast engine: θ_prior → θ_national → δ_race → county predictions."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 
@@ -7,8 +9,15 @@ from src.prediction.forecast_engine import (
     ForecastResult,
     build_W_state,
     compute_theta_prior,
+    make_xt_impact_report,
     prepare_polls,
     run_forecast,
+)
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_DATA_AVAILABLE = (
+    (_PROJECT_ROOT / "data" / "communities" / "type_assignments.parquet").exists()
+    and (_PROJECT_ROOT / "data" / "polls" / "polls_2026.csv").exists()
 )
 
 
@@ -498,3 +507,35 @@ class TestRaceAdjustments:
             result_default["2026 AK Senate"].county_preds_national,
             result_empty["2026 AK Senate"].county_preds_national,
         )
+
+
+@pytest.mark.skipif(not _DATA_AVAILABLE, reason="data files not available")
+class TestMakeXtImpactReport:
+    def test_make_xt_impact_report_returns_expected_keys(self):
+        """Return dict must have the five documented top-level keys."""
+        result = make_xt_impact_report(races=["2026 GA Governor"])
+        assert set(result.keys()) == {
+            "enriched_deltas",
+            "mean_delta",
+            "max_delta",
+            "races_with_xt",
+            "report_date",
+        }
+
+    def test_make_xt_impact_report_empty_race_list(self):
+        """races=[] must return a valid dict with empty/zero values and not crash."""
+        result = make_xt_impact_report(races=[])
+        assert isinstance(result, dict)
+        assert isinstance(result["enriched_deltas"], dict)
+        assert len(result["enriched_deltas"]) == 0
+        assert result["mean_delta"] == 0.0
+        assert result["max_delta"] == 0.0
+        assert result["races_with_xt"] == 0
+        assert isinstance(result["report_date"], str)
+
+    def test_make_xt_impact_report_race_filter(self):
+        """Only the requested race should appear in enriched_deltas."""
+        target = "2026 GA Governor"
+        result = make_xt_impact_report(races=[target])
+        for race_id in result["enriched_deltas"]:
+            assert race_id == target, f"Unexpected race in enriched_deltas: {race_id}"

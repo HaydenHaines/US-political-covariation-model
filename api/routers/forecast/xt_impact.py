@@ -56,8 +56,16 @@ def get_xt_impact(
         _set_cached_report(race_list, cached)
 
     enriched_deltas: dict[str, float] = cached.get("enriched_deltas", {})
+    xt_race_counts: dict[str, int] = cached.get("xt_race_counts", {})
     top_movers = sorted(
-        [{"race_id": race_id, "delta_pp": delta} for race_id, delta in enriched_deltas.items()],
+        [
+            {
+                "race_id": race_id,
+                "delta_pp": delta,
+                "n_xt_polls": xt_race_counts.get(race_id, 0),
+            }
+            for race_id, delta in enriched_deltas.items()
+        ],
         key=lambda x: abs(x["delta_pp"]),
         reverse=True,
     )[:limit]

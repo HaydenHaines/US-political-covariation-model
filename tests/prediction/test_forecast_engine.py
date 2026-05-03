@@ -7,6 +7,7 @@ import pytest
 
 from src.prediction.forecast_engine import (
     ForecastResult,
+    _xt_delta_from_polls,
     build_W_state,
     compute_theta_prior,
     make_xt_impact_report,
@@ -509,13 +510,54 @@ class TestRaceAdjustments:
         )
 
 
+class TestXtRaceCounts:
+    """Unit tests for xt_race_counts in _xt_delta_from_polls output."""
+
+    def _make_fixture(self):
+        J = 2
+        n = 4
+        rng = np.random.RandomState(42)
+        type_scores = rng.rand(n, J)
+        type_scores = type_scores / type_scores.sum(axis=1, keepdims=True)
+        county_priors = np.full(n, 0.5)
+        states = ["GA", "GA", "PA", "PA"]
+        county_votes = np.ones(n)
+        return type_scores, county_priors, states, county_votes
+
+    def test_xt_race_counts_in_return(self):
+        """_xt_delta_from_polls must include xt_race_counts in its return dict."""
+        type_scores, county_priors, states, county_votes = self._make_fixture()
+        polls_by_race = {
+            "2026 GA Senate": [
+                {"dem_share": 0.52, "n_sample": 500, "state": "GA",
+                 "xt_education_college": 0.61},
+            ],
+            "2026 PA Senate": [
+                {"dem_share": 0.49, "n_sample": 400, "state": "PA"},
+            ],
+        }
+        result = _xt_delta_from_polls(
+            polls_by_race=polls_by_race,
+            type_scores=type_scores,
+            county_priors=county_priors,
+            states=states,
+            county_votes=county_votes,
+            all_race_ids=["2026 GA Senate", "2026 PA Senate"],
+        )
+        assert "xt_race_counts" in result
+        counts = result["xt_race_counts"]
+        assert counts["2026 GA Senate"] == 1, "GA has one xt_ poll"
+        assert counts["2026 PA Senate"] == 0, "PA has no xt_ polls"
+
+
 @pytest.mark.skipif(not _DATA_AVAILABLE, reason="data files not available")
 class TestMakeXtImpactReport:
     def test_make_xt_impact_report_returns_expected_keys(self):
-        """Return dict must have the five documented top-level keys."""
+        """Return dict must have the six documented top-level keys."""
         result = make_xt_impact_report(races=["2026 GA Governor"])
         assert set(result.keys()) == {
             "enriched_deltas",
+            "xt_race_counts",
             "mean_delta",
             "max_delta",
             "races_with_xt",

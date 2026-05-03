@@ -124,6 +124,18 @@ export function XtImpactPanel() {
             <th
               style={{
                 padding: "12px 16px",
+                textAlign: "right",
+                fontWeight: 600,
+                borderBottom: "2px solid var(--color-border)",
+                color: "var(--color-text)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Polls
+            </th>
+            <th
+              style={{
+                padding: "12px 16px",
                 textAlign: "center",
                 fontWeight: 600,
                 borderBottom: "2px solid var(--color-border)",
@@ -168,6 +180,17 @@ export function XtImpactPanel() {
               >
                 {mover.delta_pp > 0 ? "+" : ""}
                 {mover.delta_pp.toFixed(2)}
+              </td>
+              <td
+                style={{
+                  padding: "8px 16px",
+                  borderBottom: "1px solid var(--color-border)",
+                  textAlign: "right",
+                  fontFamily: "var(--font-mono, monospace)",
+                  color: "var(--color-text-muted)",
+                }}
+              >
+                {mover.n_xt_polls}
               </td>
               <td
                 style={{

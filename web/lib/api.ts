@@ -731,6 +731,7 @@ export interface FitScoreResponse {
 export interface XtImpactMover {
   race_id: string;
   delta_pp: number;
+  n_xt_polls: number;
 }
 
 export interface XtImpactResponse {

@@ -5,7 +5,18 @@ so this module re-exports a combined ``router`` that includes all sub-routers.
 """
 from fastapi import APIRouter
 
-from . import blend, changelog, comparisons, overview, polls, race_compare, race_detail, race_history, seat_history, xt_impact
+from . import (  # noqa: E501
+    blend,
+    changelog,
+    comparisons,
+    overview,
+    polls,
+    race_compare,
+    race_detail,
+    race_history,
+    seat_history,
+    xt_impact,
+)
 
 # Re-export helpers that tests and other modules import directly
 from ._helpers import (  # noqa: F401

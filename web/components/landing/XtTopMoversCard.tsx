@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import useSWR from "swr";
 import type { XtImpactResponse } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -120,17 +121,20 @@ export function XtTopMoversCard() {
               key={mover.race_id}
               style={{ display: "flex", alignItems: "center", gap: 10 }}
             >
-              <span
+              <Link
+                href={`/forecast/${mover.race_id}`}
                 style={{
                   width: 76,
                   flexShrink: 0,
                   fontSize: 12,
                   fontWeight: 500,
-                  color: "var(--color-text)",
+                  color: "inherit",
+                  textDecoration: "none",
                 }}
+                className="hover:underline"
               >
                 {formatRaceLabel(mover.race_id)}
-              </span>
+              </Link>
 
               <div style={{ flex: 1, minWidth: 60 }}>
                 <DeltaBar delta={mover.delta_pp} maxAbs={maxAbs} />

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import useSWR from "swr";
 import type { XtImpactResponse } from "@/lib/api";
 
@@ -162,7 +163,13 @@ export function XtImpactPanel() {
                   fontFamily: "var(--font-sans)",
                 }}
               >
-                {formatRaceId(mover.race_id)}
+                <Link
+                  href={`/forecast/${mover.race_id}`}
+                  style={{ color: "inherit", textDecoration: "none" }}
+                  className="hover:underline"
+                >
+                  {formatRaceId(mover.race_id)}
+                </Link>
               </td>
               <td
                 style={{

@@ -616,6 +616,23 @@ class ChamberProbabilityResponse(BaseModel):
     """Number of races treated as safe (high-confidence incumbent win)."""
 
 
+# ── Governor simulation ──────────────────────────────────────────────────
+
+
+class GovernorSimulationBucket(BaseModel):
+    """Probability mass for a specific D/R seat split from Monte Carlo simulation."""
+
+    d_seats: int
+    r_seats: int
+    probability: float
+
+
+class GovernorSimulationResponse(BaseModel):
+    """Monte Carlo simulation of 2026 governor seat totals."""
+
+    buckets: list[GovernorSimulationBucket]
+
+
 # ── Forecast changelog ───────────────────────────────────────────────────
 
 

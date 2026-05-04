@@ -4,6 +4,7 @@ import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { ChamberProbabilityBanner } from "@/components/forecast/ChamberProbabilityBanner";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { PollingCard } from "@/components/forecast/PollingCard";
+import { SeatBalanceTimeline } from "@/components/forecast/SeatBalanceTimeline";
 import { NationalScenarioSliders } from "@/components/forecast/NationalScenarioSliders";
 import { OverviewBlendControls } from "@/components/forecast/OverviewBlendControls";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -51,6 +52,23 @@ export default function SenatePage() {
 
       {/* Polling coverage summary — total polls, races polled, coverage quality */}
       <PollingCard />
+
+      {/* Projected seat balance over time — D/R seat counts as new polls arrive */}
+      <section
+        className="mb-8 rounded-md p-4 text-sm"
+        style={{
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+        }}
+      >
+        <h2
+          className="font-serif text-lg mb-3"
+          style={{ color: "var(--color-text)" }}
+        >
+          Seat Balance Over Time
+        </h2>
+        <SeatBalanceTimeline />
+      </section>
 
       {/* Scenario explorer — what-if sliders for national environment + turnout */}
       <NationalScenarioSliders />

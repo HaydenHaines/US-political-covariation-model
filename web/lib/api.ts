@@ -748,6 +748,71 @@ export async function fetchXtImpact(limit = 10): Promise<XtImpactResponse> {
   return res.json();
 }
 
+// ── Race detail ───────────────────────────────────────────────────────────────
+
+export interface RaceDetailPoll {
+  date: string | null;
+  pollster: string | null;
+  dem_share: number;
+  n_sample: number | null;
+  grade: string | null;
+}
+
+export interface RaceDetailTypeBreakdown {
+  type_id: number;
+  display_name: string;
+  n_counties: number;
+  mean_pred_dem_share: number | null;
+  total_votes: number | null;
+}
+
+export interface RaceDetailPollConfidence {
+  n_polls: number;
+  n_pollsters: number;
+  n_methodologies: number;
+  label: "High" | "Medium" | "Low";
+  tooltip: string;
+}
+
+export interface RaceDetail {
+  race: string;
+  slug: string;
+  state_abbr: string;
+  race_type: string;
+  year: number;
+  prediction: number | null;
+  n_counties: number;
+  polls: RaceDetailPoll[];
+  type_breakdown: RaceDetailTypeBreakdown[];
+  forecast_mode: string;
+  state_pred_national: number | null;
+  state_pred_local: number | null;
+  candidate_effect_margin: number | null;
+  n_polls: number;
+  pred_std: number | null;
+  pred_lo90: number | null;
+  pred_hi90: number | null;
+  historical_context: {
+    last_race: { year: number; winner: string; party: string; margin: number; note?: string | null };
+    presidential_2024: { winner: string; party: string; margin: number; note?: string | null };
+    forecast_shift: number | null;
+  } | null;
+  poll_confidence: RaceDetailPollConfidence | null;
+  candidate_info: {
+    incumbent: { name: string; party: string };
+    status: string;
+    status_detail?: string | null;
+    rating?: string | null;
+    candidates: Record<string, string[]>;
+  } | null;
+}
+
+export async function fetchRaceDetail(slug: string): Promise<RaceDetail> {
+  const res = await fetch(`${API_BASE}/forecast/race/${slug}`);
+  if (!res.ok) throw new Error(`/forecast/race/${slug} failed: ${res.status}`);
+  return res.json();
+}
+
 export async function fetchFitScores(
   raceKey: string,
   party?: "D" | "R",

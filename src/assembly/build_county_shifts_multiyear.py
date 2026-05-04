@@ -1,8 +1,9 @@
 """Build multi-year county shift vectors.
 
-Training presidential pairs (18 × 3 dims = 54 dims):
-  Pre-2000 Algara pairs: 1948→1952, 1952→1956, ..., 1996→2000
+Training presidential pairs (10 × 3 dims = 30 dims):
+  Post-realignment Algara pairs: 1980→1984, 1984→1988, 1988→1992, 1992→1996, 1996→2000
   Post-2000 MEDSL pairs: 2000→2004, 2004→2008, 2008→2012, 2012→2016, 2016→2020
+  Active window: 1980→2020. Pre-1980 pairs excluded (Southern Realignment regime break).
 
 Governor training dims (7 pairs × 3 dims = 21 dims):
   1994→1998, 1998→2002, 2002→2006, 2006→2010, 2010→2014, 2014→2018, 2018→2022

@@ -65,6 +65,9 @@ GOV_YEARS: list[int] = _cfg["election"]["governor_years"]
 SENATE_YEARS: list[int] = _cfg["election"]["senate_years"]
 
 PRES_PAIRS: list[tuple[str, str]] = [
+    # [-2:] silently aliases centuries: 1948 and 2048 both → "48". Safe for
+    # the 1948–2024 range where all two-digit keys are unique. If a future
+    # pair's trailing two digits collide with an existing one, this breaks.
     (str(a)[-2:].zfill(2), str(b)[-2:].zfill(2))
     for a, b in _cfg["election"]["presidential_pairs"]
 ]

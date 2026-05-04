@@ -10,6 +10,8 @@ interface RaceCardGridProps {
    * When absent, cards render without sparklines.
    */
   historyBySlug?: Map<string, RaceMarginPoint[]>;
+  /** URL prefix for race detail links. Defaults to "/forecast". */
+  basePath?: string;
 }
 
 /**
@@ -18,7 +20,7 @@ interface RaceCardGridProps {
  * Mobile (<768px): horizontal snap-scroll carousel -- cards are fixed-width and
  * users swipe through them. Desktop (>=768px): responsive grid layout.
  */
-export function RaceCardGrid({ races, title, historyBySlug }: RaceCardGridProps) {
+export function RaceCardGrid({ races, title, historyBySlug, basePath }: RaceCardGridProps) {
   const sorted = [...races].sort(
     (a, b) => Math.abs(a.margin) - Math.abs(b.margin),
   );
@@ -34,6 +36,7 @@ export function RaceCardGrid({ races, title, historyBySlug }: RaceCardGridProps)
             <RaceCard
               race={race}
               sparklineHistory={historyBySlug?.get(race.slug)}
+              basePath={basePath}
             />
           </div>
         ))}
@@ -46,6 +49,7 @@ export function RaceCardGrid({ races, title, historyBySlug }: RaceCardGridProps)
             key={race.slug}
             race={race}
             sparklineHistory={historyBySlug?.get(race.slug)}
+            basePath={basePath}
           />
         ))}
       </div>

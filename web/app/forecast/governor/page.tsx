@@ -84,17 +84,17 @@ export default function GovernorPage() {
 
       {/* Competitive races first — these are what readers care most about */}
       {competitiveRaces.length > 0 && (
-        <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+        <RaceCardGrid races={competitiveRaces} title="Competitive Races" basePath="/forecast/governor" />
       )}
 
       {/* D-leaning races */}
       {dLeaningRaces.length > 0 && (
-        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" basePath="/forecast/governor" />
       )}
 
       {/* R-leaning races */}
       {rLeaningRaces.length > 0 && (
-        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" basePath="/forecast/governor" />
       )}
     </div>
   );

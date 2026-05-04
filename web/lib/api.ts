@@ -288,6 +288,22 @@ export async function fetchGovernorOverview(): Promise<GovernorOverviewData> {
   return res.json();
 }
 
+export interface GovernorSimulationBucket {
+  d_seats: number;
+  r_seats: number;
+  probability: number;
+}
+
+export interface GovernorSimulationData {
+  buckets: GovernorSimulationBucket[];
+}
+
+export async function fetchGovernorSimulation(): Promise<GovernorSimulationData> {
+  const res = await fetch(`${API_BASE}/governor/simulation`);
+  if (!res.ok) throw new Error(`/governor/simulation failed: ${res.status}`);
+  return res.json();
+}
+
 export interface StructuralContext {
   baseline_year: number;
   baseline_label: string;

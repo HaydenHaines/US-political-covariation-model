@@ -14,6 +14,8 @@ interface RaceCardProps {
    * When absent (loading or not yet available), the card renders without it.
    */
   sparklineHistory?: RaceMarginPoint[];
+  /** URL prefix for race detail links. Defaults to "/forecast". */
+  basePath?: string;
 }
 
 /**
@@ -27,9 +29,9 @@ interface RaceCardProps {
  * rendered next to the current margin, giving readers a quick visual sense
  * of how the race has moved over recent weeks.
  */
-export function RaceCard({ race, sparklineHistory }: RaceCardProps) {
+export function RaceCard({ race, sparklineHistory, basePath = "/forecast" }: RaceCardProps) {
   return (
-    <Link href={`/forecast/${race.slug}`} className="block h-full">
+    <Link href={`${basePath}/${race.slug}`} className="block h-full">
       <Card className="h-full hover:border-foreground/30 transition-colors cursor-pointer">
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">

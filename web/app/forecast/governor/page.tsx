@@ -2,6 +2,7 @@
 
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
+import { GovernorPollingCard } from "@/components/forecast/GovernorPollingCard";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -69,6 +70,9 @@ export default function GovernorPage() {
 
       {/* National environment — structural forecast applies to all race types */}
       <FundamentalsCard />
+
+      {/* Polling coverage summary — total polls, races polled, coverage quality */}
+      <GovernorPollingCard />
 
       {/* Competitive races first — these are what readers care most about */}
       {competitiveRaces.length > 0 && (

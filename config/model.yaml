@@ -158,9 +158,33 @@ election:
     - 2020
   - - 2016
     - 2022
-  - - 2018
-    - 2024
   presidential_pairs:
+  - - 1948
+    - 1952
+  - - 1952
+    - 1956
+  - - 1956
+    - 1960
+  - - 1960
+    - 1964
+  - - 1964
+    - 1968
+  - - 1968
+    - 1972
+  - - 1972
+    - 1976
+  - - 1976
+    - 1980
+  - - 1980
+    - 1984
+  - - 1984
+    - 1988
+  - - 1988
+    - 1992
+  - - 1992
+    - 1996
+  - - 1996
+    - 2000
   - - 2000
     - 2004
   - - 2004
@@ -276,6 +300,19 @@ validation:
     k20: 0.932
 data:
   presidential_files:
+    '48': algara_county_presidential_1948.parquet
+    '52': algara_county_presidential_1952.parquet
+    '56': algara_county_presidential_1956.parquet
+    '60': algara_county_presidential_1960.parquet
+    '64': algara_county_presidential_1964.parquet
+    '68': algara_county_presidential_1968.parquet
+    '72': algara_county_presidential_1972.parquet
+    '76': algara_county_presidential_1976.parquet
+    '80': algara_county_presidential_1980.parquet
+    '84': algara_county_presidential_1984.parquet
+    '88': algara_county_presidential_1988.parquet
+    '92': algara_county_presidential_1992.parquet
+    '96': algara_county_presidential_1996.parquet
     '00': medsl_county_presidential_2000.parquet
     '04': medsl_county_presidential_2004.parquet
     08: medsl_county_presidential_2008.parquet

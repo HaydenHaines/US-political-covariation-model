@@ -1,15 +1,16 @@
-"""Build multi-year county shift vectors (57 dimensions when Senate data present).
+"""Build multi-year county shift vectors.
 
-Training (30 presidential + governor dims):
-  5 consecutive presidential pairs: 2000→2004, 2004→2008, 2008→2012,
-                                    2012→2016, 2016→2020
-  5 consecutive governor pairs:     2002→2006, 2006→2010, 2010→2014,
-                                    2014→2018, 2018→2022
+Training presidential pairs (18 × 3 dims = 54 dims):
+  Pre-2000 Algara pairs: 1948→1952, 1952→1956, ..., 1996→2000
+  Post-2000 MEDSL pairs: 2000→2004, 2004→2008, 2008→2012, 2012→2016, 2016→2020
 
-Senate training dims (up to 8 pairs × 3 dims = 24 dims, when data available):
+Governor training dims (7 pairs × 3 dims = 21 dims):
+  1994→1998, 1998→2002, 2002→2006, 2006→2010, 2010→2014, 2014→2018, 2018→2022
+
+Senate training dims (up to 9 pairs × 3 dims = 27 dims, when data available):
   Pairs align same Senate seat across 6-year cycles (same class):
-    2002→2008, 2004→2010, 2006→2012, 2008→2014,
-    2010→2016, 2012→2018, 2014→2020, 2016→2022
+    2002→2008, 2004→2010, 2006→2012, 2008→2014, 2010→2016,
+    2012→2018, 2014→2020, 2016→2022, 2018→2024
 
 Holdout (3 dims — never used during clustering):
   Presidential 2020→2024
@@ -21,8 +22,7 @@ Senate counties that are uncontested or missing are zero-filled (logged).
 
 Output:
   data/shifts/county_shifts_multiyear.parquet
-  Columns: county_fips + 30 pres/gov training + up to 24 senate training
-           + 3 holdout shift dims
+  Columns: county_fips + pres/gov/senate training dims + 3 holdout shift dims
 """
 from __future__ import annotations
 

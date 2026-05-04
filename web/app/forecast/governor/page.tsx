@@ -3,6 +3,10 @@
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { GovernorPollingCard } from "@/components/forecast/GovernorPollingCard";
+import {
+  GovernorSeatRiskCard,
+  GovernorSeatRiskCardSkeleton,
+} from "@/components/forecast/GovernorSeatRiskCard";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -30,6 +34,7 @@ export default function GovernorPage() {
       <div className="space-y-6">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-96" />
+        <GovernorSeatRiskCardSkeleton />
         <div className="grid grid-cols-3 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
@@ -73,6 +78,9 @@ export default function GovernorPage() {
 
       {/* Polling coverage summary — total polls, races polled, coverage quality */}
       <GovernorPollingCard />
+
+      {/* Partisan balance and competitive seat exposure */}
+      <GovernorSeatRiskCard races={data.races} />
 
       {/* Competitive races first — these are what readers care most about */}
       {competitiveRaces.length > 0 && (

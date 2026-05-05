@@ -259,15 +259,14 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
     """
     create_tables(con)
 
-    # Delete child rows before parent — subquery reads polls before it is cleared
-    _del_children = "DELETE FROM {table} WHERE poll_id IN (SELECT poll_id FROM polls WHERE cycle=?)"
-    con.execute(_del_children.format(table="poll_crosstabs"), [cycle])
-    con.execute(_del_children.format(table="poll_notes"), [cycle])
-    con.execute("DELETE FROM polls WHERE cycle=?", [cycle])
-
     path = project_root / "data" / "polls" / f"polls_{cycle}.csv"
     if not path.exists():
         log.warning("polls_%s.csv not found at %s; polling tables will be empty", cycle, path)
+        # Still clean up stale data for this cycle even if the CSV is gone.
+        _del_children = "DELETE FROM {table} WHERE poll_id IN (SELECT poll_id FROM polls WHERE cycle=?)"
+        con.execute(_del_children.format(table="poll_crosstabs"), [cycle])
+        con.execute(_del_children.format(table="poll_notes"), [cycle])
+        con.execute("DELETE FROM polls WHERE cycle=?", [cycle])
         return
 
     poll_rows = []
@@ -338,6 +337,44 @@ def ingest(con: duckdb.DuckDBPyConnection, cycle: str, project_root: Path) -> No
                 )
             if xt_columns:
                 crosstab_rows.extend(_extract_crosstab_rows(row, poll_id, xt_columns))
+
+    # Delete existing data for this cycle AFTER parsing so we use the computed
+    # poll_ids from the CSV rather than whatever is already in the polls table.
+    # This prevents stale child rows (crosstabs/notes) from causing constraint
+    # errors when their parent was cleared without cleaning up children first.
+    #
+    # Pattern:
+    #   1. Collect old poll_ids for this cycle that are about to be removed.
+    #   2. Delete children by the UNION of (old poll_ids ∪ new poll_ids).
+    #      This catches: (a) polls whose crosstabs still exist despite polls being
+    #      empty (polls cleared externally), and (b) polls dropped from the CSV.
+    #   3. Delete polls for the cycle (cleans up old rows).
+    #   4. Insert new data.
+    new_ids = list({r["poll_id"] for r in poll_rows}) if poll_rows else []
+    old_ids_rows = con.execute(
+        "SELECT DISTINCT poll_id FROM polls WHERE cycle=?", [cycle]
+    ).fetchall()
+    old_ids = [r[0] for r in old_ids_rows]
+
+    # Also pick up any poll_ids lurking in children without a matching parent
+    # (can happen if polls was cleared externally while children remained).
+    orphan_rows = con.execute("""
+        SELECT DISTINCT poll_id FROM poll_crosstabs
+        WHERE poll_id NOT IN (SELECT poll_id FROM polls)
+        UNION
+        SELECT DISTINCT poll_id FROM poll_notes
+        WHERE poll_id NOT IN (SELECT poll_id FROM polls)
+    """).fetchall()
+    orphan_ids = [r[0] for r in orphan_rows]
+
+    all_delete_ids = list(set(new_ids) | set(old_ids) | set(orphan_ids))
+    if all_delete_ids:
+        placeholders = ",".join("?" * len(all_delete_ids))
+        con.execute(f"DELETE FROM poll_crosstabs WHERE poll_id IN ({placeholders})", all_delete_ids)
+        con.execute(f"DELETE FROM poll_notes WHERE poll_id IN ({placeholders})", all_delete_ids)
+        con.execute(f"DELETE FROM polls WHERE poll_id IN ({placeholders})", all_delete_ids)
+    # Remove any remaining polls for this cycle not covered by the id list above
+    con.execute("DELETE FROM polls WHERE cycle=?", [cycle])
 
     if poll_rows:
         df = pd.DataFrame(poll_rows)

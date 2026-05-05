@@ -19,6 +19,7 @@ function ForecastTabs() {
   const pathname = usePathname();
   const isSenate = pathname.startsWith("/forecast/senate") || pathname === "/forecast";
   const isGovernor = pathname.startsWith("/forecast/governor");
+  const isCompetitive = pathname.startsWith("/forecast/competitive");
 
   const tabStyle = (active: boolean): React.CSSProperties => ({
     padding: "10px 16px",
@@ -47,6 +48,9 @@ function ForecastTabs() {
       </Link>
       <Link href="/forecast/governor" style={tabStyle(isGovernor)}>
         Governor
+      </Link>
+      <Link href="/forecast/competitive" style={tabStyle(isCompetitive)}>
+        Competitive
       </Link>
     </div>
   );

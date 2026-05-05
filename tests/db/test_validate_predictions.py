@@ -163,6 +163,46 @@ class TestValidatePredictionsCatchBugs:
         assert any("EXTREME MARGINS" in e for e in errors)
 
 
+class TestValidatePredictionsCatchesEmptyCounties:
+    """Regression test for 2026-04-29: empty counties table causes D+25 fallback."""
+
+    def test_catches_empty_counties_when_predictions_present(self, fresh_con):
+        """validate_predictions must error when counties is empty but predictions exist.
+
+        Root cause: an empty counties table makes every JOIN return NULL, causing
+        all overview endpoints to return ±_DEFAULT_SAFE_MARGIN (0.25) for every
+        race — shown as D+25pp or R+25pp in the frontend.
+        """
+        from src.db.validate import validate_predictions
+
+        # Predictions exist but counties is empty
+        fresh_con.execute("""
+            CREATE TABLE counties (
+                county_fips VARCHAR PRIMARY KEY,
+                state_abbr VARCHAR,
+                county_name VARCHAR,
+                total_votes_2024 INTEGER
+            )
+        """)
+        fresh_con.execute("""
+            CREATE TABLE predictions (
+                county_fips VARCHAR, race VARCHAR,
+                version_id VARCHAR, forecast_mode VARCHAR,
+                pred_dem_share DOUBLE
+            )
+        """)
+        for fips, share in [("04001", 0.54), ("04003", 0.55), ("48001", 0.40)]:
+            fresh_con.execute(
+                "INSERT INTO predictions VALUES (?, '2026 AZ Governor', 'v1', 'local', ?)",
+                [fips, share],
+            )
+
+        errors = validate_predictions(fresh_con)
+        assert any("COUNTIES TABLE EMPTY" in e for e in errors), (
+            f"Expected COUNTIES TABLE EMPTY error, got: {errors}"
+        )
+
+
 class TestValidatePredictionsEdgeCases:
     """Edge cases that should not crash."""
 

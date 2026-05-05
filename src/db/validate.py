@@ -140,6 +140,22 @@ def validate_predictions(con: duckdb.DuckDBPyConnection) -> list[str]:
         log.warning("No local-mode predictions found — skipping prediction validation")
         return errors
 
+    # ── Check counties table is populated ──────────────────────────────────
+    # An empty counties table causes every predictions JOIN to return NULL,
+    # making all governor/senate overview endpoints serve the ±0.25 fallback
+    # margin (displayed as "D+25pp" or "R+25pp" for every race).
+    try:
+        n_counties = con.execute("SELECT COUNT(*) FROM counties").fetchone()[0]
+        if n_counties == 0:
+            errors.append(
+                "COUNTIES TABLE EMPTY: counties has 0 rows. "
+                "The predictions JOIN will return NULL for every race, causing the "
+                "governor/senate overview to show ±0.25 fallback margins on all races. "
+                "Re-run build_database.py with county shift data to populate counties."
+            )
+    except Exception:
+        pass  # counties table absence is caught by validate_contract
+
     # ── Compute vote-weighted state predictions for Senate races ──────────
     state_preds = con.execute("""
         SELECT

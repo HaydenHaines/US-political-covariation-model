@@ -83,6 +83,7 @@ export default function SenatePage() {
         initialDemSeats={data.dem_projected}
         initialGopSeats={data.gop_projected}
         apiBase={API_BASE}
+        basePath="/forecast/senate"
       />
     </div>
   );

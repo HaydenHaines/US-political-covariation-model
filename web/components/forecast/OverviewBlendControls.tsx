@@ -46,6 +46,8 @@ interface OverviewBlendControlsProps {
   initialGopSeats: number;
   /** API base URL (from lib/api.ts -- "/api/v1" or env-configured). */
   apiBase: string;
+  /** URL prefix for race detail links, e.g. "/forecast/senate". */
+  basePath?: string;
 }
 
 /**
@@ -68,6 +70,7 @@ export function OverviewBlendControls({
   initialDemSeats,
   initialGopSeats,
   apiBase,
+  basePath,
 }: OverviewBlendControlsProps) {
   // Live race data -- starts as the SSR-provided list; overwritten by blend responses
   const [races, setRaces] = useState<SenateRaceData[]>(initialRaces);
@@ -221,16 +224,16 @@ export function OverviewBlendControls({
         aria-busy={isLoading}
       >
         {tossupRaces.length > 0 && (
-          <RaceCardGrid races={tossupRaces} title="Key Races" historyBySlug={historyBySlug} />
+          <RaceCardGrid races={tossupRaces} title="Key Races" historyBySlug={historyBySlug} basePath={basePath} />
         )}
         {leanRaces.length > 0 && (
-          <RaceCardGrid races={leanRaces} title="Leaning" historyBySlug={historyBySlug} />
+          <RaceCardGrid races={leanRaces} title="Leaning" historyBySlug={historyBySlug} basePath={basePath} />
         )}
         {likelyRaces.length > 0 && (
-          <RaceCardGrid races={likelyRaces} title="Likely" historyBySlug={historyBySlug} />
+          <RaceCardGrid races={likelyRaces} title="Likely" historyBySlug={historyBySlug} basePath={basePath} />
         )}
         {safeRaces.length > 0 && (
-          <SafeRacesSection races={safeRaces} historyBySlug={historyBySlug} />
+          <SafeRacesSection races={safeRaces} historyBySlug={historyBySlug} basePath={basePath} />
         )}
       </div>
     </>
@@ -244,9 +247,11 @@ export function OverviewBlendControls({
 function SafeRacesSection({
   races,
   historyBySlug,
+  basePath,
 }: {
   races: SenateRaceData[];
   historyBySlug?: ReturnType<typeof useRaceHistory>["historyBySlug"];
+  basePath?: string;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -262,7 +267,7 @@ function SafeRacesSection({
           {expanded ? "collapse" : "expand"}
         </span>
       </button>
-      {expanded && <RaceCardGrid races={races} title="" historyBySlug={historyBySlug} />}
+      {expanded && <RaceCardGrid races={races} title="" historyBySlug={historyBySlug} basePath={basePath} />}
     </section>
   );
 }

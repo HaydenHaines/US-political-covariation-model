@@ -2,6 +2,7 @@
 
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { NationalProjectionStrip } from "@/components/forecast/NationalProjectionStrip";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -14,6 +15,7 @@ const COMPETITIVE_RATINGS = new Set(["tossup", "lean_d", "lean_r"]);
 export default function CompetitiveRacesPage() {
   const { data: senateData, error: senateError, isLoading: senateLoading, mutate: senateMutate } = useSenateOverview();
   const { data: govData, error: govError, isLoading: govLoading, mutate: govMutate } = useGovernorOverview();
+  const { historyBySlug } = useRaceHistory();
 
   if (senateError || govError) {
     return (
@@ -64,6 +66,7 @@ export default function CompetitiveRacesPage() {
           races={competitiveSenateRaces}
           title="Competitive Senate Races"
           basePath="/forecast/senate"
+          historyBySlug={historyBySlug}
         />
       )}
 
@@ -72,6 +75,7 @@ export default function CompetitiveRacesPage() {
           races={competitiveGovRaces}
           title="Competitive Governor Races"
           basePath="/forecast/governor"
+          historyBySlug={historyBySlug}
         />
       )}
 

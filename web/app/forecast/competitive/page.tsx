@@ -3,6 +3,7 @@
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
+import { NationalProjectionStrip } from "@/components/forecast/NationalProjectionStrip";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ELECTION_YEAR } from "@/lib/config/election";
@@ -56,6 +57,7 @@ export default function CompetitiveRacesPage() {
       <p className="text-sm mb-6" style={{ color: "var(--color-text-muted)" }}>
         {totalCount} tossup or lean race{totalCount !== 1 ? "s" : ""} across Senate and Governor contests.
       </p>
+      <NationalProjectionStrip />
 
       {competitiveSenateRaces.length > 0 && (
         <RaceCardGrid

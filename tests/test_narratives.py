@@ -387,7 +387,10 @@ class TestGenerateAllNarratives:
         profiles = pd.read_parquet(
             "data/communities/type_profiles.parquet"
         )
-        id_to_name = dict(zip(profiles["type_id"], profiles["display_name"]))
+        if "display_name" in profiles.columns:
+            id_to_name = dict(zip(profiles["type_id"], profiles["display_name"]))
+        else:
+            id_to_name = {int(tid): f"Type {int(tid)}" for tid in profiles["type_id"]}
         for tid, text in narratives.items():
             name = id_to_name[tid]
             assert text.startswith(name), (

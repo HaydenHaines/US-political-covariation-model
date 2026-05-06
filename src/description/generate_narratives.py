@@ -364,14 +364,17 @@ def generate_all_narratives(
     stds = feat_df.std().replace(0, 1)   # avoid division by zero for constant cols
     z_df = (feat_df - means) / stds
 
+    has_display_name = "display_name" in df.columns
+    has_n_counties = "n_counties" in df.columns
+
     # Also pass n_counties raw (not z-scored) so sentence 1 can report it
     narratives: dict[int, str] = {}
     for i, row in df.iterrows():
         type_id = int(row["type_id"])
-        display_name = str(row["display_name"])
+        display_name = str(row["display_name"]) if has_display_name else f"Type {type_id}"
         z_row = z_df.iloc[i].to_dict()
-        # Inject raw n_counties so narrative can use it
-        z_row["n_counties"] = float(row["n_counties"])
+        if has_n_counties:
+            z_row["n_counties"] = float(row["n_counties"])
 
         # Extract prediction and shift data if available
         pred = predictions.get(type_id) if predictions else None

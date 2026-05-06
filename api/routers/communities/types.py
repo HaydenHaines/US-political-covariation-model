@@ -66,7 +66,7 @@ def list_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(get_db)
         results.append(
             TypeSummary(
                 type_id=int(row["type_id"]),
-                super_type_id=int(row["super_type_id"]),
+                super_type_id=None if pd.isna(row["super_type_id"]) else int(row["super_type_id"]),
                 display_name=str(row["display_name"]),
                 n_counties=int(row["n_counties"]),
                 mean_pred_dem_share=_f(row["mean_pred_dem_share"]),
@@ -369,7 +369,7 @@ def list_super_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(g
             SELECT
                 st.super_type_id,
                 st.display_name,
-                ARRAY_AGG(DISTINCT t.type_id ORDER BY t.type_id) AS member_type_ids,
+                ARRAY_AGG(t.type_id ORDER BY t.type_id) FILTER (WHERE t.type_id IS NOT NULL) AS member_type_ids,
                 COUNT(DISTINCT cta.county_fips) AS n_counties
             FROM super_types st
             LEFT JOIN types t ON t.super_type_id = st.super_type_id
@@ -396,7 +396,7 @@ def list_super_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(g
     results = []
     for _, row in rows.iterrows():
         member_ids = row["member_type_ids"]
-        if member_ids is None:
+        if member_ids is None or not hasattr(member_ids, "__iter__"):
             member_ids = []
         results.append(
             SuperTypeSummary(

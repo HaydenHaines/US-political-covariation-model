@@ -369,7 +369,7 @@ def list_super_types(request: Request, db: duckdb.DuckDBPyConnection = Depends(g
             SELECT
                 st.super_type_id,
                 st.display_name,
-                ARRAY_AGG(t.type_id ORDER BY t.type_id) FILTER (WHERE t.type_id IS NOT NULL) AS member_type_ids,
+                ARRAY_AGG(DISTINCT t.type_id ORDER BY t.type_id) FILTER (WHERE t.type_id IS NOT NULL) AS member_type_ids,
                 COUNT(DISTINCT cta.county_fips) AS n_counties
             FROM super_types st
             LEFT JOIN types t ON t.super_type_id = st.super_type_id

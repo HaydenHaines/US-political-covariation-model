@@ -348,10 +348,13 @@ class TestMainCLI:
         con = duckdb.connect(db_path)
         create_tables(con)
         con.close()
+        # pdfplumber.open is mocked so the file only needs to exist (content ignored)
+        fake_pdf = tmp_path / "fake.pdf"
+        fake_pdf.write_bytes(b"")
 
         with _patch_pdf(DETAILED_PDF_TEXT):
             ret = main([
-                "--pdf", "/fake/path.pdf",
+                "--pdf", str(fake_pdf),
                 "--race", "2026 PA Governor",
                 "--geography", "PA",
                 "--date", "2025-10-01",
@@ -366,10 +369,13 @@ class TestMainCLI:
         con = duckdb.connect(db_path)
         create_tables(con)
         con.close()
+        # pdfplumber.open is mocked so the file only needs to exist (content ignored)
+        fake_pdf = tmp_path / "fake.pdf"
+        fake_pdf.write_bytes(b"")
 
         with _patch_pdf(SIMPLE_PDF_TEXT):
             ret = main([
-                "--pdf", "/fake/path.pdf",
+                "--pdf", str(fake_pdf),
                 "--race", "2026 NJ Governor",
                 "--geography", "NJ",
                 "--date", "2025-10-30",

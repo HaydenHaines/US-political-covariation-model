@@ -8,10 +8,10 @@
   "consumer_sentiment": 53.3,
   "source_notes": {
     "approval": "RealClearPolling average \u2014 Approve 40.5%, Disapprove 57.7%, Net -17.2pp. Date range on page: 4/8 - 4/23. Fetched 2026-04-26 09:10 UTC.",
-    "gdp": "FRED A191RL1Q225SBEA \u2014 Real GDP growth (annualized quarterly, %) \u2014 as of 2026-01-01. Fetched 2026-05-03 04:10.",
-    "unemployment": "FRED UNRATE \u2014 Unemployment rate (%) \u2014 as of 2026-03-01. Fetched 2026-05-03 04:10.",
-    "cpi": "FRED CPIAUCSL \u2014 CPI-U (seasonally adjusted) \u2014 YoY: 2026-03-01 vs 2025-03-01. Fetched 2026-05-03 04:10.",
-    "consumer_sentiment": "FRED UMCSENT \u2014 University of Michigan Consumer Sentiment Index \u2014 as of 2026-03-01. Fetched 2026-05-03 04:10.",
-    "last_updated": "2026-05-03 04:10"
+    "gdp": "FRED A191RL1Q225SBEA \u2014 Real GDP growth (annualized quarterly, %) \u2014 as of 2026-01-01. Fetched 2026-05-06 04:10.",
+    "unemployment": "FRED UNRATE \u2014 Unemployment rate (%) \u2014 as of 2026-03-01. Fetched 2026-05-06 04:10.",
+    "cpi": "FRED CPIAUCSL \u2014 CPI-U (seasonally adjusted) \u2014 YoY: 2026-03-01 vs 2025-03-01. Fetched 2026-05-06 04:10.",
+    "consumer_sentiment": "FRED UMCSENT \u2014 University of Michigan Consumer Sentiment Index \u2014 as of 2026-03-01. Fetched 2026-05-06 04:10.",
+    "last_updated": "2026-05-06 04:10"
   }
 }

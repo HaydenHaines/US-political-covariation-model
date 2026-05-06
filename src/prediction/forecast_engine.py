@@ -325,6 +325,35 @@ def _extract_crosstabs_from_xt(poll: dict) -> list[dict] | None:
             "dem_share": group_dem_share if group_dem_share is not None else float(dem_share),
         })
 
+    # Second pass: collect xt_vote_* groups not already captured above.
+    # Handles pollsters (e.g. Quinnipiac) that publish per-group vote shares
+    # in the CSV but not sample composition — pct_of_sample is None, signalling
+    # unknown composition.  build_W_from_crosstabs treats None as "use full
+    # n_sample" (most conservative sigma), rather than silently discarding the
+    # per-group y observation.
+    seen = {(c["demographic_group"], c["group_value"]) for c in crosstabs}
+    for key, value in poll.items():
+        if not key.startswith("xt_vote_"):
+            continue
+        remainder = key[8:]  # strip "xt_vote_"
+        parts = remainder.split("_", 1)
+        if len(parts) != 2 or not parts[0] or not parts[1]:
+            continue
+        if (parts[0], parts[1]) in seen:
+            continue
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed != parsed or not (0.0 <= parsed <= 1.0):
+            continue
+        crosstabs.append({
+            "demographic_group": parts[0],
+            "group_value": parts[1],
+            "pct_of_sample": None,
+            "dem_share": parsed,
+        })
+
     return crosstabs if crosstabs else None
 
 

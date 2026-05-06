@@ -153,10 +153,16 @@ def build_W_from_crosstabs(
 
     for xt in crosstabs:
         dem_share = xt.get("dem_share")
-        pct_of_sample = xt.get("pct_of_sample", 0.0)
+        pct_of_sample = xt.get("pct_of_sample")  # None = composition unknown
         n_sample = poll.get("n_sample", 600)
 
-        if dem_share is None or pct_of_sample <= 0:
+        if dem_share is None:
+            continue
+        # Explicitly zero or negative pct_of_sample means no valid sub-sample.
+        # None means composition is unknown (e.g. Quinnipiac press releases don't
+        # publish unweighted base counts) — still include the y observation using
+        # the full n_sample as a conservative denominator.
+        if pct_of_sample is not None and pct_of_sample <= 0:
             continue
 
         group = xt.get("demographic_group", "")
@@ -167,19 +173,25 @@ def build_W_from_crosstabs(
         # This corrects for the artificial precision that oversampling creates —
         # a group sampled at 2× its true population share has half the real variance
         # but the raw sub_n would underestimate sigma by sqrt(2).
-        if population_shares is not None:
-            xt_col = f"xt_{group}_{value}"
-            pop_share = population_shares.get(xt_col)
-            if pop_share is not None and pop_share > 0:
-                # correction = pop_share / pct_of_sample
-                # sub_n = n * pct_of_sample * (pop_share / pct_of_sample) = n * pop_share
-                sub_n = max(int(n_sample * pop_share), 1)
+        if pct_of_sample is not None and pct_of_sample > 0:
+            if population_shares is not None:
+                xt_col = f"xt_{group}_{value}"
+                pop_share = population_shares.get(xt_col)
+                if pop_share is not None and pop_share > 0:
+                    # correction = pop_share / pct_of_sample
+                    # sub_n = n * pct_of_sample * (pop_share / pct_of_sample) = n * pop_share
+                    sub_n = max(int(n_sample * pop_share), 1)
+                else:
+                    # No population data for this group — fall back to raw pct_of_sample.
+                    sub_n = max(int(n_sample * pct_of_sample), 1)
             else:
-                # No population data for this group — fall back to raw pct_of_sample.
+                # No population_shares provided — use raw pct_of_sample (original behavior).
                 sub_n = max(int(n_sample * pct_of_sample), 1)
         else:
-            # No population_shares provided — use raw pct_of_sample (original behavior).
-            sub_n = max(int(n_sample * pct_of_sample), 1)
+            # Composition unknown: use full n_sample as the denominator.
+            # This yields the largest sigma (lowest per-group influence) — appropriate
+            # when we have per-group vote shares but no sample-size breakdown.
+            sub_n = max(n_sample, 1)
 
         sigma = np.sqrt(dem_share * (1 - dem_share) / sub_n)
         W = _map_demographic_to_types(group, value, type_profiles, state_type_weights)

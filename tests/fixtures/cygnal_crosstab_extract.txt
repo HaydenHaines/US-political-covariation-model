@@ -1,0 +1,36 @@
+Cygnal
+Polling & Strategy | cygnalinc.com
+
+Methodology: N=800 Likely Voters | Conducted April 14-15, 2026 | IVR + SMS
+
+Voter Profile
+              Totals  Men  Women  White  Black  Hispanic  Asian  18-44  45-64  65+  College  Non-College  Rep  Dem  Ind
+Sample (pct)   100%   48%   52%    68%    12%     13%      5%    29%    44%   27%    41%       59%        35%  33%  32%
+
+Generic Congressional Ballot
+If the election were held today, would you vote for the
+Democratic candidate or the Republican candidate in your district?
+
+By Race
+              White  Black  Hispanic  Asian
+Democrat       36%    79%     51%      44%
+Republican     55%    11%     36%      44%
+Other/Unsure    9%    10%     13%      12%
+
+By Education
+              College  Non-College
+Democrat        52%       38%
+Republican      37%       51%
+Other/Unsure    11%       11%
+
+By Age Group
+              18-44  45-64  65+
+Democrat       54%    41%   41%
+Republican     35%    48%   49%
+Other/Unsure   11%    11%   10%
+
+By Gender
+              Men  Women
+Democrat       41%   50%
+Republican     50%   39%
+Other/Unsure    9%   11%

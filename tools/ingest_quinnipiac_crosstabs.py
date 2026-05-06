@@ -348,6 +348,84 @@ def build_crosstab_records(
     ]
 
 
+_CSV_VOTE_GROUPS = {"education", "race"}
+
+
+def update_csv_xt_votes(
+    csv_path: Path,
+    race: str,
+    geography: str,
+    pollster: str,
+    date: str,
+    parsed_rows: list[dict],
+    dry_run: bool = False,
+) -> int:
+    """Write xt_vote_* columns for matching Quinnipiac rows in polls_2026.csv.
+
+    Matches rows by (race, geography, pollster) within the same YYYY-MM as *date*,
+    then writes xt_vote_<group>_<value> columns for education and race groups only
+    (the groups the forecast engine's Tier 2 path consumes).
+
+    pct_of_sample (xt_<group>_<value>) is NOT written — Quinnipiac press release
+    PDFs don't publish sample composition.  The forecast engine must tolerate None
+    pct_of_sample for these records (see _extract_crosstabs_from_xt).
+
+    Returns number of CSV rows updated.
+    """
+    updates: dict[str, str] = {}
+    for row in parsed_rows:
+        if row["demographic_group"] not in _CSV_VOTE_GROUPS:
+            continue
+        col = f"xt_vote_{row['demographic_group']}_{row['group_value']}"
+        updates[col] = str(round(row["dem_share"], 6))
+
+    if not updates:
+        log.info("No education/race groups found — no xt_vote_* columns to write to CSV")
+        return 0
+
+    df = pd.read_csv(csv_path, dtype=str)
+
+    missing = [c for c in updates if c not in df.columns]
+    if missing:
+        log.warning("Columns not in CSV (skipping): %s", missing)
+        updates = {k: v for k, v in updates.items() if k not in missing}
+    if not updates:
+        return 0
+
+    date_ym = date[:7]
+    mask = (
+        (df["race"] == race)
+        & (df["geography"] == geography)
+        & (df["pollster"] == pollster)
+        & (df["date"].str[:7] == date_ym)
+    )
+    n_matches = int(mask.sum())
+
+    if n_matches == 0:
+        log.warning(
+            "No CSV rows matched race=%r geography=%r pollster=%r month=%s",
+            race, geography, pollster, date_ym,
+        )
+        return 0
+
+    log.info(
+        "Updating %d CSV row(s) for %s / %s / %s %s",
+        n_matches, race, geography, pollster, date_ym,
+    )
+    for col, val in updates.items():
+        log.info("  %s → %s", col, val)
+
+    if dry_run:
+        return n_matches
+
+    for col, val in updates.items():
+        df.loc[mask, col] = val
+
+    df.to_csv(csv_path, index=False)
+    log.info("CSV updated: %s", csv_path)
+    return n_matches
+
+
 def ingest_to_db(
     con: duckdb.DuckDBPyConnection,
     records: list[dict],
@@ -438,7 +516,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument(
         "--dry-run", action="store_true",
-        help="Report what would be ingested without writing to DuckDB",
+        help="Report what would be ingested without writing to DuckDB or CSV",
+    )
+    parser.add_argument(
+        "--csv", default=None, metavar="PATH",
+        help=(
+            "Path to polls_2026.csv to also update xt_vote_* columns. "
+            "Default: data/polls/polls_2026.csv relative to the project root."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -494,6 +579,25 @@ def main(argv: Optional[list[str]] = None) -> int:
         log.info("Dry-run complete. Would insert %d records.", n)
     else:
         log.info("Done. Inserted %d poll_crosstabs records.", n)
+
+    # Update polls_2026.csv with xt_vote_* columns for education/race groups.
+    csv_path = Path(args.csv) if args.csv else PROJECT_ROOT / "data" / "polls" / "polls_2026.csv"
+    if csv_path.exists():
+        n_csv = update_csv_xt_votes(
+            csv_path=csv_path,
+            race=args.race,
+            geography=args.geography,
+            pollster=args.pollster,
+            date=args.date,
+            parsed_rows=parsed_rows,
+            dry_run=args.dry_run,
+        )
+        if args.dry_run:
+            log.info("Dry-run: would update %d CSV rows.", n_csv)
+        else:
+            log.info("Updated %d CSV rows with xt_vote_* data.", n_csv)
+    else:
+        log.warning("CSV not found at %s — skipping CSV update", csv_path)
 
     return 0
 

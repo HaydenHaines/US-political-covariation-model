@@ -618,13 +618,15 @@ class TestExtractCrosstabsFromXtVoteShares:
         assert black_entry["pct_of_sample"] == pytest.approx(0.13)
         assert black_entry["dem_share"] == pytest.approx(0.80)
 
-    def test_xt_vote_only_poll_returns_none(self):
+    def test_xt_vote_only_poll_returns_crosstabs_with_none_pct(self):
         """A poll with only xt_vote_* columns (no xt_* sample composition) should
-        return None, not create noise entries with group='vote'.
+        return crosstab entries with pct_of_sample=None, not create noise entries
+        with group='vote' and should not return None.
 
-        Regression test: before the fix, xt_vote_race_white was parsed as
-        group='vote', value='race_white' with pct_of_sample=0.53 — a completely
-        wrong interpretation that created useless crosstab entries.
+        This enables Quinnipiac polls that publish per-group vote shares but not
+        sample composition to contribute Tier 2 y observations.  pct_of_sample=None
+        signals 'unknown composition' to build_W_from_crosstabs, which falls back
+        to using the full n_sample as a conservative denominator.
         """
         poll = {
             "dem_share": 0.60,
@@ -635,8 +637,15 @@ class TestExtractCrosstabsFromXtVoteShares:
             "xt_vote_education_college": 0.65,
         }
         crosstabs = _extract_crosstabs_from_xt(poll)
-        # No xt_* sample composition → no valid crosstab entries → None
-        assert crosstabs is None
+        assert crosstabs is not None
+        assert len(crosstabs) == 3
+        groups = {(c["demographic_group"], c["group_value"]) for c in crosstabs}
+        assert ("race", "white") in groups
+        assert ("race", "black") in groups
+        assert ("education", "college") in groups
+        for c in crosstabs:
+            assert c["pct_of_sample"] is None
+            assert 0.0 <= c["dem_share"] <= 1.0
 
     def test_xt_vote_columns_not_parsed_as_sample_composition(self):
         """xt_vote_* columns should not appear as crosstab entries even when

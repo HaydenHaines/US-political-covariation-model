@@ -44,7 +44,7 @@ export default function GovernorRaceDetailPage({ params }: PageProps) {
   const { data: overviewData, error: overviewError, isLoading: overviewLoading, mutate } = useGovernorOverview();
   const { data: simData } = useGovernorSimulation();
 
-  const race = overviewData?.races.find((r) => r.slug === slug);
+  const race = overviewData?.races.find((r) => r.state.toLowerCase() === slug);
 
   // Derive the race string needed for the polls filter once we have overview data
   const raceName = race?.race ?? null;

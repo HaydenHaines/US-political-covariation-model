@@ -53,8 +53,13 @@ export default function GovernorPage() {
   const rLeaningRatings = new Set(["safe_r", "likely_r"]);
   const competitiveRatings = new Set(["tossup", "lean_d", "lean_r"]);
 
-  // GovernorRaceData is a superset of SenateRaceData — cast is safe
-  const allRaces = data.races as unknown as SenateRaceData[];
+  // GovernorRaceData is a superset of SenateRaceData — cast is safe.
+  // Slug is remapped to state abbreviation lowercase (e.g. "wa") so detail
+  // page URLs are /forecast/governor/wa rather than /forecast/governor/2026-wa-governor.
+  const allRaces = data.races.map((r) => ({
+    ...r,
+    slug: r.state.toLowerCase(),
+  })) as unknown as SenateRaceData[];
 
   const competitiveRaces = allRaces.filter((r) => competitiveRatings.has(r.rating));
   const dLeaningRaces = allRaces.filter((r) => dLeaningRatings.has(r.rating));

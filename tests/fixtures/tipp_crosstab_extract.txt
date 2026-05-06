@@ -1,0 +1,36 @@
+TIPP Insights
+America's Pollster | tippinsights.com
+
+Methodology: Sample: 1,159 Likely Voters | Fielded April 22-24, 2026 | Online
+
+Sample Breakdown
+Totals  Men  Women  White  Black  Hispanic  Asian  18-44  45-64  65+  Rep  Dem  Ind
+% of Sample  100%   47%    53%    66%    13%     14%       4%    32%    40%    28%    37%  35%  28%
+
+Generic Congressional Ballot
+If the election for Congress were held today, would you vote for the
+Democratic candidate or the Republican candidate in your district?
+
+By Race
+White  Black  Hispanic  Asian
+Democratic candidate   39%    82%     54%      48%
+Republican candidate   52%    10%     34%      40%
+Undecided/Other         9%     8%     12%      12%
+
+By Gender
+Men  Women
+Democratic candidate   43%   52%
+Republican candidate   48%   39%
+Undecided/Other         9%    9%
+
+By Age
+18-44  45-64  65+
+Democratic candidate   56%    44%   42%
+Republican candidate   35%    47%   49%
+Undecided/Other         9%     9%    9%
+
+By Party
+Rep  Dem  Ind
+Democratic candidate    8%   91%   45%
+Republican candidate   86%    5%   42%
+Undecided/Other         6%    4%   13%

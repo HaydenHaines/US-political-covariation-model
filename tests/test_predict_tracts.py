@@ -323,8 +323,9 @@ def test_load_tract_priors_aligned():
 
 
 @pytest.mark.skipif(
-    not (DATA_DIR / "assembled" / "tract_elections.parquet").exists(),
-    reason="tract_elections.parquet not found",
+    not (DATA_DIR / "assembled" / "tract_elections.parquet").exists()
+    or not (DATA_DIR / "communities" / "tract_type_assignments.parquet").exists(),
+    reason="tract_elections.parquet or tract_type_assignments.parquet not found",
 )
 def test_load_tract_votes_shape():
     """Tract votes should return array of correct length."""

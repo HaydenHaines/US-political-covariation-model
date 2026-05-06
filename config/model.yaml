@@ -158,6 +158,8 @@ election:
     - 2020
   - - 2016
     - 2022
+  - - 2018
+    - 2024
   presidential_pairs:
   # Post-realignment (Reagan era forward) — added P6.1; pre-1980 pairs excluded
   # for regime non-stationarity (Southern Realignment break). See DECISIONS_LOG 2026-05-04.

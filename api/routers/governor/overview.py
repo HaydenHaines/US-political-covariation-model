@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, Request
 
 from api.db import get_db
 from api.routers.governor._helpers import (
+    DEM_GOV_CURRENT,
+    GOP_GOV_CURRENT,
     GOVERNOR_2026_STATES,
     classify_governor_race,
     rating_sort_key,
@@ -124,7 +126,7 @@ def get_governor_overview(
         # No model loaded — return structural fallbacks using incumbent parties
         races = [classify_governor_race(st) for st in sorted(GOVERNOR_2026_STATES)]
         races.sort(key=lambda r: (rating_sort_key(r["rating"]), r["state"]))
-        return {"races": races, "updated_at": None}
+        return {"races": races, "dem_current": DEM_GOV_CURRENT, "gop_current": GOP_GOV_CURRENT, "updated_at": None}
 
     # Check if forecast_mode column exists (backward compatibility with older DB versions)
     _has_mode = "forecast_mode" in [
@@ -147,5 +149,7 @@ def get_governor_overview(
 
     return {
         "races": races,
+        "dem_current": DEM_GOV_CURRENT,
+        "gop_current": GOP_GOV_CURRENT,
         "updated_at": _fetch_latest_poll_date(db),
     }

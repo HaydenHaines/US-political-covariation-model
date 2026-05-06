@@ -70,6 +70,10 @@ GOVERNOR_2026_OPEN_SEATS = {
     "WY",  # Gordon — term-limited
 }
 
+# Current governor composition across the 36 races up in 2026.
+DEM_GOV_CURRENT = sum(1 for p in _GOVERNOR_INCUMBENT.values() if p == "D")
+GOP_GOV_CURRENT = sum(1 for p in _GOVERNOR_INCUMBENT.values() if p == "R")
+
 # Incumbency advantage heuristic (interim until voter behavior layer τ/δ).
 # Historical average: sitting governors running for re-election outperform
 # their party's presidential baseline by ~4pp. Applied to non-open seats only.

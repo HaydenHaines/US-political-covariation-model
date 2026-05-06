@@ -63,13 +63,38 @@ function PartisanBar({ dem, gop, tossup, total, majorityLine }: PartisanBarProps
   );
 }
 
+interface DeltaBadgeProps {
+  delta: number;
+}
+
+function DeltaBadge({ delta }: DeltaBadgeProps) {
+  if (delta === 0) return null;
+  const color = delta > 0 ? DEM : GOP;
+  const sign = delta > 0 ? "+" : "";
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        color,
+        opacity: 0.85,
+        marginLeft: 4,
+        letterSpacing: "0.02em",
+      }}
+    >
+      {sign}{delta}
+    </span>
+  );
+}
+
 interface SeatCountProps {
   dem: number;
   gop: number;
   unit: string;
+  demDelta?: number;
 }
 
-function SeatCount({ dem, gop, unit }: SeatCountProps) {
+function SeatCount({ dem, gop, unit, demDelta }: SeatCountProps) {
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
       <span
@@ -134,6 +159,7 @@ function SeatCount({ dem, gop, unit }: SeatCountProps) {
       >
         {unit}
       </span>
+      {demDelta !== undefined && <DeltaBadge delta={demDelta} />}
     </div>
   );
 }
@@ -170,14 +196,16 @@ export function NationalProjectionStrip() {
     return null;
   }
 
-  const { dem_projected, gop_projected } = senate.data;
+  const { dem_projected, gop_projected, dem_current: senateDemCurrent } = senate.data;
   const senateTossup = 100 - dem_projected - gop_projected;
+  const senateDemDelta = dem_projected - senateDemCurrent;
 
   const govRaces = governor.data.races;
   const demGov = govRaces.filter((r) => D_RATINGS.has(r.rating)).length;
   const gopGov = govRaces.filter((r) => R_RATINGS.has(r.rating)).length;
   const tossupGov = govRaces.filter((r) => r.rating === "tossup").length;
   const govTotal = govRaces.length;
+  const govDemDelta = demGov - governor.data.dem_current;
 
   return (
     <div style={{ marginBottom: 24, paddingBottom: 20, borderBottom: "1px solid var(--color-border)" }}>
@@ -212,7 +240,7 @@ export function NationalProjectionStrip() {
             >
               Senate
             </div>
-            <SeatCount dem={dem_projected} gop={gop_projected} unit="seats" />
+            <SeatCount dem={dem_projected} gop={gop_projected} unit="seats" demDelta={senateDemDelta} />
             <div style={{ marginTop: 8, marginBottom: 6 }}>
               <PartisanBar
                 dem={dem_projected}
@@ -262,7 +290,7 @@ export function NationalProjectionStrip() {
             >
               Governors
             </div>
-            <SeatCount dem={demGov} gop={gopGov} unit="wins" />
+            <SeatCount dem={demGov} gop={gopGov} unit="wins" demDelta={govDemDelta} />
             <div style={{ marginTop: 8, marginBottom: 6 }}>
               <PartisanBar
                 dem={demGov}

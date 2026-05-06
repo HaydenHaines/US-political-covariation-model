@@ -240,6 +240,9 @@ export interface SenateOverviewData {
   /** Safe seats not up in 2026 (baseline, not displayed directly in the hero). */
   dem_seats_safe: number;
   gop_seats_safe: number;
+  /** Current seat composition before the 2026 election (equals DEM_SAFE_SEATS / GOP_SAFE_SEATS). */
+  dem_current: number;
+  gop_current: number;
   /**
    * Projected seat totals: safe seats + contested seats the model clearly favors.
    * Tossups are excluded from both sides (standard forecasting convention).
@@ -278,6 +281,9 @@ export interface GovernorRaceData {
 
 export interface GovernorOverviewData {
   races: GovernorRaceData[];
+  /** Current governorship composition across the 36 races up in 2026. */
+  dem_current: number;
+  gop_current: number;
   /** ISO date string of the most recently scraped governor poll, if available. */
   updated_at: string | null;
 }

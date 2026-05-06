@@ -1,0 +1,29 @@
+Trafalgar Group
+Survey Research | TheTrafalgarGroup.com
+
+Methodology: n=952 Likely General Election Voters | Survey Conducted March 18-19, 2026 | Multi-Mode (IVR/Online)
+
+Sample Breakdown
+Totals  Men  Women  White  Black  Hispanic  Asian  18-44  45-64  65+  College  Non-College  Rep  Dem  Ind
+% of Sample  100%   49%    51%    70%    12%     11%       5%    31%    41%    28%    42%       58%        36%  34%  30%
+
+Congressional Generic Ballot
+For whom would you vote for Congress in 2026?
+
+By Race
+White  Black  Hispanic  Asian
+Democrat       37%    78%     50%      44%
+Republican     56%    12%     36%      42%
+Undecided       7%    10%     14%      14%
+
+By Education
+College  Non-College
+Democrat        51%       37%
+Republican      40%       54%
+Undecided        9%        9%
+
+By Age Group
+18-44  45-64  65+
+Democrat       55%    42%    40%
+Republican     33%    49%    52%
+Undecided      12%     9%     8%

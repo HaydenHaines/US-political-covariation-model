@@ -265,6 +265,11 @@ export async function fetchSenateOverview(): Promise<SenateOverviewData> {
   return res.json();
 }
 
+export interface GovernorEcon {
+  wage_growth_pct: number;
+  employment_change_pct: number;
+}
+
 export interface GovernorRaceData {
   state: string;
   race: string;
@@ -277,6 +282,8 @@ export interface GovernorRaceData {
   n_polls: number;
   /** Whether this is an open seat (no incumbent running). */
   is_open_seat: boolean;
+  /** QCEW-derived economic indicators for this state (2020–2023). Null if no data. */
+  econ: GovernorEcon | null;
 }
 
 export interface GovernorOverviewData {

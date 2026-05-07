@@ -312,6 +312,46 @@ class TestPreparePolls:
         assert p["xt_race_black"] == pytest.approx(0.21)
         assert p["custom_source_id"] == "poll-123"
 
+    def test_prepare_polls_applies_house_effect_and_preserves_metadata(self, monkeypatch):
+        """Known house effects should flow through prepare_polls into the weighting pipeline."""
+        import src.propagation.house_effects as he_mod
+
+        pollster = "Known House Effect Pollster"
+        house_effect_pp = 3.5
+        raw_dem_share = 0.56
+        monkeypatch.setattr(he_mod, "_EMPIRICAL_BIAS", {pollster: house_effect_pp})
+        monkeypatch.setattr(he_mod, "_SB_HOUSE_EFFECTS", {})
+        monkeypatch.setattr(he_mod, "_538_BIAS", {})
+
+        raw = {
+            "2026 GA Senate": [
+                {
+                    "dem_share": raw_dem_share,
+                    "n_sample": 800,
+                    "state": "GA",
+                    "date": "2026-10-01",
+                    "pollster": pollster,
+                    "notes": "LV; src=fixture",
+                    "geo_level": "state",
+                    "methodology": "mixed",
+                    "custom_source_id": "poll-house-effect-1",
+                    "xt_party_dem": 0.42,
+                },
+            ]
+        }
+
+        result = prepare_polls(raw, reference_date="2026-10-01")
+
+        p = result["2026 GA Senate"][0]
+        assert p["dem_share"] == pytest.approx(
+            raw_dem_share - house_effect_pp / 100.0,
+            abs=1e-6,
+        )
+        assert p["methodology"] == "mixed"
+        assert p["custom_source_id"] == "poll-house-effect-1"
+        assert p["xt_party_dem"] == pytest.approx(0.42)
+        assert p["notes"] == "LV; src=fixture"
+
     def test_empty_input(self):
         result = prepare_polls({}, reference_date="2026-03-29")
         assert result == {}

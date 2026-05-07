@@ -131,6 +131,10 @@ _RELIGION: list[FeatureSpec] = [
     FeatureSpec("catholic_share", "religion", "religion", "rcms_county", None, "Catholic adherent share"),
     FeatureSpec("black_protestant_share", "religion", "religion", "rcms_county", None, "Black Protestant adherent share"),  # noqa: E501
     FeatureSpec("adherence_rate", "religion", "religion", "rcms_county", None, "Total religious adherence rate"),
+    FeatureSpec("lds_rate", "religion", "religion", "rcms_county", None, "LDS/Mormon adherents per 1k"),
+    FeatureSpec("muslim_rate", "religion", "religion", "rcms_county", None, "Muslim adherents per 1k"),
+    FeatureSpec("jewish_rate", "religion", "religion", "rcms_county", None, "Jewish adherents per 1k"),
+    FeatureSpec("hindu_sikh_rate", "religion", "religion", "rcms_county", None, "Hindu+Sikh proxy per 1k"),
 ]
 
 # ── Combined registry ────────────────────────────────────────────────────────

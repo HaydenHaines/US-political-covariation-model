@@ -361,7 +361,8 @@ def build_religion_features(
     """
     religion_cols = [
         c for c in ["evangelical_share", "catholic_share", "black_protestant_share",
-                    "adherence_rate", "religious_adherence_rate"]
+                    "adherence_rate", "religious_adherence_rate",
+                    "lds_rate", "muslim_rate", "jewish_rate", "hindu_sikh_rate"]
         if c in rcms_county.columns
     ]
 

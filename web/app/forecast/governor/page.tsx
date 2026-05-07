@@ -1,6 +1,7 @@
 "use client";
 
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
+import { useGovernorSimulation } from "@/lib/hooks/use-governor-simulation";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { GovernorPollingCard } from "@/components/forecast/GovernorPollingCard";
 import {
@@ -11,6 +12,7 @@ import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ELECTION_YEAR, GOVERNOR_RACES_COUNT } from "@/lib/config/election";
+import { DUSTY_INK } from "@/lib/config/palette";
 import type { SenateRaceData } from "@/lib/api";
 
 /**
@@ -24,6 +26,7 @@ import type { SenateRaceData } from "@/lib/api";
  */
 export default function GovernorPage() {
   const { data, error, isLoading, mutate } = useGovernorOverview();
+  const { data: simData } = useGovernorSimulation();
 
   if (error) {
     return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
@@ -65,6 +68,25 @@ export default function GovernorPage() {
   const dLeaningRaces = allRaces.filter((r) => dLeaningRatings.has(r.rating));
   const rLeaningRaces = allRaces.filter((r) => rLeaningRatings.has(r.rating));
 
+  // Compute median + 10th/90th percentile D seat counts from simulation buckets.
+  let simStats: { median: number; lo80: number; hi80: number } | null = null;
+  if (simData?.buckets && simData.buckets.length > 0) {
+    const sorted = [...simData.buckets].sort((a, b) => a.d_seats - b.d_seats);
+    let cum = 0;
+    let lo80: number | null = null;
+    let median: number | null = null;
+    let hi80: number | null = null;
+    for (const b of sorted) {
+      cum += b.probability;
+      if (lo80 === null && cum >= 0.1) lo80 = b.d_seats;
+      if (median === null && cum >= 0.5) median = b.d_seats;
+      if (hi80 === null && cum >= 0.9) { hi80 = b.d_seats; break; }
+    }
+    if (median !== null && lo80 !== null && hi80 !== null) {
+      simStats = { median, lo80, hi80 };
+    }
+  }
+
   return (
     <div>
       <h1 className="font-serif text-2xl font-bold mb-2">
@@ -83,6 +105,53 @@ export default function GovernorPage() {
 
       {/* Polling coverage summary — total polls, races polled, coverage quality */}
       <GovernorPollingCard />
+
+      {/* Simulation-based seat distribution summary */}
+      {simStats && (
+        <section
+          className="mb-8 rounded-md p-4 text-sm"
+          aria-label="Simulation Summary"
+          style={{
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-3 mb-1">
+            <h2
+              className="font-serif text-lg"
+              style={{ fontFamily: "var(--font-serif)", color: "var(--color-text)" }}
+            >
+              Simulation Outlook
+            </h2>
+            <span className="font-mono text-xs" style={{ color: "var(--color-text-muted)" }}>
+              Monte Carlo
+            </span>
+          </div>
+          <p className="mb-4 text-xs" style={{ color: "var(--color-text-muted)" }}>
+            Expected governor seat counts across all races — median result with 80% range
+          </p>
+          <dl className="space-y-2">
+            <div className="flex items-center justify-between gap-4">
+              <dt style={{ color: "var(--color-text-muted)" }}>Democratic governors (median)</dt>
+              <dd className="font-mono font-semibold" style={{ color: DUSTY_INK.safeD }}>
+                {simStats.median}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt style={{ color: "var(--color-text-muted)" }}>Republican governors (median)</dt>
+              <dd className="font-mono font-semibold" style={{ color: DUSTY_INK.safeR }}>
+                {36 - simStats.median}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt style={{ color: "var(--color-text-muted)" }}>D range (80% interval)</dt>
+              <dd className="font-mono font-semibold" style={{ color: "var(--color-text-muted)" }}>
+                {simStats.lo80}–{simStats.hi80}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
 
       {/* Partisan balance and competitive seat exposure */}
       <GovernorSeatRiskCard races={data.races} />

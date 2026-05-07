@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRaceDetail } from "@/lib/hooks/use-race-detail";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { CandidateBadges } from "@/components/forecast/CandidateBadges";
 import { PollTrendChart } from "@/components/forecast/PollTrendChart";
 import { PollTable } from "@/components/forecast/PollTable";
+import { SparklineChart } from "@/components/forecast/SparklineChart";
 import { HistoricalContextCard } from "@/components/forecast/HistoricalContextCard";
 import { PollConfidenceBadge } from "@/components/forecast/PollConfidenceBadge";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -46,6 +48,8 @@ type PageProps = { params: { slug: string } };
 export default function SenateRaceDetailPage({ params }: PageProps) {
   const { slug } = params;
   const { data, error, isLoading, mutate } = useRaceDetail(slug);
+  const { historyBySlug } = useRaceHistory();
+  const raceHistory = historyBySlug.get(slug) ?? [];
 
   if (error) {
     return (
@@ -228,6 +232,32 @@ export default function SenateRaceDetailPage({ params }: PageProps) {
 
         <PollTable polls={data.polls} />
       </section>
+
+      {/* Forecast history sparkline */}
+      {raceHistory.length > 0 && (
+        <section className="mb-10">
+          <h2
+            className="font-serif text-xl mb-4"
+            style={{ color: "var(--color-text)" }}
+          >
+            Forecast History
+          </h2>
+          <div
+            className="rounded-md px-4 py-4"
+            style={{
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <SparklineChart
+              history={raceHistory}
+              width={480}
+              height={60}
+              ariaLabel={`Forecast margin history for ${data.year} ${stateName} ${data.race_type}`}
+            />
+          </div>
+        </section>
+      )}
 
       {/* Historical context — only for tracked competitive races */}
       {data.historical_context && (

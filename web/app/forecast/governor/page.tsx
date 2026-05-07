@@ -5,6 +5,10 @@ import { useGovernorSimulation } from "@/lib/hooks/use-governor-simulation";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { GovernorPollingCard } from "@/components/forecast/GovernorPollingCard";
 import {
+  GovernorEconomicCard,
+  GovernorEconomicCardSkeleton,
+} from "@/components/forecast/GovernorEconomicCard";
+import {
   GovernorSeatRiskCard,
   GovernorSeatRiskCardSkeleton,
 } from "@/components/forecast/GovernorSeatRiskCard";
@@ -38,6 +42,7 @@ export default function GovernorPage() {
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-4 w-96" />
         <GovernorSeatRiskCardSkeleton />
+        <GovernorEconomicCardSkeleton />
         <div className="grid grid-cols-3 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-28 rounded-lg" />
@@ -105,6 +110,9 @@ export default function GovernorPage() {
 
       {/* Polling coverage summary — total polls, races polled, coverage quality */}
       <GovernorPollingCard />
+
+      {/* Economic context — wage growth and employment change for competitive states */}
+      <GovernorEconomicCard races={data.races} />
 
       {/* Simulation-based seat distribution summary */}
       {simStats && (

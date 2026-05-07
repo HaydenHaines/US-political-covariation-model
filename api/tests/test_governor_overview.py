@@ -197,6 +197,18 @@ class TestGovernorOverviewWithModel:
             assert "incumbent_party" in race
             assert "is_open_seat" in race
             assert "n_polls" in race
+            assert "econ" in race  # may be null when parquet absent
+
+    def test_econ_field_is_null_or_has_expected_shape(self, overview_client):
+        """econ must be null (parquet absent in tests) or a dict with the right keys."""
+        data = overview_client.get("/api/v1/governor/overview").json()
+        for race in data["races"]:
+            econ = race.get("econ")
+            if econ is not None:
+                assert "wage_growth_pct" in econ, f"missing wage_growth_pct in {race['state']}"
+                assert "employment_change_pct" in econ, f"missing employment_change_pct in {race['state']}"
+                assert isinstance(econ["wage_growth_pct"], (int, float))
+                assert isinstance(econ["employment_change_pct"], (int, float))
 
     def test_az_rated_as_dem_lean_or_likely(self, overview_client):
         """AZ (lean D) should not be rated as safe_r or tossup given model prediction."""

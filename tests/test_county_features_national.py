@@ -24,6 +24,7 @@ import pytest
 
 from src.assembly.build_county_features_national import (
     CHR_FEATURE_COLS,
+    DENOMINATION_FEATURE_COLS,
     MIGRATION_FEATURE_COLS,
     QCEW_FEATURE_COLS,
     RCMS_FEATURE_COLS,
@@ -682,3 +683,61 @@ class TestSciIntegration:
         assert len(result.columns) == expected, (
             f"Expected {expected} cols, got {len(result.columns)}: {list(result.columns)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Helpers for denomination features
+# ---------------------------------------------------------------------------
+
+
+def _make_denominations(fips_list: list[str]) -> pd.DataFrame:
+    """Minimal synthetic RCMS denomination features DataFrame (per-1,000 rates)."""
+    rng = np.random.default_rng(99)
+    n = len(fips_list)
+    return pd.DataFrame({
+        "county_fips": fips_list,
+        "lds_rate": rng.uniform(0.0, 50.0, size=n),
+        "muslim_rate": rng.uniform(0.0, 20.0, size=n),
+        "jewish_rate": rng.uniform(0.0, 30.0, size=n),
+        "hindu_sikh_rate": rng.uniform(0.0, 10.0, size=n),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Tests: denomination features
+# ---------------------------------------------------------------------------
+
+
+class TestDenominationFeatures:
+    def test_denomination_cols_present_when_supplied(self):
+        """Passing a denominations= DataFrame merges all four denomination columns."""
+        fips = ["01001", "01003", "12001"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        denominations = _make_denominations(fips)
+        result = build_national_features(acs, rcms, denominations=denominations)
+        for col in DENOMINATION_FEATURE_COLS:
+            assert col in result.columns, f"Denomination column missing: {col}"
+
+    def test_denomination_values_nonnull_for_matched_fips(self):
+        """Denomination columns are non-NaN for a county_fips present in the denominations table."""
+        fips = ["01001", "01003", "12001"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        denominations = _make_denominations(fips)
+        result = build_national_features(acs, rcms, denominations=denominations)
+        known_row = result[result["county_fips"] == "01001"]
+        assert len(known_row) == 1
+        for col in DENOMINATION_FEATURE_COLS:
+            assert not pd.isna(known_row[col].iloc[0]), f"{col} is NaN for matched FIPS 01001"
+
+    def test_denomination_cols_absent_when_not_supplied(self):
+        """Omitting denominations= leaves DENOMINATION_FEATURE_COLS out of the output."""
+        fips = ["01001", "01003"]
+        acs = _make_acs(fips)
+        rcms = _make_rcms(fips)
+        result = build_national_features(acs, rcms)
+        for col in DENOMINATION_FEATURE_COLS:
+            assert col not in result.columns, (
+                f"Denomination column {col!r} present even though denominations= was not supplied"
+            )

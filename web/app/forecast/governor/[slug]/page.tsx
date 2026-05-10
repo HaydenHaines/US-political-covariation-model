@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { useGovernorSimulation } from "@/lib/hooks/use-governor-simulation";
 import { usePolls } from "@/lib/hooks/use-polls";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { PollTrendChart } from "@/components/forecast/PollTrendChart";
 import { PollTable } from "@/components/forecast/PollTable";
+import { SparklineChart } from "@/components/forecast/SparklineChart";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { RatingBadge } from "@/components/shared/RatingBadge";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -43,6 +45,8 @@ export default function GovernorRaceDetailPage({ params }: PageProps) {
 
   const { data: overviewData, error: overviewError, isLoading: overviewLoading, mutate } = useGovernorOverview();
   const { data: simData } = useGovernorSimulation();
+  const { historyBySlug } = useRaceHistory();
+  const raceHistory = historyBySlug.get(slug) ?? [];
 
   const race = overviewData?.races.find((r) => r.state.toLowerCase() === slug);
 
@@ -229,6 +233,32 @@ export default function GovernorRaceDetailPage({ params }: PageProps) {
           )}
         </div>
       </header>
+
+      {/* Forecast history sparkline */}
+      {raceHistory.length > 0 && (
+        <section className="mb-10">
+          <h2
+            className="font-serif text-xl mb-4"
+            style={{ color: "var(--color-text)" }}
+          >
+            Forecast History
+          </h2>
+          <div
+            className="rounded-md px-4 py-4"
+            style={{
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <SparklineChart
+              history={raceHistory}
+              width={480}
+              height={60}
+              ariaLabel={`Forecast margin history for ${stateName} Governor`}
+            />
+          </div>
+        </section>
+      )}
 
       {/* Polls section */}
       <section className="mb-10">

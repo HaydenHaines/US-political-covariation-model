@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { RaceCard } from "@/components/forecast/RaceCard";
+import { StateRaceCards } from "@/components/state/StateRaceCards";
 import { StateCountyTable } from "@/components/state/StateCountyTable";
 import type { CountyTableRow } from "@/components/state/StateCountyTable";
 import { StateTypeDistribution } from "@/components/state/StateTypeDistribution";
@@ -457,11 +457,7 @@ export default async function StateHubPage({ params }: PageProps) {
           >
             2026 Races
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {data.races.map((race) => (
-              <RaceCard key={race.slug} race={race} />
-            ))}
-          </div>
+          <StateRaceCards races={data.races} />
         </section>
       )}
 

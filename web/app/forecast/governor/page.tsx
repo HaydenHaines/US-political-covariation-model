@@ -7,7 +7,7 @@ import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ELECTION_YEAR, GOVERNOR_RACES_COUNT } from "@/lib/config/election";
-import type { SenateRaceData } from "@/lib/api";
+import type { GovernorRaceData } from "@/lib/api";
 
 /**
  * Governor overview page.
@@ -21,6 +21,7 @@ import type { SenateRaceData } from "@/lib/api";
 export default function GovernorPage() {
   const { data, error, isLoading, mutate } = useGovernorOverview();
   const [stateFilter, setStateFilter] = useState("");
+  const [openSeatsOnly, setOpenSeatsOnly] = useState(false);
 
   if (error) {
     return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
@@ -49,21 +50,27 @@ export default function GovernorPage() {
   const rLeaningRatings = new Set(["safe_r", "likely_r"]);
   const competitiveRatings = new Set(["tossup", "lean_d", "lean_r"]);
 
-  // GovernorRaceData is a superset of SenateRaceData — cast is safe
-  const allRaces = data.races as unknown as SenateRaceData[];
-
   const stateNeedle = stateFilter.trim().toLowerCase();
-  const filteredAll = stateNeedle
-    ? allRaces.filter((r) => r.state.toLowerCase().includes(stateNeedle))
-    : allRaces;
+  const filteredAll = data.races.filter((race) => {
+    const matchesState =
+      !stateNeedle || race.state.toLowerCase().includes(stateNeedle);
+    const matchesOpenSeat = !openSeatsOnly || race.is_open_seat;
+
+    return matchesState && matchesOpenSeat;
+  });
 
   const competitiveRaces = filteredAll.filter((r) => competitiveRatings.has(r.rating));
   const dLeaningRaces = filteredAll.filter((r) => dLeaningRatings.has(r.rating));
   const rLeaningRaces = filteredAll.filter((r) => rLeaningRatings.has(r.rating));
 
   const noResults =
-    stateNeedle &&
+    (stateNeedle || openSeatsOnly) &&
     competitiveRaces.length + dLeaningRaces.length + rLeaningRaces.length === 0;
+
+  const raceGroupStateList = (races: GovernorRaceData[]) =>
+    races.map((race) => race.state).join(" ");
+  const raceGroupOpenSeatStateList = (races: GovernorRaceData[]) =>
+    races.filter((race) => race.is_open_seat).map((race) => race.state).join(" ");
 
   return (
     <div>
@@ -102,6 +109,19 @@ export default function GovernorPage() {
             }}
           />
         </label>
+        <label
+          className="inline-flex items-center gap-2 text-sm"
+          style={{ color: "var(--color-dusty-ink, var(--color-text))" }}
+        >
+          <input
+            type="checkbox"
+            checked={openSeatsOnly}
+            onChange={(e) => setOpenSeatsOnly(e.target.checked)}
+            data-testid="open-seat-filter"
+            style={{ accentColor: "var(--color-accent)" }}
+          />
+          Open seats only
+        </label>
       </div>
 
       {/* National environment — structural forecast applies to all race types */}
@@ -110,25 +130,50 @@ export default function GovernorPage() {
       {noResults ? (
         <p
           className="text-sm mt-4"
+          data-testid="governor-filter-empty-state"
           style={{ color: "var(--color-text-muted)" }}
         >
-          No governor races match &ldquo;{stateNeedle}&rdquo;
+          No governor races match the selected filters.
         </p>
       ) : (
         <>
           {/* Competitive races first — these are what readers care most about */}
           {competitiveRaces.length > 0 && (
-            <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+            <div
+              aria-label="Competitive governor races"
+              data-testid="governor-race-group"
+              data-group="competitive"
+              data-states={raceGroupStateList(competitiveRaces)}
+              data-open-seat-states={raceGroupOpenSeatStateList(competitiveRaces)}
+            >
+              <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+            </div>
           )}
 
           {/* D-leaning races */}
           {dLeaningRaces.length > 0 && (
-            <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+            <div
+              aria-label="Likely and safe Democratic governor races"
+              data-testid="governor-race-group"
+              data-group="d-leaning"
+              data-states={raceGroupStateList(dLeaningRaces)}
+              data-open-seat-states={raceGroupOpenSeatStateList(dLeaningRaces)}
+            >
+              <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+            </div>
           )}
 
           {/* R-leaning races */}
           {rLeaningRaces.length > 0 && (
-            <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+            <div
+              aria-label="Likely and safe Republican governor races"
+              data-testid="governor-race-group"
+              data-group="r-leaning"
+              data-states={raceGroupStateList(rLeaningRaces)}
+              data-open-seat-states={raceGroupOpenSeatStateList(rLeaningRaces)}
+            >
+              <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+            </div>
           )}
         </>
       )}

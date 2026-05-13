@@ -12,9 +12,9 @@ export default defineConfig({
     headless: true,
   },
   webServer: {
-    command: `PORT=${port} npm run start`,
+    command: `PORT=${port} pnpm run dev`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 60_000,
   },
 });

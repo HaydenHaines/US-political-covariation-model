@@ -104,7 +104,7 @@ export function TypeCompareTable() {
   const [allTypes, setAllTypes] = useState<TypeSummary[]>([]);
   const [details, setDetails] = useState<Map<number, TypeDetail>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
-  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortKey] = useState<string | null>(null);
   const [sortTypeId, setSortTypeId] = useState<number | null>(null);
 
   // Load all types list once
@@ -209,7 +209,6 @@ export function TypeCompareTable() {
         })
       : sortedRowKeys;
 
-  const colWidth = 420 / (compareTypeIds.length + 1);
   const labelColWidth = Math.max(120, 420 - compareTypeIds.length * 110);
   const typeColWidth = Math.min(120, (420 - labelColWidth) / Math.max(compareTypeIds.length, 1));
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 
 interface RaceOption {
   slug: string;
@@ -39,6 +39,8 @@ export function RaceSelector({
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const generatedId = useId();
+  const listboxId = `${id ?? generatedId}-listbox`;
 
   const selectedOption = options.find((o) => o.slug === value);
 
@@ -122,6 +124,7 @@ export function RaceSelector({
         type="text"
         role="combobox"
         aria-expanded={isOpen}
+        aria-controls={listboxId}
         aria-haspopup="listbox"
         aria-autocomplete="list"
         autoComplete="off"
@@ -144,6 +147,7 @@ export function RaceSelector({
 
       {isOpen && !disabled && (
         <ul
+          id={listboxId}
           role="listbox"
           className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded border shadow-md"
           style={{

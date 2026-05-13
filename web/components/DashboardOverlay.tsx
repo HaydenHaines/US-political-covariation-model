@@ -30,12 +30,6 @@ function buildChoropleth(rows: ForecastRow[], stateFilter?: string): Map<string,
   return m;
 }
 
-/** Extract state abbreviation from a race string like "2026 GA Senate". */
-function extractState(race: string): string | null {
-  const m = race.match(/\d{4}\s+([A-Z]{2})\s+/);
-  return m ? m[1] : null;
-}
-
 /** Sliding right panel shown in dashboard mode when a state is zoomed. */
 export function DashboardOverlay() {
   const {

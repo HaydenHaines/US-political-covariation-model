@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 test.describe("Breadcrumbs", () => {
   test("type detail page has breadcrumb nav", async ({ page }) => {

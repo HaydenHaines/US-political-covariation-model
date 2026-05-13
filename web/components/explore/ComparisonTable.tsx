@@ -17,6 +17,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -35,11 +36,9 @@ import { useTypes } from "@/lib/hooks/use-types";
 import { useTypeDetail } from "@/lib/hooks/use-type-detail";
 import {
   groupFieldsBySection,
-  getFieldConfig,
   SKIP_FIELDS,
 } from "@/lib/config/display";
 import { formatField, parseMargin } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { TypeDetail } from "@/lib/api";
 import type { TypeSummary } from "@/lib/types";
 
@@ -72,6 +71,7 @@ function TypeSelector({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listboxId = `${useId()}-listbox`;
 
   // Filter out already-selected types and apply search query
   const filtered = useMemo(() => {
@@ -163,6 +163,7 @@ function TypeSelector({
           type="text"
           role="combobox"
           aria-expanded={open}
+          aria-controls={listboxId}
           aria-autocomplete="list"
           aria-haspopup="listbox"
           value={query}
@@ -193,6 +194,7 @@ function TypeSelector({
       {/* Dropdown */}
       {open && (
         <ul
+          id={listboxId}
           ref={listRef}
           role="listbox"
           aria-label="Electoral types"

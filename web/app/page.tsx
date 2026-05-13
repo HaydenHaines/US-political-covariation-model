@@ -7,6 +7,7 @@ import { HeroSection } from "@/components/landing/HeroSection";
 import { FreshnessStamp } from "@/components/shared/FreshnessStamp";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { MiniMap } from "@/components/landing/MiniMap";
+import { XtTopMoversCard } from "@/components/landing/XtTopMoversCard";
 import { ScrollyNarrative } from "@/components/home/ScrollyNarrative";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,6 +41,11 @@ export default function LandingPage() {
           <MiniMap stateColors={data.state_colors} />
         </div>
       )}
+
+      {/* Top Movers widget — constrained to max-w-5xl */}
+      <div className="mx-auto max-w-5xl px-4 mb-4">
+        <XtTopMoversCard />
+      </div>
 
       {/* Map caption + scroll invitation — back in max-w-5xl for alignment with hero text */}
       <div className="mx-auto max-w-5xl">

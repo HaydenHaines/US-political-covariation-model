@@ -54,19 +54,6 @@ function selectDimensions(
     .slice(0, MAX_DIMS);
 }
 
-/**
- * Compute the (x, y) endpoint for an axis at angle θ with given radius.
- *
- * SVG angles: 0 = right, positive = clockwise (standard SVG coordinate system).
- * We start at -π/2 (top) so the first axis points straight up.
- */
-function polarToXY(angle: number, radius: number): { x: number; y: number } {
-  return {
-    x: radius * Math.cos(angle),
-    y: radius * Math.sin(angle),
-  };
-}
-
 /** Map party code to fill and stroke color. */
 function partyColor(party: string): { fill: string; stroke: string } {
   if (party === "D") {
@@ -179,7 +166,7 @@ export function CTOVRadarChart({ badgeScores, party, size = 120 }: CTOVRadarChar
         ))}
 
         {/* Axis spokes: center → outer edge */}
-        {axes.map(({ angle, ax, ay }, i) => (
+        {axes.map(({ ax, ay }, i) => (
           <line
             key={i}
             x1={0}

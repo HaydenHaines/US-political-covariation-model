@@ -1,6 +1,6 @@
 "use client";
 
-import { MapProvider, type LayoutMode } from "@/components/MapContext";
+import { MapProvider } from "@/components/MapContext";
 import { useMapContext } from "@/components/MapContext";
 import { TabBar } from "@/components/TabBar";
 import { ThemeToggle } from "@/components/ThemeToggle";

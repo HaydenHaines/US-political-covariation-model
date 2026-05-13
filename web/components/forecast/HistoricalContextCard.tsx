@@ -61,7 +61,7 @@ function formatShift(shiftPp: number): { label: string; color: string } {
   return { label: `R+${formatted} shift vs. last result`, color: "var(--forecast-safe-r)" };
 }
 
-export function HistoricalContextCard({ context, stateName, stateAbbr }: Props) {
+export function HistoricalContextCard({ context, stateAbbr }: Props) {
   const { last_race, presidential_2024, forecast_shift } = context;
 
   const lastMarginLabel = formatPpMargin(last_race.margin);

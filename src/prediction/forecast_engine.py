@@ -664,6 +664,7 @@ def _xt_delta_from_polls(
 
     return {
         "enriched_deltas": enriched_deltas,
+        "xt_race_counts": xt_race_counts,
         "mean_delta": float(np.mean(xt_deltas)) if xt_deltas else 0.0,
         "max_delta": float(np.max(xt_deltas)) if xt_deltas else 0.0,
         "races_with_xt": sum(1 for c in xt_race_counts.values() if c > 0),

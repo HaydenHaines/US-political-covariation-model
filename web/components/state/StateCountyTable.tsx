@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { MarginDisplay } from "@/components/shared/MarginDisplay";
-import { RatingBadge } from "@/components/shared/RatingBadge";
-import { marginToRating, getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
+import { getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
 import { stripStateSuffix } from "@/lib/config/states";
 
 export interface CountyTableRow {

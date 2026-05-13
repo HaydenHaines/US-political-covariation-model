@@ -23,7 +23,6 @@ import { fetchSuperTypes, fetchTypes, type TypeSummary } from "@/lib/api";
 import { useMapContext } from "@/components/MapContext";
 import { CommunityPanel } from "@/components/CommunityPanel";
 import { TypePanel } from "@/components/TypePanel";
-import { type TractFeatureProps } from "@/components/TractPanel";
 import { TractPopup, type TractPopupData } from "@/components/TractPopup";
 import { DashboardOverlay } from "@/components/DashboardOverlay";
 
@@ -92,17 +91,14 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   const containerRef = useRef<HTMLDivElement>(null);
   // Cache tract GeoJSON by state abbreviation so repeated clicks don't re-fetch.
   // Cleared only on unmount (the cache is valid for the lifetime of this map instance).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tractGeoCache = useRef<Map<string, Record<string, unknown>>>(new Map());
   const [viewState, setViewState] = useState<Record<string, unknown>>(INITIAL_VIEW_STATE);
 
   // State-level data (loaded on mount)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [stateGeo, setStateGeo] = useState<Record<string, unknown> | null>(null);
   const [stateRatings, setStateRatings] = useState<Map<string, string>>(new Map());
 
   // Per-state tract data (loaded on state click)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [stateTracts, setStateTracts] = useState<Record<string, unknown> | null>(null);
   const [loadingTracts, setLoadingTracts] = useState(false);
 
@@ -123,7 +119,6 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
   const [tractPopup, setTractPopup] = useState<TractPopupData | null>(null);
 
   // Historical presidential election overlay
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [countyGeo, setCountyGeo] = useState<Record<string, unknown> | null>(null);
   const [historicalYear, setHistoricalYear] = useState<HistoricalYear | null>(null);
 
@@ -231,7 +226,7 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
       .then(setHistoricalData)
       .catch(() => setHistoricalData(new Map()))
       .finally(() => setHistoricalLoading(false));
-  }, [historicalYear]); // countyGeo is intentionally excluded: loading it is a one-shot side effect
+  }, [historicalYear, countyGeo]);
 
   // ── Pan to forecast state when Forecast tab selects one ──────────────────
   useEffect(() => {
@@ -610,7 +605,6 @@ export default function MapShell({ defaultOverlayMode = "types" }: MapShellProps
     // tractPopup is intentionally omitted: including it would cause layer recreation on
     // every click, defeating the purpose. The onClick handler reads tractPopup via closure
     // and deck.gl re-uses the same layer object safely because the handler is a stable ref.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
   // ── Build legend entries from loaded tract features ───────────────────────

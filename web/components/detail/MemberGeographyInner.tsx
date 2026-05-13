@@ -120,7 +120,7 @@ export function MemberGeographyInner({
         getLineColor: [memberFips, accentColor],
       },
     });
-  }, [geo, typeId, superTypeId, accentColor, memberFips]);
+  }, [geo, typeId, accentColor, memberFips]);
 
   if (loadError) {
     return (

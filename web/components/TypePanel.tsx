@@ -65,8 +65,9 @@ function ShiftSparkline({ shiftProfile }: { shiftProfile: Record<string, number>
     ref.current.innerHTML = "";
     ref.current.appendChild(plot);
 
+    const node = ref.current;
     return () => {
-      ref.current?.removeChild(plot);
+      node?.removeChild(plot);
     };
   }, [shiftProfile]);
 

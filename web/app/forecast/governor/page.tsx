@@ -1,6 +1,7 @@
 "use client";
 
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -19,6 +20,7 @@ import type { SenateRaceData } from "@/lib/api";
  */
 export default function GovernorPage() {
   const { data, error, isLoading, mutate } = useGovernorOverview();
+  const { historyBySlug } = useRaceHistory();
 
   if (error) {
     return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
@@ -72,17 +74,17 @@ export default function GovernorPage() {
 
       {/* Competitive races first — these are what readers care most about */}
       {competitiveRaces.length > 0 && (
-        <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+        <RaceCardGrid races={competitiveRaces} title="Competitive Races" historyBySlug={historyBySlug} />
       )}
 
       {/* D-leaning races */}
       {dLeaningRaces.length > 0 && (
-        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" historyBySlug={historyBySlug} />
       )}
 
       {/* R-leaning races */}
       {rLeaningRaces.length > 0 && (
-        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" historyBySlug={historyBySlug} />
       )}
     </div>
   );

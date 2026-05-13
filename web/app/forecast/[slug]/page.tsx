@@ -66,6 +66,18 @@ const FitScoreSection = dynamic(
   },
 );
 
+// Forecast margin history chart — visx + SWR, client-only
+const ForecastHistoryChart = dynamic(
+  () =>
+    import('@/components/forecast/ForecastHistoryChart').then(
+      (m) => m.ForecastHistoryChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="w-full h-[180px]" />,
+  },
+);
+
 // Revalidate every 5 minutes — polls and forecast data update periodically
 export const revalidate = 300;
 
@@ -467,6 +479,22 @@ export default async function RaceDetailPage({ params }: PageProps) {
         nCounties={data.n_counties}
         nPolls={nPolls}
       />
+
+      {/* Forecast margin history — client component, fetches via SWR */}
+      <section className="mb-10">
+        <h2 className="font-serif text-xl mb-4" style={{ fontFamily: "var(--font-serif)" }}>
+          Forecast History
+        </h2>
+        <div
+          className="rounded-md px-4 py-4"
+          style={{
+            background: "var(--color-surface)",
+            border: "1px solid var(--color-border)",
+          }}
+        >
+          <ForecastHistoryChart slug={slug} width={480} />
+        </div>
+      </section>
 
       {/* Polls section */}
       <section className="mb-10">

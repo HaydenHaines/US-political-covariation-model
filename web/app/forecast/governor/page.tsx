@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
@@ -19,6 +20,7 @@ import type { SenateRaceData } from "@/lib/api";
  */
 export default function GovernorPage() {
   const { data, error, isLoading, mutate } = useGovernorOverview();
+  const [stateFilter, setStateFilter] = useState("");
 
   if (error) {
     return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
@@ -50,9 +52,18 @@ export default function GovernorPage() {
   // GovernorRaceData is a superset of SenateRaceData — cast is safe
   const allRaces = data.races as unknown as SenateRaceData[];
 
-  const competitiveRaces = allRaces.filter((r) => competitiveRatings.has(r.rating));
-  const dLeaningRaces = allRaces.filter((r) => dLeaningRatings.has(r.rating));
-  const rLeaningRaces = allRaces.filter((r) => rLeaningRatings.has(r.rating));
+  const stateNeedle = stateFilter.trim().toLowerCase();
+  const filteredAll = stateNeedle
+    ? allRaces.filter((r) => r.state.toLowerCase().includes(stateNeedle))
+    : allRaces;
+
+  const competitiveRaces = filteredAll.filter((r) => competitiveRatings.has(r.rating));
+  const dLeaningRaces = filteredAll.filter((r) => dLeaningRatings.has(r.rating));
+  const rLeaningRaces = filteredAll.filter((r) => rLeaningRatings.has(r.rating));
+
+  const noResults =
+    stateNeedle &&
+    competitiveRaces.length + dLeaningRaces.length + rLeaningRaces.length === 0;
 
   return (
     <div>
@@ -67,22 +78,59 @@ export default function GovernorPage() {
         )}
       </p>
 
+      <div className="flex flex-wrap gap-3 mb-4 items-end">
+        <label className="flex flex-col gap-1">
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Filter by state
+          </span>
+          <input
+            type="text"
+            placeholder="Filter by state..."
+            value={stateFilter}
+            onChange={(e) => setStateFilter(e.target.value)}
+            data-testid="state-filter"
+            style={{
+              padding: "6px 10px",
+              fontSize: 13,
+              borderRadius: 6,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+              color: "var(--color-dusty-ink, var(--color-text))",
+            }}
+          />
+        </label>
+      </div>
+
       {/* National environment — structural forecast applies to all race types */}
       <FundamentalsCard />
 
-      {/* Competitive races first — these are what readers care most about */}
-      {competitiveRaces.length > 0 && (
-        <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
-      )}
+      {noResults ? (
+        <p
+          className="text-sm mt-4"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          No governor races match &ldquo;{stateNeedle}&rdquo;
+        </p>
+      ) : (
+        <>
+          {/* Competitive races first — these are what readers care most about */}
+          {competitiveRaces.length > 0 && (
+            <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+          )}
 
-      {/* D-leaning races */}
-      {dLeaningRaces.length > 0 && (
-        <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
-      )}
+          {/* D-leaning races */}
+          {dLeaningRaces.length > 0 && (
+            <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+          )}
 
-      {/* R-leaning races */}
-      {rLeaningRaces.length > 0 && (
-        <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+          {/* R-leaning races */}
+          {rLeaningRaces.length > 0 && (
+            <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+          )}
+        </>
       )}
     </div>
   );

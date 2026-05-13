@@ -2,6 +2,22 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Forecast flow", () => {
   test.describe("Senate overview page", () => {
+    const senateStateFilter = '[data-testid="senate-state-filter"]';
+    const senateStateFilterClear = '[data-testid="senate-state-filter-clear"]';
+    const senateRaceGroup = '[data-testid="senate-race-group"]';
+    const senateFilterEmptyState = '[data-testid="senate-filter-empty-state"]';
+
+    async function expectVisibleGroupsToMatchState(page: import("@playwright/test").Page, state: string) {
+      const groups = page.locator(senateRaceGroup);
+      await groups.first().waitFor({ state: "attached", timeout: 10_000 });
+      const count = await groups.count();
+      expect(count).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const states = await groups.nth(i).getAttribute("data-states");
+        expect(states?.toLowerCase()).toContain(state.toLowerCase());
+      }
+    }
+
     test("senate overview page loads", async ({ page }) => {
       await page.goto("/forecast/senate");
       await expect(page).toHaveURL(/\/forecast\/senate/);
@@ -170,6 +186,81 @@ test.describe("Forecast flow", () => {
 
       // Filter persists after toggle
       await expect(filter).toHaveValue("GA");
+    });
+
+    test("URL sync: direct load hydrates state filter and narrows race groups", async ({ page }) => {
+      await page.goto("/forecast/senate?state=ga");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+
+      const filter = page.locator(senateStateFilter);
+      await expect(filter).toHaveValue("ga");
+      await expect(page.locator(senateFilterEmptyState)).not.toBeVisible();
+      await expectVisibleGroupsToMatchState(page, "ga");
+    });
+
+    test("URL sync: typing updates state query param and preserves unrelated params", async ({ page }) => {
+      await page.goto("/forecast/senate?view=compact");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+
+      const filter = page.locator(senateStateFilter);
+      await filter.fill("ga");
+
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("ga");
+      const params = new URL(page.url()).searchParams;
+      expect(params.get("view")).toBe("compact");
+      await expectVisibleGroupsToMatchState(page, "ga");
+    });
+
+    test("URL sync: clear button removes only state query param immediately", async ({ page }) => {
+      await page.goto("/forecast/senate?view=compact&state=ga");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+
+      const filter = page.locator(senateStateFilter);
+      await expect(filter).toHaveValue("ga");
+
+      await page.locator(senateStateFilterClear).click();
+
+      await expect(filter).toHaveValue("");
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 250 })
+        .toBeNull();
+      const params = new URL(page.url()).searchParams;
+      expect(params.get("view")).toBe("compact");
+      await expect(page.locator(senateFilterEmptyState)).not.toBeVisible();
+      await expect(page.locator(senateRaceGroup).first()).toBeVisible({ timeout: 5_000 });
+    });
+
+    test("URL sync: browser back restores previous filter state", async ({ page }) => {
+      await page.goto("/forecast/senate?state=ga");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+
+      const filter = page.locator(senateStateFilter);
+      await expect(filter).toHaveValue("ga");
+      await filter.fill("al");
+
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("al");
+      await expectVisibleGroupsToMatchState(page, "al");
+
+      await page.goBack();
+
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("ga");
+      await expect(filter).toHaveValue("ga");
+      await expectVisibleGroupsToMatchState(page, "ga");
+    });
+
+    test("URL sync: direct load with unmatched state renders empty state", async ({ page }) => {
+      await page.goto("/forecast/senate?state=zzz");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+
+      await expect(page.locator(senateStateFilter)).toHaveValue("zzz");
+      await expect(page.locator(senateFilterEmptyState)).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator(senateRaceGroup)).toHaveCount(0);
     });
   });
 

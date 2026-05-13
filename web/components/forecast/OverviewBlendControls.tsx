@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SectionWeightSliders, SectionWeights } from "./SectionWeightSliders";
 import { RaceCardGrid } from "./RaceCardGrid";
 import { useRaceHistory } from "@/lib/hooks/use-race-history";
@@ -8,6 +9,7 @@ import type { SenateRaceData } from "@/lib/api";
 
 // How long to wait after the last slider move before firing the API call.
 const DEBOUNCE_MS = 400;
+const STATE_FILTER_URL_DEBOUNCE_MS = 200;
 
 // Default blend weights (60% model prior, 30% state polls, 10% national polls).
 const DEFAULT_WEIGHTS: SectionWeights = {
@@ -70,13 +72,19 @@ export function OverviewBlendControls({
   initialGopSeats,
   apiBase,
 }: OverviewBlendControlsProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
+
   // Live race data -- starts as the SSR-provided list; overwritten by blend responses
   const [races, setRaces] = useState<SenateRaceData[]>(initialRaces);
   const [demSeats, setDemSeats] = useState(initialDemSeats);
   const [gopSeats, setGopSeats] = useState(initialGopSeats);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [stateFilter, setStateFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState(
+    () => searchParams.get("state") ?? "",
+  );
 
   // Race history for sparklines -- fetched once, not affected by blend slider changes.
   const { historyBySlug } = useRaceHistory();
@@ -86,6 +94,7 @@ export function OverviewBlendControls({
   const prevDem = useRef(demSeats);
   const prevGop = useRef(gopSeats);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateFilterUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync initial props into state when the underlying SWR data revalidates
   // (e.g. the 5-minute refresh fires after the user has been on the page).
@@ -161,11 +170,72 @@ export function OverviewBlendControls({
     [races, apiBase],
   );
 
+  const writeStateFilterToUrl = useCallback(
+    (value: string) => {
+      const params = new URLSearchParams(window.location.search);
+      if (value) {
+        params.set("state", value);
+      } else {
+        params.delete("state");
+      }
+
+      const query = params.toString();
+      const nextUrl = query ? `${pathname}?${query}` : pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (nextUrl !== currentUrl) {
+        window.history.pushState(null, "", nextUrl);
+      }
+    },
+    [pathname],
+  );
+
+  const handleStateFilterChange = useCallback(
+    (value: string) => {
+      setStateFilter(value);
+
+      if (stateFilterUrlTimer.current !== null) {
+        clearTimeout(stateFilterUrlTimer.current);
+      }
+
+      stateFilterUrlTimer.current = setTimeout(() => {
+        writeStateFilterToUrl(value);
+      }, STATE_FILTER_URL_DEBOUNCE_MS);
+    },
+    [writeStateFilterToUrl],
+  );
+
+  const handleClearStateFilter = useCallback(() => {
+    setStateFilter("");
+
+    if (stateFilterUrlTimer.current !== null) {
+      clearTimeout(stateFilterUrlTimer.current);
+      stateFilterUrlTimer.current = null;
+    }
+
+    writeStateFilterToUrl("");
+  }, [writeStateFilterToUrl]);
+
+  useEffect(() => {
+    setStateFilter(new URLSearchParams(searchParamsString).get("state") ?? "");
+  }, [searchParamsString]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setStateFilter(new URLSearchParams(window.location.search).get("state") ?? "");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Clean up debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current !== null) {
         clearTimeout(debounceTimer.current);
+      }
+      if (stateFilterUrlTimer.current !== null) {
+        clearTimeout(stateFilterUrlTimer.current);
       }
     };
   }, []);
@@ -201,7 +271,7 @@ export function OverviewBlendControls({
               data-testid="senate-state-filter"
               placeholder="Filter by state..."
               value={stateFilter}
-              onChange={(e) => setStateFilter(e.target.value)}
+              onChange={(e) => handleStateFilterChange(e.target.value)}
               style={{
                 padding: "6px 28px 6px 10px",
                 fontSize: 13,
@@ -215,7 +285,7 @@ export function OverviewBlendControls({
               <button
                 type="button"
                 data-testid="senate-state-filter-clear"
-                onClick={() => setStateFilter("")}
+                onClick={handleClearStateFilter}
                 aria-label="Clear state filter"
                 style={{
                   position: "absolute",

@@ -62,6 +62,115 @@ test.describe("Forecast flow", () => {
       const blendBtn = page.getByText("Adjust Forecast Blend");
       await expect(blendBtn).toBeVisible({ timeout: 10_000 });
     });
+
+    test("SC1: state filter input is visible", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const filter = page.locator('[data-testid="senate-state-filter"]');
+      await expect(filter).toBeVisible({ timeout: 10_000 });
+    });
+
+    test("SC2: typing a state substring narrows rendered race groups", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      // Wait for races to load (race cards link to /forecast/2026-*)
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 10_000 });
+
+      // State field uses abbreviations (e.g. "GA") -- filter by "ga" (case-insensitive)
+      const filter = page.locator('[data-testid="senate-state-filter"]');
+      await filter.fill("ga");
+
+      // All rendered race groups must have data-states containing "GA" (case-insensitive)
+      const groups = page.locator('[data-testid="senate-race-group"]');
+      await groups.first().waitFor({ state: "attached", timeout: 10_000 });
+      const count = await groups.count();
+      for (let i = 0; i < count; i++) {
+        const states = await groups.nth(i).getAttribute("data-states");
+        expect(states?.toLowerCase()).toContain("ga");
+      }
+    });
+
+    test("SC3: clearing filter restores all race groups", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 10_000 });
+
+      const filter = page.locator('[data-testid="senate-state-filter"]');
+      await filter.fill("GA");
+
+      // Clear via the × button
+      const clearBtn = page.locator('[data-testid="senate-state-filter-clear"]');
+      await expect(clearBtn).toBeVisible({ timeout: 5_000 });
+      await clearBtn.click();
+
+      await expect(filter).toHaveValue("");
+      // Empty state should not be visible after clearing
+      await expect(page.locator('[data-testid="senate-filter-empty-state"]')).not.toBeVisible();
+      // Race groups should be visible again
+      const groups = page.locator('[data-testid="senate-race-group"]');
+      await expect(groups.first()).toBeVisible({ timeout: 5_000 });
+    });
+
+    test("SC4: no-match input renders senate-filter-empty-state, hides race groups", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 10_000 });
+
+      const filter = page.locator('[data-testid="senate-state-filter"]');
+      await filter.fill("XYZZY_NO_MATCH_STATE");
+
+      const emptyState = page.locator('[data-testid="senate-filter-empty-state"]');
+      await expect(emptyState).toBeVisible({ timeout: 5_000 });
+
+      const groups = page.locator('[data-testid="senate-race-group"]');
+      await expect(groups).toHaveCount(0);
+    });
+
+    test("SC5: senate-race-group divs expose data-group and data-states attributes", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 10_000 });
+
+      const groups = page.locator('[data-testid="senate-race-group"]');
+      await groups.first().waitFor({ state: "attached", timeout: 10_000 });
+      const count = await groups.count();
+      expect(count).toBeGreaterThan(0);
+      for (let i = 0; i < count; i++) {
+        const group = await groups.nth(i).getAttribute("data-group");
+        const states = await groups.nth(i).getAttribute("data-states");
+        expect(group).toBeTruthy();
+        expect(states).toBeTruthy();
+      }
+    });
+
+    test("SC6: blend panel toggle works with active filter (filter persists)", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 10_000 });
+
+      const filter = page.locator('[data-testid="senate-state-filter"]');
+      await filter.fill("GA");
+
+      // Open blend panel
+      const blendBtn = page.getByText("Adjust Forecast Blend");
+      await blendBtn.click();
+      await expect(page.locator("#overview-blend-panel")).toBeVisible({ timeout: 5_000 });
+
+      // Filter should still have "GA" while panel is open
+      await expect(filter).toHaveValue("GA");
+
+      // Close blend panel
+      await blendBtn.click();
+      await expect(page.locator("#overview-blend-panel")).not.toBeVisible({ timeout: 5_000 });
+
+      // Filter persists after toggle
+      await expect(filter).toHaveValue("GA");
+    });
   });
 
   test.describe("Race detail page", () => {

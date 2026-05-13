@@ -127,6 +127,126 @@ function chooseClosedSeatState(groups: GovernorRaceGroupSnapshot[]) {
 }
 
 test.describe("Governor overview page", () => {
+  test.describe("URL sync", () => {
+    test("SC1: ?state=a hydrates state input and narrows race groups on direct load", async ({ page }) => {
+      await page.goto("/forecast/governor?state=a");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+
+      await expect(stateFilter(page)).toHaveValue("a");
+      await expect(page.getByTestId("governor-filter-empty-state")).not.toBeVisible();
+
+      const groups = await groupSnapshots(page);
+      expect(groups.length).toBeGreaterThan(0);
+      for (const group of groups) {
+        expect(group.states.every((s) => s.toLowerCase().includes("a"))).toBe(true);
+      }
+    });
+
+    test("SC2: ?openSeat=1 hydrates checkbox and groups show only open-seat states", async ({ page }) => {
+      await page.goto("/forecast/governor?openSeat=1");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+
+      await expect(openSeatFilter(page)).toBeChecked();
+
+      const groups = await groupSnapshots(page);
+      expect(groups.length).toBeGreaterThan(0);
+      for (const group of groups) {
+        expect(group.states).toEqual(group.openSeatStates);
+      }
+    });
+
+    test("SC3: ?state and ?openSeat=1 compose correctly on direct load", async ({ page }) => {
+      await waitForGovernorPage(page);
+      const initialGroups = await groupSnapshots(page);
+      const openSeatState = initialGroups.flatMap((g) => g.openSeatStates).find(Boolean);
+      expect(openSeatState).toBeTruthy();
+
+      const needle = openSeatState!.toLowerCase();
+      await page.goto(`/forecast/governor?state=${encodeURIComponent(needle)}&openSeat=1`);
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+
+      await expect(stateFilter(page)).toHaveValue(needle);
+      await expect(openSeatFilter(page)).toBeChecked();
+
+      const filteredGroups = await groupSnapshots(page);
+      const expectedGroups = filterSnapshotGroups(initialGroups, {
+        stateNeedle: openSeatState!,
+        openSeatsOnly: true,
+      });
+      expect(filteredGroups.map((g) => g.key)).toEqual(expectedGroups.map((g) => g.key));
+    });
+
+    test("SC4: typing state filter updates ?state param (debounced) and preserves unrelated params", async ({ page }) => {
+      await page.goto("/forecast/governor?view=test");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+
+      await stateFilter(page).fill("a");
+
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("a");
+      expect(new URL(page.url()).searchParams.get("view")).toBe("test");
+
+      await stateFilter(page).fill("");
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBeNull();
+      expect(new URL(page.url()).searchParams.get("view")).toBe("test");
+    });
+
+    test("SC5: checkbox toggles ?openSeat=1 immediately and preserves unrelated params", async ({ page }) => {
+      await page.goto("/forecast/governor?view=test&state=a");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+
+      await openSeatFilter(page).check();
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("openSeat"), { timeout: 500 })
+        .toBe("1");
+      expect(new URL(page.url()).searchParams.get("view")).toBe("test");
+      expect(new URL(page.url()).searchParams.get("state")).toBe("a");
+
+      await openSeatFilter(page).uncheck();
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("openSeat"), { timeout: 500 })
+        .toBeNull();
+      expect(new URL(page.url()).searchParams.get("view")).toBe("test");
+      expect(new URL(page.url()).searchParams.get("state")).toBe("a");
+    });
+
+    test("SC6: browser back restores URL, state input, and rendered groups", async ({ page }) => {
+      await page.goto("/forecast/governor?state=a");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+      await expect(governorRaceGroups(page).first()).toBeVisible({ timeout: 15_000 });
+      await expect(stateFilter(page)).toHaveValue("a");
+
+      await stateFilter(page).fill("n");
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("n");
+
+      await page.goBack();
+
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get("state"), { timeout: 1_000 })
+        .toBe("a");
+      await expect(stateFilter(page)).toHaveValue("a");
+    });
+
+    test("SC7: unmatched direct load renders empty state while FundamentalsCard stays mounted", async ({ page }) => {
+      await page.goto("/forecast/governor?state=XYZZY_NO_MATCH&openSeat=1");
+      await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible({ timeout: 30_000 });
+
+      await expect(page.getByTestId("governor-filter-empty-state")).toBeVisible({ timeout: 10_000 });
+      await expect(governorRaceGroups(page)).toHaveCount(0);
+      await expect(page.locator('[aria-label="National Environment"]')).toBeVisible();
+    });
+  });
+
   test("governor page loads and shows heading", async ({ page }) => {
     await waitForGovernorPage(page);
     await expect(page.getByRole("heading", { name: /Governor Races/ })).toBeVisible();

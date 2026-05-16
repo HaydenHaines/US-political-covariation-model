@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
@@ -19,28 +20,58 @@ import type { GovernorRaceData } from "@/lib/api";
  * controls are shown.  Race cards link to the shared /forecast/[slug]
  * detail page.
  */
-export default function GovernorPage() {
+function GovernorPageSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-8 w-64" />
+      <Skeleton className="h-4 w-96" />
+      <div className="grid grid-cols-3 gap-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-28 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GovernorPageContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data, error, isLoading, mutate } = useGovernorOverview();
   const { historyBySlug } = useRaceHistory();
-  const [stateFilter, setStateFilter] = useState("");
+  const [stateFilter, setStateFilter] = useState(
+    () => searchParams.get("filter") ?? "",
+  );
   const [openSeatsOnly, setOpenSeatsOnly] = useState(false);
+
+  useEffect(() => {
+    const urlFilter = searchParams.get("filter") ?? "";
+    setStateFilter((current) => (current === urlFilter ? current : urlFilter));
+  }, [searchParams]);
+
+  const updateStateFilter = (nextFilter: string) => {
+    setStateFilter(nextFilter);
+
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmedFilter = nextFilter.trim();
+
+    if (trimmedFilter) {
+      params.set("filter", trimmedFilter);
+    } else {
+      params.delete("filter");
+    }
+
+    const query = params.toString();
+    router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  };
 
   if (error) {
     return <ErrorAlert title="Failed to load Governor forecast" retry={() => mutate()} />;
   }
 
   if (isLoading || !data) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-4 w-96" />
-        <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 rounded-lg" />
-          ))}
-        </div>
-      </div>
-    );
+    return <GovernorPageSkeleton />;
   }
 
   // Count open seats from API data (term-limited, resigned, or vacated).
@@ -99,7 +130,7 @@ export default function GovernorPage() {
             type="text"
             placeholder="Filter by state..."
             value={stateFilter}
-            onChange={(e) => setStateFilter(e.target.value)}
+            onChange={(e) => updateStateFilter(e.target.value)}
             data-testid="state-filter"
             style={{
               padding: "6px 10px",
@@ -180,5 +211,13 @@ export default function GovernorPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function GovernorPage() {
+  return (
+    <Suspense fallback={<GovernorPageSkeleton />}>
+      <GovernorPageContent />
+    </Suspense>
   );
 }

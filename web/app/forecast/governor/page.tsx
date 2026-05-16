@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
@@ -22,6 +22,14 @@ const STATE_FILTER_URL_DEBOUNCE_MS = 200;
  * detail page.
  */
 export default function GovernorPage() {
+  return (
+    <Suspense>
+      <GovernorPageInner />
+    </Suspense>
+  );
+}
+
+function GovernorPageInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const searchParamsString = searchParams.toString();

@@ -128,6 +128,13 @@ test.describe("Forecast flow", () => {
       await expect(page).toHaveURL(new RegExp(`${href!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), { timeout: 10_000 });
     });
 
+    test("seat balance timeline chart container is present", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      const timeline = page.locator('[data-testid="seat-balance-timeline"]');
+      await expect(timeline).toBeAttached({ timeout: 15_000 });
+    });
+
     test("blend controls button is present", async ({ page }) => {
       await page.goto("/forecast/senate");
       await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });

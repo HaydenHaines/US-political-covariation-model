@@ -2,6 +2,7 @@
 
 import { useSenateOverview } from "@/lib/hooks/use-senate-overview";
 import { ChamberProbabilityBanner } from "@/components/forecast/ChamberProbabilityBanner";
+import { SeatBalanceTimeline } from "@/components/forecast/SeatBalanceTimeline";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { PollingCard } from "@/components/forecast/PollingCard";
 import { NationalScenarioSliders } from "@/components/forecast/NationalScenarioSliders";
@@ -45,6 +46,11 @@ export default function SenatePage() {
 
       {/* Chamber control probability — "One Big Number" anchor above the balance bar */}
       <ChamberProbabilityBanner />
+
+      {/* Seat balance over time — shows D/R projected seat trajectory */}
+      <div className="mt-4 mb-2">
+        <SeatBalanceTimeline />
+      </div>
 
       {/* National Environment — fundamentals model: approval + economy → structural shift */}
       <FundamentalsCard />

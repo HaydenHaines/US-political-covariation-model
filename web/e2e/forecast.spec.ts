@@ -157,5 +157,16 @@ test.describe("Forecast flow", () => {
       const main = page.locator("main");
       await expect(main).toBeVisible({ timeout: 30_000 });
     });
+
+    test("governor race cards render sparkline containers after data loads", async ({ page }) => {
+      await page.goto("/forecast/governor");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      // Wait for race cards to appear
+      const raceLinks = page.locator('a[href^="/forecast/2026-"]');
+      await raceLinks.first().waitFor({ state: "attached", timeout: 15_000 });
+      // Sparklines render as SVG with role="img" and aria-label matching "<State> margin trend"
+      const sparkline = page.locator('[data-testid="governor-race-group"] svg[role="img"][aria-label*="margin trend"]');
+      await expect(sparkline.first()).toBeAttached({ timeout: 15_000 });
+    });
   });
 });

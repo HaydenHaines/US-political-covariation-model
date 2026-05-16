@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useGovernorOverview } from "@/lib/hooks/use-governor-overview";
+import { useRaceHistory } from "@/lib/hooks/use-race-history";
 import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { RaceCardGrid } from "@/components/forecast/RaceCardGrid";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
@@ -20,6 +21,7 @@ import type { GovernorRaceData } from "@/lib/api";
  */
 export default function GovernorPage() {
   const { data, error, isLoading, mutate } = useGovernorOverview();
+  const { historyBySlug } = useRaceHistory();
   const [stateFilter, setStateFilter] = useState("");
   const [openSeatsOnly, setOpenSeatsOnly] = useState(false);
 
@@ -146,7 +148,7 @@ export default function GovernorPage() {
               data-states={raceGroupStateList(competitiveRaces)}
               data-open-seat-states={raceGroupOpenSeatStateList(competitiveRaces)}
             >
-              <RaceCardGrid races={competitiveRaces} title="Competitive Races" />
+              <RaceCardGrid races={competitiveRaces} title="Competitive Races" historyBySlug={historyBySlug} />
             </div>
           )}
 
@@ -159,7 +161,7 @@ export default function GovernorPage() {
               data-states={raceGroupStateList(dLeaningRaces)}
               data-open-seat-states={raceGroupOpenSeatStateList(dLeaningRaces)}
             >
-              <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" />
+              <RaceCardGrid races={dLeaningRaces} title="Likely and Safe Democratic" historyBySlug={historyBySlug} />
             </div>
           )}
 
@@ -172,7 +174,7 @@ export default function GovernorPage() {
               data-states={raceGroupStateList(rLeaningRaces)}
               data-open-seat-states={raceGroupOpenSeatStateList(rLeaningRaces)}
             >
-              <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" />
+              <RaceCardGrid races={rLeaningRaces} title="Likely and Safe Republican" historyBySlug={historyBySlug} />
             </div>
           )}
         </>

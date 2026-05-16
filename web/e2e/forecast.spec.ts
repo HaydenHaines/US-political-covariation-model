@@ -1,6 +1,62 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Forecast flow", () => {
+  test.describe("Forecast index page", () => {
+    test("index page renders content without redirecting", async ({ page }) => {
+      await page.goto("/forecast");
+      await expect(page).toHaveURL(/\/forecast$/);
+    });
+
+    test("index page has a 2026 Forecasts heading", async ({ page }) => {
+      await page.goto("/forecast");
+      const heading = page.locator("h1");
+      await expect(heading).toBeVisible({ timeout: 10_000 });
+      const text = await heading.textContent();
+      expect(text).toContain("Forecasts");
+    });
+
+    test("index page has a visible Senate link to /forecast/senate", async ({ page }) => {
+      await page.goto("/forecast");
+      const senateLink = page.getByRole("link", { name: /senate/i }).filter({ hasText: /senate/i }).first();
+      await expect(senateLink).toBeVisible({ timeout: 10_000 });
+      const href = await senateLink.getAttribute("href");
+      expect(href).toContain("/forecast/senate");
+    });
+
+    test("index page has a visible Governor link to /forecast/governor", async ({ page }) => {
+      await page.goto("/forecast");
+      const govLink = page.getByRole("link", { name: /governor/i }).filter({ hasText: /governor/i }).first();
+      await expect(govLink).toBeVisible({ timeout: 10_000 });
+      const href = await govLink.getAttribute("href");
+      expect(href).toContain("/forecast/governor");
+    });
+
+    test("index page does not mention House", async ({ page }) => {
+      await page.goto("/forecast");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 10_000 });
+      // The page body should not claim to forecast House races
+      const bodyText = await page.locator("body").textContent();
+      expect(bodyText?.toLowerCase()).not.toMatch(/\bhouse\b/);
+    });
+
+    test("clicking Senate link navigates to /forecast/senate", async ({ page }) => {
+      await page.goto("/forecast");
+      // Click the first card link whose href is /forecast/senate
+      const senateLink = page.locator('a[href="/forecast/senate"]').first();
+      await expect(senateLink).toBeVisible({ timeout: 10_000 });
+      await senateLink.click();
+      await expect(page).toHaveURL(/\/forecast\/senate/, { timeout: 10_000 });
+    });
+
+    test("clicking Governor link navigates to /forecast/governor", async ({ page }) => {
+      await page.goto("/forecast");
+      const govLink = page.locator('a[href="/forecast/governor"]').first();
+      await expect(govLink).toBeVisible({ timeout: 10_000 });
+      await govLink.click();
+      await expect(page).toHaveURL(/\/forecast\/governor/, { timeout: 10_000 });
+    });
+  });
+
   test.describe("Senate overview page", () => {
     const senateStateFilter = '[data-testid="senate-state-filter"]';
     const senateStateFilterClear = '[data-testid="senate-state-filter-clear"]';

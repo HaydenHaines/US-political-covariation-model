@@ -6,6 +6,7 @@ import { FundamentalsCard } from "@/components/forecast/FundamentalsCard";
 import { PollingCard } from "@/components/forecast/PollingCard";
 import { NationalScenarioSliders } from "@/components/forecast/NationalScenarioSliders";
 import { OverviewBlendControls } from "@/components/forecast/OverviewBlendControls";
+import { TippingPointBar } from "@/components/forecast/TippingPointBar";
 import { ErrorAlert } from "@/components/shared/ErrorAlert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ELECTION_YEAR } from "@/lib/config/election";
@@ -66,6 +67,8 @@ export default function SenatePage() {
         initialGopSeats={data.gop_projected}
         apiBase={API_BASE}
       />
+
+      <TippingPointBar races={data.races} />
     </div>
   );
 }

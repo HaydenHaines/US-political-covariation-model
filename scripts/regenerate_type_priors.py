@@ -20,7 +20,7 @@ and votes[c] is total 2024 presidential vote (as a population proxy).
 
 Outputs:
   - data/communities/type_priors.parquet  (prior_dem_share col — used by predict_2026_types.py)
-  - data/communities/type_profiles.parquet  (adds mean_dem_share col — used by build_database.py)
+  - data/communities/type_profiles.parquet  (adds mean_dem_share and n_counties cols)
 
 Usage:
     uv run python scripts/regenerate_type_priors.py
@@ -177,7 +177,7 @@ def main() -> None:
     out_df.to_parquet(TYPE_PRIORS_OUT, index=False)
     log.info("Wrote %d rows to %s", len(out_df), TYPE_PRIORS_OUT)
 
-    # --- Also add mean_dem_share to type_profiles.parquet ---
+    # --- Also add mean_dem_share and n_counties to type_profiles.parquet ---
     # The DB ingestion pipeline (_ingest_type_priors in model.py) reads
     # type_profiles.parquet looking for mean_dem_share. Without this column
     # it falls back to 0.45 for all types.
@@ -186,8 +186,16 @@ def main() -> None:
         # Build a map from type_id → prior so we handle any ordering
         prior_map = dict(zip(out_df["type_id"], out_df["prior_dem_share"]))
         profiles["mean_dem_share"] = profiles["type_id"].map(prior_map).fillna(DEFAULT_PRIOR)
+        dominant_types = ta[score_cols].values.argmax(axis=1)
+        count_map = pd.Series(dominant_types).value_counts().to_dict()
+        profiles["n_counties"] = (
+            profiles["type_id"].map(count_map).fillna(0).astype(int)
+        )
         profiles.to_parquet(TYPE_PROFILES_PATH, index=False)
-        log.info("Updated type_profiles.parquet with mean_dem_share column (%d rows)", len(profiles))
+        log.info(
+            "Updated type_profiles.parquet with mean_dem_share and n_counties columns (%d rows)",
+            len(profiles),
+        )
     else:
         log.warning("type_profiles.parquet not found — skipping mean_dem_share update")
 

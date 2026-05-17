@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useTypes } from "@/lib/hooks/use-types";
 import { useSuperTypes } from "@/lib/hooks/use-super-types";
 import { TypeCard } from "./TypeCard";
@@ -13,11 +14,30 @@ import { getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
  * Super-type names and colors come from the API — nothing is hardcoded here.
  */
 export function TypeGrid() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: types, isLoading: typesLoading } = useTypes();
   const { data: superTypes, isLoading: stLoading } = useSuperTypes();
-  const [query, setQuery] = useState("");
+  const initialQuery = useMemo(
+    () => searchParams.get("q") ?? "",
+    [searchParams],
+  );
+  const [query, setQuery] = useState(initialQuery);
 
   const isLoading = typesLoading || stLoading;
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmed = query.trim();
+    if (trimmed.length > 0) {
+      params.set("q", trimmed);
+    } else {
+      params.delete("q");
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
 
   // Super-type lookup by ID
   const superTypeMap = useMemo(
@@ -77,24 +97,47 @@ export function TypeGrid() {
     <div>
       {/* Search bar */}
       <div className="mb-8">
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search types…"
-          className="w-full max-w-sm rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-offset-1"
-          style={{
-            borderColor: "var(--color-border)",
-            background: "var(--color-surface)",
-            color: "var(--color-text)",
-          }}
-          aria-label="Search electoral types"
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search types…"
+            className="w-full max-w-sm rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-offset-1"
+            style={{
+              borderColor: "var(--color-border)",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+            }}
+            aria-label="Search electoral types"
+            data-testid="type-search"
+          />
+          {query.trim() !== "" && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              aria-label="Clear search"
+              data-testid="type-search-clear"
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{
+                borderColor: "var(--color-border)",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Groups */}
       {groups.length === 0 && (
-        <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+        <p
+          className="text-sm"
+          style={{ color: "var(--color-text-muted)" }}
+          data-testid="type-empty-state"
+        >
           No types match &ldquo;{query}&rdquo;.
         </p>
       )}
@@ -105,7 +148,7 @@ export function TypeGrid() {
         const accentHex = rgbToHex(getSuperTypeColor(superTypeId));
 
         return (
-          <section key={superTypeId} className="mb-12">
+          <section key={superTypeId} className="mb-12" data-testid="type-group">
             {/* Super-type header */}
             <div
               className="flex items-baseline gap-3 mb-4 pb-2"

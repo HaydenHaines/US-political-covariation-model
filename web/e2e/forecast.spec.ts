@@ -62,6 +62,18 @@ test.describe("Forecast flow", () => {
       const blendBtn = page.getByText("Adjust Forecast Blend");
       await expect(blendBtn).toBeVisible({ timeout: 10_000 });
     });
+
+    test("standalone tipping-point section renders on senate page", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      // Section heading — case-sensitive, full string match
+      const tippingHeading = page.locator("h2").filter({ hasText: "Tipping Point" });
+      await expect(tippingHeading).toBeVisible({ timeout: 10_000 });
+      // Tipping-point marker: "Maj. →" is a structural constant rendered only
+      // on the seat that crosses the majority threshold (DEM_WINS_NEEDED = 18th).
+      const tippingMarker = page.getByText("Maj. →");
+      await expect(tippingMarker).toBeAttached({ timeout: 10_000 });
+    });
   });
 
   test.describe("Race detail page", () => {

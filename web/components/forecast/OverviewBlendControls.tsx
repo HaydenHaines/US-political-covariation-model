@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { SectionWeightSliders, SectionWeights } from "./SectionWeightSliders";
 import { RaceCardGrid } from "./RaceCardGrid";
 import { useRaceHistory } from "@/lib/hooks/use-race-history";
@@ -8,6 +9,7 @@ import type { SenateRaceData } from "@/lib/api";
 
 // How long to wait after the last slider move before firing the API call.
 const DEBOUNCE_MS = 400;
+const STATE_FILTER_URL_DEBOUNCE_MS = 200;
 
 // Default blend weights (60% model prior, 30% state polls, 10% national polls).
 const DEFAULT_WEIGHTS: SectionWeights = {
@@ -53,8 +55,9 @@ interface OverviewBlendControlsProps {
  * overview page.
  *
  * Renders in order:
- *   1. "Adjust Forecast Blend" collapsible panel (default collapsed)
- *   2. Race card grids (Key Races / Leaning / Likely / Safe)
+ *   1. State filter input
+ *   2. "Adjust Forecast Blend" collapsible panel (default collapsed)
+ *   3. Race card grids (Key Races / Leaning / Likely / Safe)
  *
  * When the user adjusts the sliders, a debounced POST /forecast/overview/blend
  * call recalculates all 33 races simultaneously and updates every race card's
@@ -69,12 +72,19 @@ export function OverviewBlendControls({
   initialGopSeats,
   apiBase,
 }: OverviewBlendControlsProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
+
   // Live race data -- starts as the SSR-provided list; overwritten by blend responses
   const [races, setRaces] = useState<SenateRaceData[]>(initialRaces);
   const [demSeats, setDemSeats] = useState(initialDemSeats);
   const [gopSeats, setGopSeats] = useState(initialGopSeats);
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [stateFilter, setStateFilter] = useState(
+    () => searchParams.get("state") ?? "",
+  );
 
   // Race history for sparklines -- fetched once, not affected by blend slider changes.
   const { historyBySlug } = useRaceHistory();
@@ -84,6 +94,7 @@ export function OverviewBlendControls({
   const prevDem = useRef(demSeats);
   const prevGop = useRef(gopSeats);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stateFilterUrlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync initial props into state when the underlying SWR data revalidates
   // (e.g. the 5-minute refresh fires after the user has been on the page).
@@ -159,22 +170,142 @@ export function OverviewBlendControls({
     [races, apiBase],
   );
 
+  const writeStateFilterToUrl = useCallback(
+    (value: string) => {
+      const params = new URLSearchParams(window.location.search);
+      if (value) {
+        params.set("state", value);
+      } else {
+        params.delete("state");
+      }
+
+      const query = params.toString();
+      const nextUrl = query ? `${pathname}?${query}` : pathname;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (nextUrl !== currentUrl) {
+        window.history.pushState(null, "", nextUrl);
+      }
+    },
+    [pathname],
+  );
+
+  const handleStateFilterChange = useCallback(
+    (value: string) => {
+      setStateFilter(value);
+
+      if (stateFilterUrlTimer.current !== null) {
+        clearTimeout(stateFilterUrlTimer.current);
+      }
+
+      stateFilterUrlTimer.current = setTimeout(() => {
+        writeStateFilterToUrl(value);
+      }, STATE_FILTER_URL_DEBOUNCE_MS);
+    },
+    [writeStateFilterToUrl],
+  );
+
+  const handleClearStateFilter = useCallback(() => {
+    setStateFilter("");
+
+    if (stateFilterUrlTimer.current !== null) {
+      clearTimeout(stateFilterUrlTimer.current);
+      stateFilterUrlTimer.current = null;
+    }
+
+    writeStateFilterToUrl("");
+  }, [writeStateFilterToUrl]);
+
+  useEffect(() => {
+    setStateFilter(new URLSearchParams(searchParamsString).get("state") ?? "");
+  }, [searchParamsString]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setStateFilter(new URLSearchParams(window.location.search).get("state") ?? "");
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   // Clean up debounce timer on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current !== null) {
         clearTimeout(debounceTimer.current);
       }
+      if (stateFilterUrlTimer.current !== null) {
+        clearTimeout(stateFilterUrlTimer.current);
+      }
     };
   }, []);
 
-  const tossupRaces = races.filter((r) => TOSSUP_RATINGS.has(r.rating));
-  const leanRaces = races.filter((r) => LEAN_RATINGS.has(r.rating));
-  const likelyRaces = races.filter((r) => LIKELY_RATINGS.has(r.rating));
-  const safeRaces = races.filter((r) => SAFE_RATINGS.has(r.rating));
+  // Apply state filter downstream of races state, upstream of bucket partitioning.
+  // Case-insensitive substring match against SenateRaceData.state.
+  const stateNeedle = stateFilter.trim().toLowerCase();
+  const filteredRaces = stateNeedle
+    ? races.filter((r) => r.state.toLowerCase().includes(stateNeedle))
+    : races;
+
+  const tossupRaces = filteredRaces.filter((r) => TOSSUP_RATINGS.has(r.rating));
+  const leanRaces = filteredRaces.filter((r) => LEAN_RATINGS.has(r.rating));
+  const likelyRaces = filteredRaces.filter((r) => LIKELY_RATINGS.has(r.rating));
+  const safeRaces = filteredRaces.filter((r) => SAFE_RATINGS.has(r.rating));
+
+  const noResults = stateNeedle !== "" && filteredRaces.length === 0;
 
   return (
     <>
+      {/* State filter input -- persists across blend panel open/close */}
+      <div className="mb-4">
+        <label className="flex flex-col gap-1">
+          <span
+            className="text-xs font-medium"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            Filter by state
+          </span>
+          <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+            <input
+              type="text"
+              data-testid="senate-state-filter"
+              placeholder="Filter by state..."
+              value={stateFilter}
+              onChange={(e) => handleStateFilterChange(e.target.value)}
+              style={{
+                padding: "6px 28px 6px 10px",
+                fontSize: 13,
+                borderRadius: 6,
+                border: "1px solid var(--color-border)",
+                background: "var(--color-surface)",
+                color: "var(--color-dusty-ink, var(--color-text))",
+              }}
+            />
+            {stateFilter && (
+              <button
+                type="button"
+                data-testid="senate-state-filter-clear"
+                onClick={handleClearStateFilter}
+                aria-label="Clear state filter"
+                style={{
+                  position: "absolute",
+                  right: 6,
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 14,
+                  lineHeight: 1,
+                  color: "var(--color-text-muted)",
+                  padding: "0 2px",
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        </label>
+      </div>
+
       {/* Collapsible blend controls */}
       <div className="mb-6">
         <button
@@ -220,17 +351,53 @@ export function OverviewBlendControls({
         style={{ transition: "opacity 150ms ease", opacity: isLoading ? 0.5 : 1 }}
         aria-busy={isLoading}
       >
-        {tossupRaces.length > 0 && (
-          <RaceCardGrid races={tossupRaces} title="Key Races" historyBySlug={historyBySlug} />
-        )}
-        {leanRaces.length > 0 && (
-          <RaceCardGrid races={leanRaces} title="Leaning" historyBySlug={historyBySlug} />
-        )}
-        {likelyRaces.length > 0 && (
-          <RaceCardGrid races={likelyRaces} title="Likely" historyBySlug={historyBySlug} />
-        )}
-        {safeRaces.length > 0 && (
-          <SafeRacesSection races={safeRaces} historyBySlug={historyBySlug} />
+        {noResults ? (
+          <p
+            className="text-sm mt-4"
+            data-testid="senate-filter-empty-state"
+            style={{ color: "var(--color-text-muted)" }}
+          >
+            No senate races match the state filter.
+          </p>
+        ) : (
+          <>
+            {tossupRaces.length > 0 && (
+              <div
+                data-testid="senate-race-group"
+                data-group="key"
+                data-states={tossupRaces.map((r) => r.state).join(",")}
+              >
+                <RaceCardGrid races={tossupRaces} title="Key Races" historyBySlug={historyBySlug} />
+              </div>
+            )}
+            {leanRaces.length > 0 && (
+              <div
+                data-testid="senate-race-group"
+                data-group="leaning"
+                data-states={leanRaces.map((r) => r.state).join(",")}
+              >
+                <RaceCardGrid races={leanRaces} title="Leaning" historyBySlug={historyBySlug} />
+              </div>
+            )}
+            {likelyRaces.length > 0 && (
+              <div
+                data-testid="senate-race-group"
+                data-group="likely"
+                data-states={likelyRaces.map((r) => r.state).join(",")}
+              >
+                <RaceCardGrid races={likelyRaces} title="Likely" historyBySlug={historyBySlug} />
+              </div>
+            )}
+            {safeRaces.length > 0 && (
+              <div
+                data-testid="senate-race-group"
+                data-group="safe"
+                data-states={safeRaces.map((r) => r.state).join(",")}
+              >
+                <SafeRacesSection races={safeRaces} historyBySlug={historyBySlug} />
+              </div>
+            )}
+          </>
         )}
       </div>
     </>

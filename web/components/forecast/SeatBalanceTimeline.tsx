@@ -122,7 +122,7 @@ function SeatBalanceTimelineInner({ width }: { width: number }) {
   const majorityY = yScale(MAJORITY_THRESHOLD);
 
   return (
-    <div>
+    <div data-testid="seat-balance-timeline">
       <p
         className="text-sm font-medium mb-2"
         style={{ color: "var(--color-text-muted)" }}

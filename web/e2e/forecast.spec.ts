@@ -63,6 +63,14 @@ test.describe("Forecast flow", () => {
       await expect(blendBtn).toBeVisible({ timeout: 10_000 });
     });
 
+    test("seat balance timeline chart container is present", async ({ page }) => {
+      await page.goto("/forecast/senate");
+      await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });
+      await expect(
+        page.locator('[data-testid="seat-balance-timeline"]')
+      ).toBeAttached({ timeout: 15_000 });
+    });
+
     test("standalone tipping-point section renders on senate page", async ({ page }) => {
       await page.goto("/forecast/senate");
       await expect(page.locator("h1")).toBeVisible({ timeout: 30_000 });

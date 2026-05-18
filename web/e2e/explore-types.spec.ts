@@ -166,3 +166,40 @@ test.describe("Explore types page (/explore/types)", () => {
     expect(pageErrors).toHaveLength(0);
   });
 });
+
+test.describe("ScatterPlot axis URL sync (/explore/types v23)", () => {
+  test("scatter axis selects render with default axes (pct_white_nh / mean_dem_share)", async ({
+    page,
+  }) => {
+    await gotoExploreTypes(page);
+    await expect(page.getByTestId("scatter-x-select")).toHaveValue("pct_white_nh");
+    await expect(page.getByTestId("scatter-y-select")).toHaveValue("mean_dem_share");
+  });
+
+  test("hydrates x and y axis selects from URL parameters", async ({ page }) => {
+    await gotoExploreTypes(page, "?x=pct_black&y=median_age");
+    await expect(page.getByTestId("scatter-x-select")).toHaveValue("pct_black");
+    await expect(page.getByTestId("scatter-y-select")).toHaveValue("median_age");
+  });
+
+  test("writes axis selection change back to the URL", async ({ page }) => {
+    await gotoExploreTypes(page);
+    await page.getByTestId("scatter-x-select").selectOption("pct_black");
+    await expect(page).toHaveURL(/[?&]x=pct_black/);
+  });
+
+  test("omits default axis value from URL on round-trip back to default", async ({ page }) => {
+    await gotoExploreTypes(page);
+    // Change to non-default so x lands in the URL
+    await page.getByTestId("scatter-x-select").selectOption("pct_black");
+    await expect(page).toHaveURL(/[?&]x=pct_black/);
+    // Change back to the default — x should be removed from the URL
+    await page.getByTestId("scatter-x-select").selectOption("pct_white_nh");
+    await expect(page).not.toHaveURL(/[?&]x=/);
+  });
+
+  test("falls back to default x axis for an invalid URL parameter value", async ({ page }) => {
+    await gotoExploreTypes(page, "?x=not_a_real_field");
+    await expect(page.getByTestId("scatter-x-select")).toHaveValue("pct_white_nh");
+  });
+});

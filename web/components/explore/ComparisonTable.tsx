@@ -17,6 +17,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -35,11 +36,9 @@ import { useTypes } from "@/lib/hooks/use-types";
 import { useTypeDetail } from "@/lib/hooks/use-type-detail";
 import {
   groupFieldsBySection,
-  getFieldConfig,
   SKIP_FIELDS,
 } from "@/lib/config/display";
 import { formatField, parseMargin } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { TypeDetail } from "@/lib/api";
 import type { TypeSummary } from "@/lib/types";
 
@@ -72,6 +71,7 @@ function TypeSelector({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   // Filter out already-selected types and apply search query
   const filtered = useMemo(() => {
@@ -162,9 +162,11 @@ function TypeSelector({
           ref={inputRef}
           type="text"
           role="combobox"
+          aria-controls={listboxId}
           aria-expanded={open}
           aria-autocomplete="list"
           aria-haspopup="listbox"
+          data-testid="comparison-type-selector"
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
@@ -193,6 +195,7 @@ function TypeSelector({
       {/* Dropdown */}
       {open && (
         <ul
+          id={listboxId}
           ref={listRef}
           role="listbox"
           aria-label="Electoral types"
@@ -286,9 +289,15 @@ function useMultiTypeDetail(ids: number[]): {
   const d2 = useTypeDetail(ids[2] ?? null);
   const d3 = useTypeDetail(ids[3] ?? null);
 
-  const rawDetails = [d0, d1, d2, d3];
-  const details = ids.map((_, i) => rawDetails[i]?.data);
-  const isLoading = ids.some((_, i) => rawDetails[i]?.isLoading);
+  // Memoize the details array so its reference is stable when data hasn't changed.
+  // Without this, ids.map() creates a new array every render, causing the columns
+  // useMemo to recompute on every render and TanStack Table to remount header elements.
+  const details = useMemo(
+    () => ids.map((_, i) => [d0.data, d1.data, d2.data, d3.data][i]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ids.join(","), d0.data, d1.data, d2.data, d3.data],
+  );
+  const isLoading = ids.some((_, i) => [d0, d1, d2, d3][i]?.isLoading);
 
   return { details, isLoading };
 }
@@ -352,15 +361,15 @@ export function ComparisonTable() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // Parse selected type IDs from URL
+  // Parse selected type IDs from URL — dedup, drop non-integers, cap at MAX_TYPES
   const initialIds = useMemo((): number[] => {
     const param = searchParams.get(TYPES_PARAM);
     if (!param) return [];
-    return param
+    const parsed = param
       .split(",")
       .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n))
-      .slice(0, MAX_TYPES);
+      .filter((n) => !isNaN(n));
+    return Array.from(new Set(parsed)).slice(0, MAX_TYPES);
   }, [searchParams]);
 
   const [selectedIds, setSelectedIds] = useState<number[]>(initialIds);
@@ -632,7 +641,7 @@ export function ComparisonTable() {
   const hasAnyDetail = details.some((d) => d != null);
 
   return (
-    <div>
+    <div data-testid="comparison-table">
       {/* Type selector row */}
       <div
         style={{
@@ -669,6 +678,7 @@ export function ComparisonTable() {
         {selectedIds.length > 0 && (
           <button
             onClick={() => setSelectedIds([])}
+            data-testid="comparison-clear-all"
             style={{
               fontSize: 12,
               color: "var(--color-text-muted)",

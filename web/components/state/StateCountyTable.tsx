@@ -1,10 +1,10 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MarginDisplay } from "@/components/shared/MarginDisplay";
-import { RatingBadge } from "@/components/shared/RatingBadge";
-import { marginToRating, getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
+import { getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
 import { stripStateSuffix } from "@/lib/config/states";
 
 export interface CountyTableRow {
@@ -21,24 +21,59 @@ interface StateCountyTableProps {
   counties: CountyTableRow[];
 }
 
-type SortField = "name" | "type" | "lean";
+// ── Constants ──────────────────────────────────────────────────────────────
+
+const SORT_KEYS = ["name", "type", "lean"] as const;
+type SortField = (typeof SORT_KEYS)[number];
 type SortDir = "asc" | "desc";
 
-export function StateCountyTable({ counties }: StateCountyTableProps) {
-  const [sortField, setSortField] = useState<SortField>("lean");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [page, setPage] = useState(0);
-  const PAGE_SIZE = 25;
+const DEFAULT_SORT_KEY: SortField = "lean";
+const DEFAULT_SORT_DIR: SortDir = "desc";
+const DEFAULT_PAGE = 0;
+const PAGE_SIZE = 25;
 
-  function handleSort(field: SortField) {
-    if (sortField === field) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortField(field);
-      setSortDir(field === "lean" ? "desc" : "asc");
-    }
-    setPage(0);
-  }
+const SORT_PARAM = "sort";
+const DIR_PARAM = "dir";
+const PAGE_PARAM = "page";
+
+// ── Validators ─────────────────────────────────────────────────────────────
+
+function isSortKey(value: string | null): value is SortField {
+  return SORT_KEYS.includes(value as SortField);
+}
+
+function isSortDir(value: string | null): value is SortDir {
+  return value === "asc" || value === "desc";
+}
+
+function isValidPage(value: string | null): boolean {
+  if (value === null) return false;
+  const n = Number(value);
+  return Number.isInteger(n) && n >= 0;
+}
+
+function defaultDirForSort(key: SortField): SortDir {
+  return key === "lean" ? "desc" : "asc";
+}
+
+function isDefaultSort(key: SortField, dir: SortDir): boolean {
+  return key === DEFAULT_SORT_KEY && dir === DEFAULT_SORT_DIR;
+}
+
+// ── Component ──────────────────────────────────────────────────────────────
+
+export function StateCountyTable({ counties }: StateCountyTableProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const rawSort = searchParams.get(SORT_PARAM);
+  const rawDir = searchParams.get(DIR_PARAM);
+  const rawPage = searchParams.get(PAGE_PARAM);
+
+  const sortField = isSortKey(rawSort) ? rawSort : DEFAULT_SORT_KEY;
+  const sortDir =
+    isSortKey(rawSort) && isSortDir(rawDir) ? rawDir : defaultDirForSort(sortField);
 
   const sorted = [...counties].sort((a, b) => {
     let cmp = 0;
@@ -59,6 +94,68 @@ export function StateCountyTable({ counties }: StateCountyTableProps) {
   });
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const rawPageNum = isValidPage(rawPage) ? Number(rawPage) : DEFAULT_PAGE;
+  const page = totalPages > 0 ? Math.min(rawPageNum, totalPages - 1) : DEFAULT_PAGE;
+
+  // Canonicalise stale/invalid/default URL params
+  useEffect(() => {
+    if (!rawSort && !rawDir && !rawPage) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (isDefaultSort(sortField, sortDir)) {
+      params.delete(SORT_PARAM);
+      params.delete(DIR_PARAM);
+    } else {
+      params.set(SORT_PARAM, sortField);
+      params.set(DIR_PARAM, sortDir);
+    }
+
+    if (page === DEFAULT_PAGE) {
+      params.delete(PAGE_PARAM);
+    } else {
+      params.set(PAGE_PARAM, String(page));
+    }
+
+    if (params.toString() === searchParams.toString()) return;
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [page, pathname, rawDir, rawPage, rawSort, router, searchParams, sortDir, sortField]);
+
+  function handleSort(field: SortField) {
+    const nextDir =
+      sortField === field ? (sortDir === "asc" ? "desc" : "asc") : defaultDirForSort(field);
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (isDefaultSort(field, nextDir)) {
+      params.delete(SORT_PARAM);
+      params.delete(DIR_PARAM);
+    } else {
+      params.set(SORT_PARAM, field);
+      params.set(DIR_PARAM, nextDir);
+    }
+
+    params.delete(PAGE_PARAM);
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
+  function handlePageChange(newPage: number) {
+    const clamped = Math.max(DEFAULT_PAGE, Math.min(newPage, totalPages - 1));
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (clamped === DEFAULT_PAGE) {
+      params.delete(PAGE_PARAM);
+    } else {
+      params.set(PAGE_PARAM, String(clamped));
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }
+
   const slice = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const thStyle: React.CSSProperties = {
@@ -87,7 +184,10 @@ export function StateCountyTable({ counties }: StateCountyTableProps) {
           border: "1px solid var(--color-border)",
         }}
       >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <table
+          data-testid="county-table"
+          style={{ width: "100%", borderCollapse: "collapse" }}
+        >
           <thead>
             <tr style={{ background: "var(--color-surface)" }}>
               <th style={thStyle} onClick={() => handleSort("name")}>
@@ -184,7 +284,7 @@ export function StateCountyTable({ counties }: StateCountyTableProps) {
           </span>
           <div style={{ display: "flex", gap: 8 }}>
             <button
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              onClick={() => handlePageChange(page - 1)}
               disabled={page === 0}
               style={{
                 padding: "4px 12px",
@@ -199,14 +299,15 @@ export function StateCountyTable({ counties }: StateCountyTableProps) {
               Prev
             </button>
             <button
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              onClick={() => handlePageChange(page + 1)}
               disabled={page === totalPages - 1}
               style={{
                 padding: "4px 12px",
                 borderRadius: 4,
                 border: "1px solid var(--color-border)",
                 background: "var(--color-surface)",
-                color: page === totalPages - 1 ? "var(--color-text-muted)" : "var(--color-text)",
+                color:
+                  page === totalPages - 1 ? "var(--color-text-muted)" : "var(--color-text)",
                 cursor: page === totalPages - 1 ? "not-allowed" : "pointer",
                 fontSize: 13,
               }}

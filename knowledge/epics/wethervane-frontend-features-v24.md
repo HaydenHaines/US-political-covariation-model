@@ -1,4 +1,4 @@
-# EPIC: WetherVane Frontend Features v24
+# EPIC: WetherVane Frontend Features v24 — CLOSED 2026-05-22
 
 ## Goal
 

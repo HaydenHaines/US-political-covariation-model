@@ -8,7 +8,8 @@
  * This avoids unnecessary API round-trips for each keystroke.
  */
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCandidatesList } from "@/lib/hooks/use-candidates-list";
 import type { CandidateListItem } from "@/lib/api";
@@ -26,14 +27,87 @@ interface Filters {
   sort: SortKey;
 }
 
+// ── URL param names ───────────────────────────────────────────────────────────
+
+const Q_PARAM = "q";
+const PARTY_PARAM = "party";
+const OFFICE_PARAM = "office";
+const YEAR_PARAM = "year";
+const STATE_PARAM = "state";
+const SORT_PARAM = "sort";
+
+// ── Default values ────────────────────────────────────────────────────────────
+
+const DEFAULT_Q = "";
+const DEFAULT_PARTY = "";
+const DEFAULT_OFFICE = "";
+const DEFAULT_YEAR = "";
+const DEFAULT_STATE = "";
+const DEFAULT_SORT: SortKey = "cec";
+
 const INITIAL_FILTERS: Filters = {
-  q: "",
-  party: "",
-  office: "",
-  year: "",
-  state: "",
-  sort: "cec",
+  q: DEFAULT_Q,
+  party: DEFAULT_PARTY,
+  office: DEFAULT_OFFICE,
+  year: DEFAULT_YEAR,
+  state: DEFAULT_STATE,
+  sort: DEFAULT_SORT,
 };
+
+// ── Validators ────────────────────────────────────────────────────────────────
+
+function isParty(value: string | null): value is "" | "D" | "R" {
+  return value === "" || value === "D" || value === "R";
+}
+
+function isOffice(value: string | null): value is "" | "Senate" | "Governor" {
+  return value === "" || value === "Senate" || value === "Governor";
+}
+
+function isYear(value: string | null): value is string {
+  if (value === null || value === "") return true;
+  if (!/^\d{4}$/.test(value)) return false;
+  const n = parseInt(value, 10);
+  return n >= 2000 && n <= 2030;
+}
+
+function isState(value: string | null): value is string {
+  return value === null || value === "" || /^[A-Z]{2}$/.test(value);
+}
+
+function isSortKey(value: string | null): value is SortKey {
+  return value === "cec" || value === "n_races" || value === "name";
+}
+
+// ── URL helpers ───────────────────────────────────────────────────────────────
+
+function setOrDelete(
+  params: URLSearchParams,
+  name: string,
+  value: string,
+  defaultValue: string,
+): void {
+  if (value !== defaultValue) {
+    params.set(name, value);
+  } else {
+    params.delete(name);
+  }
+}
+
+function getFiltersFromURL(sp: ReturnType<typeof useSearchParams>): Filters {
+  const q = sp.get(Q_PARAM) ?? DEFAULT_Q;
+  const rawParty = sp.get(PARTY_PARAM);
+  const party = isParty(rawParty) ? rawParty : DEFAULT_PARTY;
+  const rawOffice = sp.get(OFFICE_PARAM);
+  const office = isOffice(rawOffice) ? rawOffice : DEFAULT_OFFICE;
+  const rawYear = sp.get(YEAR_PARAM);
+  const year = isYear(rawYear) ? (rawYear ?? DEFAULT_YEAR) : DEFAULT_YEAR;
+  const rawState = sp.get(STATE_PARAM);
+  const state = isState(rawState) ? (rawState ?? DEFAULT_STATE) : DEFAULT_STATE;
+  const rawSort = sp.get(SORT_PARAM);
+  const sort = isSortKey(rawSort) ? rawSort : DEFAULT_SORT;
+  return { q, party, office, year, state, sort };
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -298,9 +372,83 @@ function FilterBar({ filters, onChange, allYears, allStates }: FilterBarProps) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function CandidatesPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   // Load the full list once — client-side filtering avoids API round-trips per keystroke.
   const { data, isLoading, error } = useCandidatesList({});
-  const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
+
+  // Derive filters from URL params.
+  const filters = useMemo(
+    () => getFiltersFromURL(searchParams),
+    [searchParams],
+  );
+
+  // Canonicalise stale/invalid/default URL params on mount and on searchParams change.
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    let changed = false;
+
+    const rawQ = searchParams.get(Q_PARAM);
+    const rawParty = searchParams.get(PARTY_PARAM);
+    const rawOffice = searchParams.get(OFFICE_PARAM);
+    const rawYear = searchParams.get(YEAR_PARAM);
+    const rawState = searchParams.get(STATE_PARAM);
+    const rawSort = searchParams.get(SORT_PARAM);
+
+    // q: delete if missing or equals default (empty string after trim)
+    if (rawQ !== null) {
+      if (rawQ.trim() === DEFAULT_Q) {
+        params.delete(Q_PARAM);
+        changed = true;
+      }
+    }
+
+    // party: delete if invalid or default
+    if (rawParty !== null) {
+      if (!isParty(rawParty) || rawParty === DEFAULT_PARTY) {
+        params.delete(PARTY_PARAM);
+        changed = true;
+      }
+    }
+
+    // office: delete if invalid or default
+    if (rawOffice !== null) {
+      if (!isOffice(rawOffice) || rawOffice === DEFAULT_OFFICE) {
+        params.delete(OFFICE_PARAM);
+        changed = true;
+      }
+    }
+
+    // year: delete if invalid or default
+    if (rawYear !== null) {
+      if (!isYear(rawYear) || rawYear === DEFAULT_YEAR) {
+        params.delete(YEAR_PARAM);
+        changed = true;
+      }
+    }
+
+    // state: delete if invalid or default
+    if (rawState !== null) {
+      if (!isState(rawState) || rawState === DEFAULT_STATE) {
+        params.delete(STATE_PARAM);
+        changed = true;
+      }
+    }
+
+    // sort: delete if invalid or default
+    if (rawSort !== null) {
+      if (!isSortKey(rawSort) || rawSort === DEFAULT_SORT) {
+        params.delete(SORT_PARAM);
+        changed = true;
+      }
+    }
+
+    if (!changed) return;
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router, searchParams, filters]);
 
   // Derive unique years and states from the full dataset for filter dropdowns.
   const { allYears, allStates } = useMemo(() => {
@@ -335,7 +483,16 @@ export default function CandidatesPage() {
   }, [data, filters]);
 
   function handleFilterChange(next: Partial<Filters>) {
-    setFilters((prev) => ({ ...prev, ...next }));
+    const merged = { ...filters, ...next };
+    const params = new URLSearchParams(searchParams.toString());
+    setOrDelete(params, Q_PARAM, merged.q.trim(), DEFAULT_Q);
+    setOrDelete(params, PARTY_PARAM, merged.party, DEFAULT_PARTY);
+    setOrDelete(params, OFFICE_PARAM, merged.office, DEFAULT_OFFICE);
+    setOrDelete(params, YEAR_PARAM, merged.year, DEFAULT_YEAR);
+    setOrDelete(params, STATE_PARAM, merged.state, DEFAULT_STATE);
+    setOrDelete(params, SORT_PARAM, merged.sort, DEFAULT_SORT);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
   return (

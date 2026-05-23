@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -19,8 +20,15 @@ interface PollsTableProps {
   polls: PollEntry[];
 }
 
-type SortKey = "date" | "race" | "pollster" | "dem_share" | "n_sample" | "grade";
+const SORT_KEYS = ["date", "race", "pollster", "dem_share", "n_sample", "grade"] as const;
+
+type SortKey = (typeof SORT_KEYS)[number];
 type SortDir = "asc" | "desc";
+
+const DEFAULT_SORT_KEY: SortKey = "date";
+const DEFAULT_SORT_DIR: SortDir = "desc";
+const SORT_PARAM = "sort";
+const DIR_PARAM = "dir";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -60,6 +68,22 @@ function formatDemShare(share: number): string {
 /** Format sample size with comma separators. */
 function formatSample(n: number): string {
   return n.toLocaleString();
+}
+
+function isSortKey(value: string | null): value is SortKey {
+  return SORT_KEYS.includes(value as SortKey);
+}
+
+function isSortDir(value: string | null): value is SortDir {
+  return value === "asc" || value === "desc";
+}
+
+function defaultDirForSort(key: SortKey): SortDir {
+  return key === "date" ? "desc" : "asc";
+}
+
+function isDefaultSort(key: SortKey, dir: SortDir): boolean {
+  return key === DEFAULT_SORT_KEY && dir === DEFAULT_SORT_DIR;
 }
 
 // ── Sort column header ─────────────────────────────────────────────────────
@@ -107,10 +131,37 @@ function SortHeader({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function PollsTable({ polls }: PollsTableProps) {
-  const [sortKey, setSortKey] = useState<SortKey>("date");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [raceFilter, setRaceFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
+
+  const rawSort = searchParams.get(SORT_PARAM);
+  const rawDir = searchParams.get(DIR_PARAM);
+  const sortKey = isSortKey(rawSort) ? rawSort : DEFAULT_SORT_KEY;
+  const sortDir = isSortKey(rawSort) && isSortDir(rawDir)
+    ? rawDir
+    : defaultDirForSort(sortKey);
+
+  useEffect(() => {
+    if (!rawSort && !rawDir) return;
+    if (isSortKey(rawSort) && isSortDir(rawDir) && !isDefaultSort(rawSort, rawDir)) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    if (isDefaultSort(sortKey, sortDir)) {
+      params.delete(SORT_PARAM);
+      params.delete(DIR_PARAM);
+    } else {
+      params.set(SORT_PARAM, sortKey);
+      params.set(DIR_PARAM, sortDir);
+    }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, rawDir, rawSort, router, searchParams, sortDir, sortKey]);
 
   // Derive unique races and grades for the filter dropdowns
   const uniqueRaces = useMemo(
@@ -152,13 +203,20 @@ export function PollsTable({ polls }: PollsTableProps) {
   }, [polls, raceFilter, gradeFilter, sortKey, sortDir]);
 
   function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    const nextDir =
+      sortKey === key ? (sortDir === "asc" ? "desc" : "asc") : defaultDirForSort(key);
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (isDefaultSort(key, nextDir)) {
+      params.delete(SORT_PARAM);
+      params.delete(DIR_PARAM);
     } else {
-      setSortKey(key);
-      // Default to desc for date (newest first), asc for everything else
-      setSortDir(key === "date" ? "desc" : "asc");
+      params.set(SORT_PARAM, key);
+      params.set(DIR_PARAM, nextDir);
     }
+
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
   const isFiltered = raceFilter !== "all" || gradeFilter !== "all";

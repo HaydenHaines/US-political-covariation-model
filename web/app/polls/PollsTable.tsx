@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useUrlState, type UrlStateSpec } from "@/lib/hooks/use-url-state";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -82,9 +82,26 @@ function defaultDirForSort(key: SortKey): SortDir {
   return key === "date" ? "desc" : "asc";
 }
 
-function isDefaultSort(key: SortKey, dir: SortDir): boolean {
-  return key === DEFAULT_SORT_KEY && dir === DEFAULT_SORT_DIR;
-}
+const POLLS_URL_SPEC: UrlStateSpec<{ sort: SortKey; dir: SortDir }> = {
+  sort: {
+    param: SORT_PARAM,
+    defaultValue: DEFAULT_SORT_KEY,
+    parse: (raw) => (isSortKey(raw) ? raw : DEFAULT_SORT_KEY),
+    serialize: (value, state) =>
+      value === DEFAULT_SORT_KEY && state.dir === DEFAULT_SORT_DIR ? null : value,
+  },
+  dir: {
+    param: DIR_PARAM,
+    defaultValue: DEFAULT_SORT_DIR,
+    parse: (raw, params) => {
+      const sort = params.get(SORT_PARAM);
+      const sortKey = isSortKey(sort) ? sort : DEFAULT_SORT_KEY;
+      return isSortKey(sort) && isSortDir(raw) ? raw : defaultDirForSort(sortKey);
+    },
+    serialize: (value, state) =>
+      state.sort === DEFAULT_SORT_KEY && value === DEFAULT_SORT_DIR ? null : value,
+  },
+};
 
 // ── Sort column header ─────────────────────────────────────────────────────
 
@@ -131,37 +148,11 @@ function SortHeader({
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function PollsTable({ polls }: PollsTableProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [raceFilter, setRaceFilter] = useState<string>("all");
   const [gradeFilter, setGradeFilter] = useState<string>("all");
-
-  const rawSort = searchParams.get(SORT_PARAM);
-  const rawDir = searchParams.get(DIR_PARAM);
-  const sortKey = isSortKey(rawSort) ? rawSort : DEFAULT_SORT_KEY;
-  const sortDir = isSortKey(rawSort) && isSortDir(rawDir)
-    ? rawDir
-    : defaultDirForSort(sortKey);
-
-  useEffect(() => {
-    if (!rawSort && !rawDir) return;
-    if (isSortKey(rawSort) && isSortDir(rawDir) && !isDefaultSort(rawSort, rawDir)) {
-      return;
-    }
-
-    const params = new URLSearchParams(searchParams.toString());
-    if (isDefaultSort(sortKey, sortDir)) {
-      params.delete(SORT_PARAM);
-      params.delete(DIR_PARAM);
-    } else {
-      params.set(SORT_PARAM, sortKey);
-      params.set(DIR_PARAM, sortDir);
-    }
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [pathname, rawDir, rawSort, router, searchParams, sortDir, sortKey]);
+  const { state: urlState, update: updateUrlState } = useUrlState(POLLS_URL_SPEC);
+  const sortKey = urlState.sort;
+  const sortDir = urlState.dir;
 
   // Derive unique races and grades for the filter dropdowns
   const uniqueRaces = useMemo(
@@ -205,18 +196,7 @@ export function PollsTable({ polls }: PollsTableProps) {
   function handleSort(key: SortKey) {
     const nextDir =
       sortKey === key ? (sortDir === "asc" ? "desc" : "asc") : defaultDirForSort(key);
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (isDefaultSort(key, nextDir)) {
-      params.delete(SORT_PARAM);
-      params.delete(DIR_PARAM);
-    } else {
-      params.set(SORT_PARAM, key);
-      params.set(DIR_PARAM, nextDir);
-    }
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    updateUrlState({ sort: key, dir: nextDir });
   }
 
   const isFiltered = raceFilter !== "all" || gradeFilter !== "all";

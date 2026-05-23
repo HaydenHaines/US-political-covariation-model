@@ -2,10 +2,10 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { MarginDisplay } from "@/components/shared/MarginDisplay";
 import { getSuperTypeColor, rgbToHex } from "@/lib/config/palette";
 import { stripStateSuffix } from "@/lib/config/states";
+import { useUrlState, type UrlStateSpec } from "@/lib/hooks/use-url-state";
 
 export interface CountyTableRow {
   county_fips: string;
@@ -26,6 +26,12 @@ interface StateCountyTableProps {
 const SORT_KEYS = ["name", "type", "lean"] as const;
 type SortField = (typeof SORT_KEYS)[number];
 type SortDir = "asc" | "desc";
+
+interface CountyTableUrlState {
+  sort: SortField;
+  dir: SortDir;
+  page: number;
+}
 
 const DEFAULT_SORT_KEY: SortField = "lean";
 const DEFAULT_SORT_DIR: SortDir = "desc";
@@ -60,20 +66,37 @@ function isDefaultSort(key: SortField, dir: SortDir): boolean {
   return key === DEFAULT_SORT_KEY && dir === DEFAULT_SORT_DIR;
 }
 
+const COUNTY_TABLE_URL_SPEC: UrlStateSpec<CountyTableUrlState> = {
+  sort: {
+    param: SORT_PARAM,
+    defaultValue: DEFAULT_SORT_KEY,
+    parse: (raw) => (isSortKey(raw) ? raw : DEFAULT_SORT_KEY),
+    serialize: (value, state) => (isDefaultSort(value, state.dir) ? null : value),
+  },
+  dir: {
+    param: DIR_PARAM,
+    defaultValue: DEFAULT_SORT_DIR,
+    parse: (raw, params) => {
+      const rawSort = params.get(SORT_PARAM);
+      const sort = isSortKey(rawSort) ? rawSort : DEFAULT_SORT_KEY;
+      return isSortKey(rawSort) && isSortDir(raw) ? raw : defaultDirForSort(sort);
+    },
+    serialize: (value, state) => (isDefaultSort(state.sort, value) ? null : value),
+  },
+  page: {
+    param: PAGE_PARAM,
+    defaultValue: DEFAULT_PAGE,
+    parse: (raw) => (isValidPage(raw) ? Number(raw) : DEFAULT_PAGE),
+    serialize: (value) => (value === DEFAULT_PAGE ? null : String(value)),
+  },
+};
+
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function StateCountyTable({ counties }: StateCountyTableProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-
-  const rawSort = searchParams.get(SORT_PARAM);
-  const rawDir = searchParams.get(DIR_PARAM);
-  const rawPage = searchParams.get(PAGE_PARAM);
-
-  const sortField = isSortKey(rawSort) ? rawSort : DEFAULT_SORT_KEY;
-  const sortDir =
-    isSortKey(rawSort) && isSortDir(rawDir) ? rawDir : defaultDirForSort(sortField);
+  const { state: urlState, update: updateUrlState } = useUrlState(COUNTY_TABLE_URL_SPEC);
+  const sortField = urlState.sort;
+  const sortDir = urlState.dir;
 
   const sorted = [...counties].sort((a, b) => {
     let cmp = 0;
@@ -94,66 +117,23 @@ export function StateCountyTable({ counties }: StateCountyTableProps) {
   });
 
   const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const rawPageNum = isValidPage(rawPage) ? Number(rawPage) : DEFAULT_PAGE;
-  const page = totalPages > 0 ? Math.min(rawPageNum, totalPages - 1) : DEFAULT_PAGE;
+  const page = totalPages > 0 ? Math.min(urlState.page, totalPages - 1) : DEFAULT_PAGE;
 
-  // Canonicalise stale/invalid/default URL params
   useEffect(() => {
-    if (!rawSort && !rawDir && !rawPage) return;
-
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (isDefaultSort(sortField, sortDir)) {
-      params.delete(SORT_PARAM);
-      params.delete(DIR_PARAM);
-    } else {
-      params.set(SORT_PARAM, sortField);
-      params.set(DIR_PARAM, sortDir);
+    if (urlState.page !== page) {
+      updateUrlState({ page });
     }
-
-    if (page === DEFAULT_PAGE) {
-      params.delete(PAGE_PARAM);
-    } else {
-      params.set(PAGE_PARAM, String(page));
-    }
-
-    if (params.toString() === searchParams.toString()) return;
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-  }, [page, pathname, rawDir, rawPage, rawSort, router, searchParams, sortDir, sortField]);
+  }, [page, updateUrlState, urlState.page]);
 
   function handleSort(field: SortField) {
     const nextDir =
       sortField === field ? (sortDir === "asc" ? "desc" : "asc") : defaultDirForSort(field);
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (isDefaultSort(field, nextDir)) {
-      params.delete(SORT_PARAM);
-      params.delete(DIR_PARAM);
-    } else {
-      params.set(SORT_PARAM, field);
-      params.set(DIR_PARAM, nextDir);
-    }
-
-    params.delete(PAGE_PARAM);
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    updateUrlState({ sort: field, dir: nextDir, page: DEFAULT_PAGE });
   }
 
   function handlePageChange(newPage: number) {
     const clamped = Math.max(DEFAULT_PAGE, Math.min(newPage, totalPages - 1));
-    const params = new URLSearchParams(searchParams.toString());
-
-    if (clamped === DEFAULT_PAGE) {
-      params.delete(PAGE_PARAM);
-    } else {
-      params.set(PAGE_PARAM, String(clamped));
-    }
-
-    const query = params.toString();
-    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    updateUrlState({ page: clamped });
   }
 
   const slice = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);

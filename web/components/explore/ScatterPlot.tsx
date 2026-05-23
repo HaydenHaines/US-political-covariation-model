@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { scaleLinear } from "@visx/scale";
 import { AxisBottom, AxisLeft } from "@visx/axis";
 import { Group } from "@visx/group";
@@ -72,11 +73,50 @@ interface ScatterPlotProps {
  * Mobile (<768px): dropdowns in a bottom sheet triggered by a floating button.
  * Dots are colored by super-type, sized by county count, with hover tooltips.
  */
+const X_DEFAULT = "pct_white_nh";
+const Y_DEFAULT = "mean_dem_share";
+
+function validAxisKey(value: string | null, fallback: string): string {
+  return value && AXIS_FIELDS.some((f) => f.key === value) ? value : fallback;
+}
+
 export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { data: points, isLoading } = useTypeScatter();
-  const [xField, setXField] = useState("pct_white_nh");
-  const [yField, setYField] = useState("mean_dem_share");
+
+  const initialX = useMemo(
+    () => validAxisKey(searchParams.get("x"), X_DEFAULT),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  const initialY = useMemo(
+    () => validAxisKey(searchParams.get("y"), Y_DEFAULT),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  const [xField, setXField] = useState(initialX);
+  const [yField, setYField] = useState(initialY);
   const [bottomSheetOpen, setBottomSheetOpen] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (xField === X_DEFAULT) {
+      params.delete("x");
+    } else {
+      params.set("x", xField);
+    }
+    if (yField === Y_DEFAULT) {
+      params.delete("y");
+    } else {
+      params.set("y", yField);
+    }
+    const qs = params.toString();
+    router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [xField, yField]);
 
   const { tooltipData, tooltipLeft, tooltipTop, showTooltip, hideTooltip } =
     useTooltip<TooltipData>();
@@ -184,6 +224,7 @@ export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
         <label className="flex items-center gap-2">
           <span style={{ color: "var(--color-text-muted)" }}>X axis:</span>
           <select
+            data-testid="scatter-x-select"
             value={xField}
             onChange={(e) => setXField(e.target.value)}
             className="rounded border px-2 py-1 text-sm"
@@ -204,6 +245,7 @@ export function ScatterPlot({ width = 640, height = 420 }: ScatterPlotProps) {
         <label className="flex items-center gap-2">
           <span style={{ color: "var(--color-text-muted)" }}>Y axis:</span>
           <select
+            data-testid="scatter-y-select"
             value={yField}
             onChange={(e) => setYField(e.target.value)}
             className="rounded border px-2 py-1 text-sm"

@@ -99,7 +99,6 @@ export function QuantileDotplot({
   // Layout: COLS columns, stacking rows from bottom up
   const rows = Math.ceil(effectiveNDots / COLS);
   const padding = { top: 12, right: 12, bottom: 12, left: 12 };
-  const dotSpacingX = (width - padding.left - padding.right) / COLS;
   const dotSpacingY = (height - padding.top - padding.bottom) / rows;
 
   // Sort quantiles low-to-high so we can fill left-to-right, bottom-to-top

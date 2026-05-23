@@ -59,11 +59,12 @@ function ShiftSparkline({ shiftProfile }: { shiftProfile: Record<string, number>
       ],
     });
 
-    ref.current.innerHTML = "";
-    ref.current.appendChild(plot);
+    const container = ref.current;
+    container.innerHTML = "";
+    container.appendChild(plot);
 
     return () => {
-      ref.current?.removeChild(plot);
+      container.removeChild(plot);
     };
   }, [shiftProfile]);
 

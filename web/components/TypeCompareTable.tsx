@@ -104,7 +104,6 @@ export function TypeCompareTable() {
   const [allTypes, setAllTypes] = useState<TypeSummary[]>([]);
   const [details, setDetails] = useState<Map<number, TypeDetail>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<number>>(new Set());
-  const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortTypeId, setSortTypeId] = useState<number | null>(null);
 
   // Load all types list once
@@ -188,15 +187,6 @@ export function TypeCompareTable() {
   // Compute per-metric min/max for tinting
   const minMax = computeMinMax(rowKeys, loadedDetails);
 
-  // Sort rows if a sort column is active
-  const sortedRowKeys = sortKey
-    ? [...rowKeys].sort((a, b) => {
-        if (a === sortKey) return -1;
-        if (b === sortKey) return 1;
-        return 0;
-      })
-    : rowKeys;
-
   // If sortTypeId is set, sort by that type's values descending
   const finalRowKeys =
     sortTypeId !== null
@@ -207,9 +197,8 @@ export function TypeCompareTable() {
           const vb = typeDetail.demographics[b] ?? -Infinity;
           return vb - va;
         })
-      : sortedRowKeys;
+      : rowKeys;
 
-  const colWidth = 420 / (compareTypeIds.length + 1);
   const labelColWidth = Math.max(120, 420 - compareTypeIds.length * 110);
   const typeColWidth = Math.min(120, (420 - labelColWidth) / Math.max(compareTypeIds.length, 1));
 

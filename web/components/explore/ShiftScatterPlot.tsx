@@ -248,8 +248,9 @@ export function ShiftScatterPlot({
       marks,
     });
 
-    ref.current.innerHTML = "";
-    ref.current.appendChild(plot);
+    const container = ref.current;
+    container.innerHTML = "";
+    container.appendChild(plot);
 
     // Tooltip via mousemove on the plot SVG.
     // We compute pixel coordinates manually from plot margins because Observable Plot
@@ -323,12 +324,12 @@ export function ShiftScatterPlot({
         svg.removeEventListener("mousemove", handleMouseMove as EventListener);
         svg.removeEventListener("mouseleave", handleMouseLeave);
         svg.removeEventListener("click", handleClick as EventListener);
-        ref.current?.removeChild(plot);
+        if (container.contains(plot)) container.removeChild(plot);
       };
     }
 
     return () => {
-      if (ref.current?.contains(plot)) ref.current.removeChild(plot);
+      if (container.contains(plot)) container.removeChild(plot);
     };
   }, [data, xKey, yKey, onHover, onClick, selectedIds, plotWidth]);
 

@@ -57,7 +57,7 @@ function ForecastTabs() {
  * to that state's race detail page when a state is clicked on the map.
  */
 function ForecastStateNavigator() {
-  const { forecastState, setForecastState } = useMapContext();
+  const { forecastState } = useMapContext();
   const router = useRouter();
   const pathname = usePathname();
   // Track the last state we navigated to, so we don't re-navigate on mount

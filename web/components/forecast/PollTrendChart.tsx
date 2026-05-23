@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { Group } from "@visx/group";
 import { AreaClosed, LinePath } from "@visx/shape";
 import { scaleLinear, scaleTime } from "@visx/scale";

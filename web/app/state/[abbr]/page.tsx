@@ -55,18 +55,6 @@ interface TypeSummary {
   log_pop_density: number | null;
 }
 
-interface TypeDetail {
-  type_id: number;
-  super_type_id: number;
-  display_name: string;
-  n_counties: number;
-  mean_pred_dem_share: number | null;
-  counties: Array<{ county_fips: string; county_name: string | null; state_abbr: string }>;
-  demographics: Record<string, number>;
-  shift_profile: Record<string, number> | null;
-  narrative: string | null;
-}
-
 interface CountyDetail {
   county_fips: string;
   county_name: string | null;

@@ -63,12 +63,20 @@ export default function ExploreShiftsPage() {
     >
       {/* Breadcrumb */}
       <nav
+        aria-label="Breadcrumb"
         style={{
           fontSize: 13,
           color: "var(--color-text-muted)",
           marginBottom: 24,
         }}
       >
+        <Link
+          href="/explore"
+          style={{ color: "var(--color-dem)", textDecoration: "none" }}
+        >
+          Explore
+        </Link>
+        {" / "}
         <Link
           href="/explore/map"
           style={{ color: "var(--color-dem)", textDecoration: "none" }}

@@ -54,6 +54,13 @@ test.describe("StateCountyTable URL-sync (/state/GA)", () => {
     await expect(page.locator('[data-testid="county-table"]')).toBeVisible();
   });
 
+  test("?page=bogus falls back to first page and rewrites URL", async ({ page }) => {
+    await gotoState(page, "?page=bogus");
+
+    await expect(page).toHaveURL(/\/state\/GA$/, { timeout: 5_000 });
+    await expect(page.locator('[data-testid="county-table"]')).toBeVisible();
+  });
+
   test("?page=999 clamps to last valid page and rewrites URL", async ({ page }) => {
     await gotoState(page, "?page=999");
 

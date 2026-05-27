@@ -717,6 +717,98 @@ class PollsterAccuracyResponse(BaseModel):
     """Pollsters sorted by rank (ascending RMSE -- best first)."""
 
 
+# ── Poll coverage diagnostics ───────────────────────────────────────────────
+
+
+class PollCoverageMetadata(BaseModel):
+    """Metadata for the generated poll coverage diagnostic report."""
+
+    total_polls: int
+    polls_with_xt_data: int
+    polls_analyzed: int
+    active_xt_columns: list[str]
+    mappable_xt_columns: list[str]
+    oversample_threshold: float
+    undersample_threshold: float
+
+
+class PollCoverageAffectedType(BaseModel):
+    """Community type most exposed to an undersampled demographic group."""
+
+    type_id: int
+    display_name: str
+    group_share: float
+    state_weight: float
+    exposure: float
+
+
+class PollCoverageGap(BaseModel):
+    """Coverage status for one demographic group in one poll."""
+
+    demographic_group: str
+    label: str
+    poll_share: float
+    population_share: float
+    ratio: float
+    status: str
+    affected_types: list[PollCoverageAffectedType] = Field(default_factory=list)
+
+
+class PollCoveragePollResult(BaseModel):
+    """Coverage diagnostic result for one poll."""
+
+    race: str
+    state: str
+    pollster: str
+    date: str
+    n_sample: int | None
+    n_groups_analyzed: int
+    n_undersampled: int
+    n_oversampled: int
+    gaps: list[PollCoverageGap]
+
+
+class PollCoverageTopAffectedType(BaseModel):
+    """Aggregate count for a type affected by a demographic gap."""
+
+    type_label: str
+    n_races_affected: int
+
+
+class PollCoverageGroupSummary(BaseModel):
+    """Aggregate coverage counts for one demographic group."""
+
+    label: str
+    n_undersampled: int
+    n_oversampled: int
+    n_representative: int
+    n_total_polls: int
+    top_affected_types: list[PollCoverageTopAffectedType]
+
+
+class PollCoverageUndersampledRankingEntry(BaseModel):
+    """One chronically undersampled group ranked by poll count."""
+
+    group: str
+    label: str
+    n_polls_undersampled: int
+
+
+class PollCoverageSummary(BaseModel):
+    """Aggregate poll coverage diagnostic summary."""
+
+    by_group: dict[str, PollCoverageGroupSummary]
+    undersampled_ranking: list[PollCoverageUndersampledRankingEntry]
+
+
+class PollCoverageReportResponse(BaseModel):
+    """Generated poll coverage diagnostic report."""
+
+    metadata: PollCoverageMetadata
+    summary: PollCoverageSummary
+    per_poll_results: list[PollCoveragePollResult]
+
+
 # ── Sabermetrics: candidate badges & CTOV ───────────────────────────────────
 
 

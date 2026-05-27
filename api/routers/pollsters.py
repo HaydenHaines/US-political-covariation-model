@@ -13,7 +13,11 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from api.models import PollsterAccuracyEntry, PollsterAccuracyResponse
+from api.models import (
+    PollCoverageReportResponse,
+    PollsterAccuracyEntry,
+    PollsterAccuracyResponse,
+)
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +29,12 @@ _ACCURACY_PATH = (
     / "data"
     / "experiments"
     / "pollster_accuracy.json"
+)
+_COVERAGE_REPORT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "data"
+    / "diagnostics"
+    / "poll_coverage_report.json"
 )
 
 
@@ -43,6 +53,23 @@ def _load_accuracy_data() -> dict:
             ),
         )
     with open(_ACCURACY_PATH) as f:
+        return json.load(f)
+
+
+def _load_coverage_report() -> dict:
+    """Load poll coverage diagnostics JSON from disk.
+
+    Raises HTTPException(503) if the report has not been generated yet.
+    """
+    if not _COVERAGE_REPORT_PATH.exists():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Poll coverage diagnostics report not yet generated. "
+                "Run: uv run python scripts/analyze_poll_coverage.py"
+            ),
+        )
+    with open(_COVERAGE_REPORT_PATH) as f:
         return json.load(f)
 
 
@@ -76,3 +103,13 @@ def get_pollster_accuracy() -> PollsterAccuracyResponse:
         n_pollsters=raw.get("n_pollsters", len(pollsters)),
         pollsters=pollsters,
     )
+
+
+@router.get("/pollsters/coverage", response_model=PollCoverageReportResponse)
+def get_poll_coverage_report() -> PollCoverageReportResponse:
+    """Return the generated poll coverage diagnostics report.
+
+    The data is generated offline by ``scripts/analyze_poll_coverage.py`` and
+    identifies demographic coverage gaps in polls with xt_ composition data.
+    """
+    return PollCoverageReportResponse.model_validate(_load_coverage_report())
